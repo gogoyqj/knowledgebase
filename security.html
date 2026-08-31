@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>服务安全防护指南 — 认证 · 授权 · 加密 · 攻防</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #B71C1C;
+    --md-on-primary: #fff;
+    --md-primary-container: #FFEBEE;
+    --md-on-primary-container: #410002;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #006B5E;
+    --md-tertiary-container: #9CF2E2;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-success: #2E7D32;
+    --md-warning: #E65100;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #FDF6F6;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #B71C1C 0%, #D32F2F 50%, #E57373 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 620px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(183,28,28,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.red    { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.green  { background: #D0F5D8; color: #003D16; }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.amber  { background: #FFF3C4; color: #5D4037; }
+  .card-icon.purple { background: var(--md-secondary-container); color: #4A148C; }
+  .card-icon.teal   { background: #C8F7E5; color: #003D2E; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.red {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .chip.green {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+  .chip.amber {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #FFF5F5;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  .banner.warn {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+  .banner.success {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Comparison Grid ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Layer Diagram ── */
+  .layer-stack {
+    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .layer {
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 14px;
+    position: relative;
+  }
+  .layer .layer-desc {
+    font-weight: 400;
+    font-size: 12.5px;
+    opacity: .8;
+    margin-top: 2px;
+  }
+  .layer.l1 { background: #FFCDD2; color: #B71C1C; }
+  .layer.l2 { background: #FFE0B2; color: #E65100; }
+  .layer.l3 { background: #FFF9C4; color: #F57F17; }
+  .layer.l4 { background: #C8E6C9; color: #2E7D32; }
+  .layer.l5 { background: #BBDEFB; color: #0D47A1; }
+  .layer.l6 { background: #E1BEE7; color: #4A148C; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">🛡️</div>
+  <h1>服务安全 <span>防护指南</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>认证 · 授权 · 加密 · 攻防</h2>
+  <p>全面了解服务安全核心措施，从网络层到应用层构建纵深防御体系</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="overview">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">security</span>
+    安全全景
+  </button>
+  <button class="tab-btn" data-tab="auth">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">key</span>
+    认证与授权
+  </button>
+  <button class="tab-btn" data-tab="crypto">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">lock</span>
+    数据加密
+  </button>
+  <button class="tab-btn" data-tab="attack">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">bug_report</span>
+    常见攻击与防御
+  </button>
+  <button class="tab-btn" data-tab="practice">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">checklist</span>
+    安全实践
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== 安全全景 ==================== -->
+  <section class="section active" id="overview">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">security</span></div>
+        <h3>什么是服务安全？</h3>
+      </div>
+      <p>
+        服务安全是指通过一系列技术手段和管理措施，保护服务的<strong>机密性</strong>（Confidentiality）、
+        <strong>完整性</strong>（Integrity）和<strong>可用性</strong>（Availability），即经典的 <strong>CIA 三元组</strong>。
+        现代服务安全是一个多层次的纵深防御体系，从网络边界到代码逻辑，每一层都有对应的安全策略。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>安全不是单一产品，而是一个<strong>持续的过程</strong>。需要从设计阶段就考虑安全（Security by Design），并在整个生命周期中不断评估和改进。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">layers</span></div>
+        <h3>纵深防御模型</h3>
+      </div>
+      <p>纵深防御（Defense in Depth）是安全架构的核心理念：不依赖单一防线，而是在每一层都部署安全措施，即使某一层被突破，其他层仍能提供保护。</p>
+      <div class="layer-stack">
+        <div class="layer l1">
+          🌐 网络层安全
+          <div class="layer-desc">防火墙、DDoS 防护、VPN、网络隔离</div>
+        </div>
+        <div class="layer l2">
+          🚪 传输层安全
+          <div class="layer-desc">TLS/SSL、证书管理、HTTPS 强制</div>
+        </div>
+        <div class="layer l3">
+          🔑 身份层安全
+          <div class="layer-desc">认证、授权、会话管理、MFA</div>
+        </div>
+        <div class="layer l4">
+          🛡️ 应用层安全
+          <div class="layer-desc">输入校验、参数化查询、安全头</div>
+        </div>
+        <div class="layer l5">
+          💾 数据层安全
+          <div class="layer-desc">加密存储、脱敏、备份、访问控制</div>
+        </div>
+        <div class="layer l6">
+          📋 运维层安全
+          <div class="layer-desc">日志审计、监控告警、漏洞管理、应急响应</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">checklist</span></div>
+        <h3>CIA 三元组</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">visibility_off</span> 机密性</h4>
+          <p>确保数据只能被授权的人员访问。措施：加密、访问控制、数据脱敏、密钥管理。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">verified</span> 完整性</h4>
+          <p>确保数据不被未授权篡改。措施：数字签名、哈希校验、版本控制、审计日志。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">cloud_done</span> 可用性</h4>
+          <p>确保服务在需要时可正常访问。措施：负载均衡、容灾备份、DDoS 防护、限流熔断。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">assessment</span></div>
+        <h3>安全威胁全景</h3>
+      </div>
+      <p>根据 OWASP Top 10，Web 应用最常见的安全风险包括：</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🔓 失效的访问控制</h4>
+          <p>越权访问、IDOR、权限提升。最常见且影响最大的安全问题。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>💉 注入攻击</h4>
+          <p>SQL 注入、NoSQL 注入、命令注入、LDAP 注入等。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⚠️ 不安全的设计</h4>
+          <p>缺乏威胁建模、安全设计模式，导致架构层面的安全缺陷。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔑 加密机制失效</h4>
+          <p>弱算法、硬编码密钥、明文传输敏感数据。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📦 脆弱的依赖</h4>
+          <p>使用含已知漏洞的第三方库或组件。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📝 日志与监控不足</h4>
+          <p>安全事件无法被及时发现和响应。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 认证与授权 ==================== -->
+  <section class="section" id="auth">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">key</span></div>
+        <h3>认证 vs 授权</h3>
+      </div>
+      <p>认证（Authentication）和授权（Authorization）是安全体系中最基础的两个概念：</p>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🔍 认证 Authentication</h4>
+          <ul>
+            <li><strong>你是谁？</strong> — 验证身份</li>
+            <li>发生在授权之前</li>
+            <li>方式：密码、Token、生物识别</li>
+            <li>结果：已认证 / 未认证</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>✅ 授权 Authorization</h4>
+          <ul>
+            <li><strong>你能做什么？</strong> — 检查权限</li>
+            <li>发生在认证之后</li>
+            <li>方式：RBAC、ABAC、ACL</li>
+            <li>结果：允许 / 拒绝</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">token</span></div>
+        <h3>JWT（JSON Web Token）</h3>
+      </div>
+      <p>JWT 是目前最流行的无状态认证方案，由三部分组成：</p>
+      <div class="diagram">  ┌───────────────────────────────────────────────────────────────┐
+  │                        JWT 结构                               │
+  └───────────────────────────────────────────────────────────────┘
+
+  eyJhbGciOiJIUzI1NiJ9 . eyJ1c2VySWQiOjEsInJvbGUiOiJhZG1pbiJ9 . SflKxwRJSMeKKF2QT4fwpM
+
+  ┌─────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+  │   Header     │    │    Payload        │    │    Signature        │
+  │              │    │                   │    │                     │
+  │ alg: "HS256" │    │ userId: 1         │    │ HMACSHA256(         │
+  │ typ: "JWT"   │    │ role: "admin"     │    │   base64(header) +  │
+  │              │    │ iat: 1700000000   │    │   "." +             │
+  │              │    │ exp: 1700003600   │    │   base64(payload),  │
+  │              │    │                   │    │   secret            │
+  │              │    │                   │    │ )                   │
+  └─────────────┘    └──────────────────┘    └─────────────────────┘</div>
+      <pre><span class="cm">// JWT 签发与验证</span>
+<span class="kw">import</span> jwt <span class="kw">from</span> <span class="str">'jsonwebtoken'</span>
+
+<span class="cm">// 签发 Token</span>
+<span class="kw">const</span> token = jwt.<span class="fn">sign</span>(
+  { userId: <span class="num">1</span>, role: <span class="str">'admin'</span> },
+  process.env.<span class="typ">JWT_SECRET</span>,
+  { expiresIn: <span class="str">'2h'</span>, algorithm: <span class="str">'HS256'</span> }
+)
+
+<span class="cm">// 验证 Token</span>
+<span class="kw">try</span> {
+  <span class="kw">const</span> payload = jwt.<span class="fn">verify</span>(token, process.env.<span class="typ">JWT_SECRET</span>)
+  <span class="cm">// payload = { userId: 1, role: 'admin', iat: ..., exp: ... }</span>
+} <span class="kw">catch</span> (err) {
+  <span class="cm">// TokenExpiredError | JsonWebTokenError | NotBeforeError</span>
+}</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>安全注意：</strong>JWT 的 Payload 是 Base64 编码（非加密），不要在其中存放敏感信息。务必使用强密钥（≥256 bit），并在服务端验证 <span class="inline-code">exp</span>、<span class="inline-code">iss</span>、<span class="inline-code">aud</span> 等声明。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Session vs Token 认证</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🍪 Session 认证</h4>
+          <ul>
+            <li>服务端存储会话状态</li>
+            <li>通过 Cookie 传输 Session ID</li>
+            <li>天然支持会话管理和失效</li>
+            <li>分布式环境需要共享存储（Redis）</li>
+            <li>需要 CSRF 防护</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>🎫 Token 认证（JWT）</h4>
+          <ul>
+            <li>无状态，服务端不存储会话</li>
+            <li>通过 Header 传输：<span class="inline-code">Authorization: Bearer xxx</span></li>
+            <li>天然跨域、适合微服务</li>
+            <li>失效需借助黑名单或短过期时间</li>
+            <li>无 CSRF 问题（不依赖 Cookie）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="banner success">
+        <span class="material-icons-outlined">tips_and_updates</span>
+        <div><strong>最佳实践：</strong>Access Token（短期，15min）+ Refresh Token（长期，7d）双 Token 方案。Access Token 用于请求认证，Refresh Token 用于无感刷新。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">admin_panel_settings</span></div>
+        <h3>RBAC 权限模型</h3>
+      </div>
+      <p>基于角色的访问控制（Role-Based Access Control）是企业应用中最常用的授权模型：</p>
+      <div class="diagram">  ┌─────────────────────────────────────────────────────────┐
+  │                    RBAC 模型                             │
+  └─────────────────────────────────────────────────────────┘
+
+  ┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌──────────┐
+  │   User   │───▶│   Role   │───▶│  Permission  │───▶│ Resource │
+  │          │    │          │    │              │    │          │
+  │ 张三      │    │ 管理员    │    │ user:read    │    │ 用户管理  │
+  │ 李四      │    │ 编辑      │    │ user:write   │    │ 文章管理  │
+  │ 王五      │    │ 访客      │    │ article:*    │    │ 评论管理  │
+  └──────────┘    └──────────┘    └──────────────┘    └──────────┘
+
+  用户 ──(N:N)──▶ 角色 ──(N:N)──▶ 权限 ──(N:N)──▶ 资源</div>
+      <pre><span class="cm">// RBAC 中间件示例</span>
+<span class="kw">function</span> <span class="fn">authorize</span>(...requiredPermissions) {
+  <span class="kw">return</span> (req, res, next) => {
+    <span class="kw">const</span> user = req.user <span class="cm">// 从认证中间件获取</span>
+    <span class="kw">const</span> userPermissions = <span class="fn">getPermissionsByRoles</span>(user.roles)
+
+    <span class="kw">const</span> hasPermission = requiredPermissions.<span class="fn">some</span>(
+      perm => userPermissions.<span class="fn">includes</span>(perm)
+    )
+
+    <span class="kw">if</span> (!hasPermission) {
+      <span class="kw">return</span> res.<span class="fn">status</span>(<span class="num">403</span>).<span class="fn">json</span>({
+        error: <span class="str">'Forbidden'</span>,
+        message: <span class="str">'权限不足'</span>
+      })
+    }
+    <span class="fn">next</span>()
+  }
+}
+
+<span class="cm">// 使用</span>
+router.<span class="fn">get</span>(<span class="str">'/users'</span>, <span class="fn">authenticate</span>, <span class="fn">authorize</span>(<span class="str">'user:read'</span>), getUsers)
+router.<span class="fn">delete</span>(<span class="str">'/users/:id'</span>, <span class="fn">authenticate</span>, <span class="fn">authorize</span>(<span class="str">'user:delete'</span>), deleteUser)</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">smartphone</span></div>
+        <h3>多因素认证（MFA）</h3>
+      </div>
+      <p>MFA 要求用户提供两种或以上的验证因素，大幅提升账户安全性：</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🧠 知识因素</h4>
+          <p>用户知道的信息：密码、PIN 码、安全问题。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📱 持有因素</h4>
+          <p>用户拥有的物品：手机（TOTP/SMS）、硬件密钥（YubiKey）、智能卡。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>👆 固有因素</h4>
+          <p>用户的生物特征：指纹、面部识别、虹膜、声纹。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// TOTP（基于时间的一次性密码）实现</span>
+<span class="kw">import</span> speakeasy <span class="kw">from</span> <span class="str">'speakeasy'</span>
+
+<span class="cm">// 生成密钥（用户绑定时）</span>
+<span class="kw">const</span> secret = speakeasy.<span class="fn">generateSecret</span>({
+  name: <span class="str">'MyApp:user@example.com'</span>,
+  length: <span class="num">20</span>
+})
+<span class="cm">// secret.base32 → 存储到数据库</span>
+<span class="cm">// secret.otpauth_url → 生成二维码供用户扫描</span>
+
+<span class="cm">// 验证用户输入的 6 位验证码</span>
+<span class="kw">const</span> isValid = speakeasy.totp.<span class="fn">verify</span>({
+  secret: user.totpSecret,
+  encoding: <span class="str">'base32'</span>,
+  token: req.body.code,
+  window: <span class="num">1</span>  <span class="cm">// 允许前后各 1 个时间窗口的偏移</span>
+})</pre>
+    </div>
+  </section>
+
+  <!-- ==================== 数据加密 ==================== -->
+  <section class="section" id="crypto">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">lock</span></div>
+        <h3>传输层加密 — TLS/HTTPS</h3>
+      </div>
+      <p>TLS（Transport Layer Security）是保护网络通信安全的基石，HTTPS = HTTP + TLS。</p>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────────┐
+  │                    TLS 1.3 握手流程                           │
+  └──────────────────────────────────────────────────────────────┘
+
+  Client                                              Server
+    │                                                    │
+    │ ── ClientHello ──────────────────────────────────▶ │
+    │    (支持的密码套件, 随机数, key_share)                 │
+    │                                                    │
+    │ ◀── ServerHello ─────────────────────────────────── │
+    │    (选定的密码套件, 随机数, key_share)                 │
+    │ ◀── EncryptedExtensions ─────────────────────────── │
+    │ ◀── Certificate ─────────────────────────────────── │
+    │ ◀── CertificateVerify ───────────────────────────── │
+    │ ◀── Finished ────────────────────────────────────── │
+    │                                                    │
+    │ ── Finished ──────────────────────────────────────▶ │
+    │                                                    │
+    │ ════════════ 应用数据（加密传输）══════════════════ │</div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>TLS 1.3 改进：</strong>握手从 2-RTT 减少到 1-RTT（0-RTT 恢复），移除了不安全的密码套件（RC4、3DES、CBC），仅支持前向保密（PFS）。</div>
+      </div>
+      <pre><span class="cm">// Node.js HTTPS 服务配置</span>
+<span class="kw">import</span> https <span class="kw">from</span> <span class="str">'node:https'</span>
+<span class="kw">import</span> fs <span class="kw">from</span> <span class="str">'node:fs'</span>
+
+<span class="kw">const</span> server = https.<span class="fn">createServer</span>({
+  key: fs.<span class="fn">readFileSync</span>(<span class="str">'./certs/server.key'</span>),
+  cert: fs.<span class="fn">readFileSync</span>(<span class="str">'./certs/server.crt'</span>),
+  ca: fs.<span class="fn">readFileSync</span>(<span class="str">'./certs/ca.crt'</span>),
+
+  <span class="cm">// 安全配置</span>
+  minVersion: <span class="str">'TLSv1.2'</span>,
+  ciphers: [
+    <span class="str">'TLS_AES_256_GCM_SHA384'</span>,
+    <span class="str">'TLS_CHACHA20_POLY1305_SHA256'</span>,
+    <span class="str">'ECDHE-RSA-AES256-GCM-SHA384'</span>
+  ].<span class="fn">join</span>(<span class="str">':'</span>),
+  honorCipherOrder: <span class="kw">true</span>
+}, app)
+
+server.<span class="fn">listen</span>(<span class="num">443</span>)</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">enhanced_encryption</span></div>
+        <h3>对称加密 vs 非对称加密</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🔑 对称加密</h4>
+          <ul>
+            <li>加密解密使用<strong>同一密钥</strong></li>
+            <li>速度快，适合大量数据</li>
+            <li>算法：AES-256-GCM、ChaCha20</li>
+            <li>难点：密钥分发</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>🔐 非对称加密</h4>
+          <ul>
+            <li>公钥加密，私钥解密</li>
+            <li>速度慢，适合少量数据</li>
+            <li>算法：RSA-2048、ECDSA (P-256)</li>
+            <li>用途：密钥交换、数字签名</li>
+          </ul>
+        </div>
+      </div>
+      <pre><span class="cm">// Node.js 加密实践</span>
+<span class="kw">import</span> crypto <span class="kw">from</span> <span class="str">'node:crypto'</span>
+
+<span class="cm">// AES-256-GCM 对称加密</span>
+<span class="kw">function</span> <span class="fn">encrypt</span>(plaintext, key) {
+  <span class="kw">const</span> iv = crypto.<span class="fn">randomBytes</span>(<span class="num">12</span>)
+  <span class="kw">const</span> cipher = crypto.<span class="fn">createCipheriv</span>(<span class="str">'aes-256-gcm'</span>, key, iv)
+  <span class="kw">let</span> encrypted = cipher.<span class="fn">update</span>(plaintext, <span class="str">'utf8'</span>, <span class="str">'hex'</span>)
+  encrypted += cipher.<span class="fn">final</span>(<span class="str">'hex'</span>)
+  <span class="kw">const</span> authTag = cipher.<span class="fn">getAuthTag</span>().<span class="fn">toString</span>(<span class="str">'hex'</span>)
+  <span class="kw">return</span> { iv: iv.<span class="fn">toString</span>(<span class="str">'hex'</span>), encrypted, authTag }
+}
+
+<span class="cm">// 密码哈希（bcrypt / argon2）</span>
+<span class="kw">import</span> bcrypt <span class="kw">from</span> <span class="str">'bcrypt'</span>
+
+<span class="kw">const</span> hash = <span class="kw">await</span> bcrypt.<span class="fn">hash</span>(password, <span class="num">12</span>) <span class="cm">// salt rounds = 12</span>
+<span class="kw">const</span> match = <span class="kw">await</span> bcrypt.<span class="fn">compare</span>(inputPassword, storedHash)</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>永远不要</strong>使用 MD5/SHA1 存储密码，它们不是密码哈希函数。使用 <strong>bcrypt</strong>、<strong>argon2</strong> 或 <strong>scrypt</strong>，它们内置 salt 和可调节的工作因子。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">vpn_key</span></div>
+        <h3>密钥管理最佳实践</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🚫 永不硬编码</h4>
+          <p>密钥不应出现在代码中。使用环境变量、密钥管理服务（AWS KMS、HashiCorp Vault）。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔄 定期轮换</h4>
+          <p>建立密钥轮换策略，支持平滑过渡（新旧密钥并行期间）。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📦 最小权限</h4>
+          <p>每个服务只能访问自己需要的密钥，通过 IAM 策略严格限制。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📝 审计追踪</h4>
+          <p>记录所有密钥的创建、使用、轮换和删除操作。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// 使用环境变量管理密钥</span>
+<span class="cm">// .env（不提交到版本控制）</span>
+<span class="cm">// JWT_SECRET=super-secret-key-change-in-production</span>
+<span class="cm">// DB_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef</span>
+
+<span class="cm">// 使用 dotenv 加载</span>
+<span class="kw">import</span> <span class="str">'dotenv/config'</span>
+
+<span class="cm">// 生产环境推荐使用密钥管理服务</span>
+<span class="cm">// AWS Secrets Manager / HashiCorp Vault / Azure Key Vault</span>
+<span class="kw">const</span> secret = <span class="kw">await</span> vault.<span class="fn">read</span>(<span class="str">'secret/data/myapp/jwt'</span>)
+<span class="kw">const</span> jwtSecret = secret.data.data.key</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">fingerprint</span></div>
+        <h3>数字签名与证书</h3>
+      </div>
+      <p>数字签名用于验证数据完整性和发送者身份，数字证书用于建立公钥的信任链。</p>
+      <div class="diagram">  ┌─────────────────────────────────────────────────────────┐
+  │              PKI 信任链                                   │
+  └─────────────────────────────────────────────────────────┘
+
+  ┌───────────────┐
+  │   Root CA     │  ◀── 浏览器/操作系统预装信任
+  │  (根证书)      │
+  └───────┬───────┘
+          │ 签发
+  ┌───────▼───────┐
+  │ Intermediate  │  ◀── 中间 CA
+  │  CA (中间)     │
+  └───────┬───────┘
+          │ 签发
+  ┌───────▼───────┐
+  │ Server Cert   │  ◀── 服务器证书（example.com）
+  │  (终端证书)    │
+  └───────────────┘
+
+  验证链：Server Cert → Intermediate CA → Root CA ✓</div>
+    </div>
+  </section>
+
+  <!-- ==================== 常见攻击与防御 ==================== -->
+  <section class="section" id="attack">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">bug_report</span></div>
+        <h3>SQL 注入</h3>
+      </div>
+      <p>SQL 注入是最古老也最危险的攻击方式之一，攻击者通过在输入中插入恶意 SQL 片段来操控数据库。</p>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>❌ 危险写法</h4>
+          <ul>
+            <li>字符串拼接 SQL</li>
+            <li>直接将用户输入嵌入查询</li>
+          </ul>
+          <pre style="margin-top:8px;font-size:12px"><span class="cm">// 危险！</span>
+<span class="kw">const</span> sql = <span class="str">`SELECT * FROM users
+  WHERE name = '${req.query.name}'`</span>
+<span class="cm">// 输入: ' OR 1=1 --</span>
+<span class="cm">// 结果: SELECT * FROM users WHERE name = '' OR 1=1 --'</span></pre>
+        </div>
+        <div class="compare-box new">
+          <h4>✅ 安全写法</h4>
+          <ul>
+            <li>参数化查询 / 预编译语句</li>
+            <li>使用 ORM 的安全接口</li>
+          </ul>
+          <pre style="margin-top:8px;font-size:12px"><span class="cm">// 安全！参数化查询</span>
+<span class="kw">const</span> result = <span class="kw">await</span> db.<span class="fn">query</span>(
+  <span class="str">'SELECT * FROM users WHERE name = $1'</span>,
+  [req.query.name]
+)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">code</span></div>
+        <h3>XSS（跨站脚本攻击）</h3>
+      </div>
+      <p>XSS 攻击者将恶意脚本注入到网页中，在其他用户的浏览器上执行。</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📝 存储型 XSS</h4>
+          <p>恶意脚本存储在数据库中，所有访问该页面的用户都会执行。危害最大。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 反射型 XSS</h4>
+          <p>恶意脚本在 URL 参数中，服务器将其反射回页面。需要诱导用户点击链接。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⚡ DOM 型 XSS</h4>
+          <p>前端 JS 直接操作 DOM 时未转义用户输入，完全在客户端发生。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// XSS 防御措施</span>
+
+<span class="cm">// 1. 输出编码（HTML Entity）</span>
+<span class="kw">function</span> <span class="fn">escapeHtml</span>(str) {
+  <span class="kw">return</span> str
+    .<span class="fn">replace</span>(<span class="str">/&/g</span>, <span class="str">'&amp;'</span>)
+    .<span class="fn">replace</span>(<span class="str">/&lt;/g</span>, <span class="str">'&lt;'</span>)
+    .<span class="fn">replace</span>(<span class="str">/&gt;/g</span>, <span class="str">'&gt;'</span>)
+    .<span class="fn">replace</span>(<span class="str">/"/g</span>, <span class="str">'&quot;'</span>)
+    .<span class="fn">replace</span>(<span class="str">/'/g</span>, <span class="str">'&#x27;'</span>)
+}
+
+<span class="cm">// 2. CSP（Content Security Policy）响应头</span>
+res.<span class="fn">setHeader</span>(<span class="str">'Content-Security-Policy'</span>,
+  <span class="str">"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"</span>
+)
+
+<span class="cm">// 3. 使用前端框架的自动转义（React/Vue 默认转义）</span>
+<span class="cm">// React: {userInput} 自动转义</span>
+<span class="cm">// Vue: {{ userInput }} 自动转义</span>
+<span class="cm">// 危险: v-html / dangerouslySetInnerHTML</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">swap_horiz</span></div>
+        <h3>CSRF（跨站请求伪造）</h3>
+      </div>
+      <p>攻击者诱导已登录用户在不知情的情况下发送恶意请求。</p>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────────┐
+  │                    CSRF 攻击流程                              │
+  └──────────────────────────────────────────────────────────────┘
+
+  1. 用户登录 bank.com，浏览器保存 Cookie
+  2. 用户访问 evil.com（攻击者控制的网站）
+  3. evil.com 页面中嵌入：
+     &lt;img src="https://bank.com/transfer?to=attacker&amount=10000"&gt;
+  4. 浏览器自动携带 bank.com 的 Cookie 发送请求
+  5. bank.com 以为是合法请求，执行转账</div>
+      <pre><span class="cm">// CSRF 防御方案</span>
+
+<span class="cm">// 1. CSRF Token（最常用）</span>
+<span class="kw">import</span> csurf <span class="kw">from</span> <span class="str">'csurf'</span>
+app.<span class="fn">use</span>(<span class="fn">csurf</span>({ cookie: <span class="kw">true</span> }))
+
+<span class="cm">// 2. SameSite Cookie 属性</span>
+res.<span class="fn">cookie</span>(<span class="str">'session'</span>, token, {
+  httpOnly: <span class="kw">true</span>,
+  secure: <span class="kw">true</span>,
+  sameSite: <span class="str">'Lax'</span>  <span class="cm">// Strict | Lax | None</span>
+})
+
+<span class="cm">// 3. 验证 Origin / Referer 头</span>
+app.<span class="fn">use</span>((req, res, next) => {
+  <span class="kw">const</span> origin = req.headers.origin
+  <span class="kw">if</span> (!ALLOWED_ORIGINS.<span class="fn">includes</span>(origin)) {
+    <span class="kw">return</span> res.<span class="fn">status</span>(<span class="num">403</span>).<span class="fn">json</span>({ error: <span class="str">'Invalid origin'</span> })
+  }
+  <span class="fn">next</span>()
+})</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">speed</span></div>
+        <h3>DDoS 攻击与防护</h3>
+      </div>
+      <p>分布式拒绝服务攻击通过大量请求耗尽服务资源，使其无法响应正常用户。</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🌊 流量型攻击</h4>
+          <p>SYN Flood、UDP Flood、ICMP Flood。用海量流量淹没带宽。在网络层防护。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 协议型攻击</h4>
+          <p>Slowloris、HTTP Flood。利用协议漏洞消耗连接资源。在传输层防护。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>💥 应用层攻击</h4>
+          <p>CC 攻击、API 滥用。模拟正常请求消耗计算资源。在应用层防护。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// 应用层限流防护</span>
+<span class="kw">import</span> rateLimit <span class="kw">from</span> <span class="str">'express-rate-limit'</span>
+
+<span class="cm">// 全局限流：每 IP 每 15 分钟最多 100 次请求</span>
+<span class="kw">const</span> limiter = <span class="fn">rateLimit</span>({
+  windowMs: <span class="num">15</span> * <span class="num">60</span> * <span class="num">1000</span>,
+  max: <span class="num">100</span>,
+  standardHeaders: <span class="kw">true</span>,
+  legacyHeaders: <span class="kw">false</span>,
+  message: { error: <span class="str">'请求过于频繁，请稍后再试'</span> }
+})
+app.<span class="fn">use</span>(<span class="str">'/api/'</span>, limiter)
+
+<span class="cm">// 登录接口更严格的限流</span>
+<span class="kw">const</span> loginLimiter = <span class="fn">rateLimit</span>({
+  windowMs: <span class="num">15</span> * <span class="num">60</span> * <span class="num">1000</span>,
+  max: <span class="num">5</span>,
+  skipSuccessfulRequests: <span class="kw">true</span>
+})
+app.<span class="fn">use</span>(<span class="str">'/api/login'</span>, loginLimiter)</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">open_in_new</span></div>
+        <h3>SSRF（服务端请求伪造）</h3>
+      </div>
+      <p>攻击者利用服务端发起请求的功能，访问内部网络资源或云元数据。</p>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>典型案例：</strong>2019 年 Capital One 数据泄露事件，攻击者利用 SSRF 访问 AWS 元数据服务 <span class="inline-code">http://169.254.169.254</span> 获取 IAM 临时凭证，最终泄露 1 亿用户数据。</div>
+      </div>
+      <pre><span class="cm">// SSRF 防御</span>
+<span class="kw">function</span> <span class="fn">isAllowedUrl</span>(url) {
+  <span class="kw">const</span> parsed = <span class="kw">new</span> <span class="typ">URL</span>(url)
+
+  <span class="cm">// 1. 只允许 HTTP/HTTPS 协议</span>
+  <span class="kw">if</span> (!<span class="str">/^https?:$/</span>.<span class="fn">test</span>(parsed.protocol)) <span class="kw">return false</span>
+
+  <span class="cm">// 2. 禁止访问内网地址</span>
+  <span class="kw">const</span> hostname = parsed.hostname
+  <span class="kw">if</span> (
+    hostname === <span class="str">'localhost'</span> ||
+    hostname.<span class="fn">startsWith</span>(<span class="str">'127.'</span>) ||
+    hostname.<span class="fn">startsWith</span>(<span class="str">'10.'</span>) ||
+    hostname.<span class="fn">startsWith</span>(<span class="str">'172.16.'</span>) ||
+    hostname === <span class="str">'169.254.169.254'</span>  <span class="cm">// AWS 元数据</span>
+  ) <span class="kw">return false</span>
+
+  <span class="cm">// 3. DNS 解析后再次检查（防止 DNS Rebinding）</span>
+  <span class="kw">const</span> addresses = dns.<span class="fn">lookupAll</span>(hostname)
+  <span class="kw">for</span> (<span class="kw">const</span> addr <span class="kw">of</span> addresses) {
+    <span class="kw">if</span> (<span class="fn">isPrivateIP</span>(addr.address)) <span class="kw">return false</span>
+  }
+
+  <span class="kw">return true</span>
+}</pre>
+    </div>
+  </section>
+
+  <!-- ==================== 安全实践 ==================== -->
+  <section class="section" id="practice">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">http</span></div>
+        <h3>安全 HTTP 响应头</h3>
+      </div>
+      <p>正确配置 HTTP 安全头是防御多种攻击的低成本高收益措施：</p>
+      <pre><span class="cm">// 使用 Helmet.js 设置安全响应头</span>
+<span class="kw">import</span> helmet <span class="kw">from</span> <span class="str">'helmet'</span>
+
+app.<span class="fn">use</span>(<span class="fn">helmet</span>({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: [<span class="str">"'self'"</span>],
+      scriptSrc: [<span class="str">"'self'"</span>],
+      styleSrc: [<span class="str">"'self'"</span>, <span class="str">"'unsafe-inline'"</span>],
+      imgSrc: [<span class="str">"'self'"</span>, <span class="str">'data:'</span>, <span class="str">'https:'</span>],
+      connectSrc: [<span class="str">"'self'"</span>, <span class="str">'https://api.example.com'</span>]
+    }
+  },
+  hsts: { maxAge: <span class="num">31536000</span>, includeSubDomains: <span class="kw">true</span> },
+  referrerPolicy: { policy: <span class="str">'strict-origin-when-cross-origin'</span> }
+}))</pre>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="inline-code">Strict-Transport-Security</span></h4>
+          <p>强制浏览器使用 HTTPS，防止降级攻击。建议 max-age ≥ 1年。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="inline-code">Content-Security-Policy</span></h4>
+          <p>限制页面可加载的资源来源，有效防御 XSS 和数据注入。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="inline-code">X-Content-Type-Options</span></h4>
+          <p>设为 <span class="inline-code">nosniff</span>，防止浏览器 MIME 嗅探。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="inline-code">X-Frame-Options</span></h4>
+          <p>设为 <span class="inline-code">DENY</span> 或 <span class="inline-code">SAMEORIGIN</span>，防止点击劫持。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">input</span></div>
+        <h3>输入验证与数据校验</h3>
+      </div>
+      <p>永远不要信任客户端输入。所有外部数据都必须在服务端进行严格验证。</p>
+      <pre><span class="cm">// 使用 Zod 进行输入验证</span>
+<span class="kw">import</span> { z } <span class="kw">from</span> <span class="str">'zod'</span>
+
+<span class="kw">const</span> createUserSchema = z.<span class="fn">object</span>({
+  name: z.<span class="fn">string</span>()
+    .<span class="fn">min</span>(<span class="num">2</span>, <span class="str">'名字至少 2 个字符'</span>)
+    .<span class="fn">max</span>(<span class="num">50</span>, <span class="str">'名字最多 50 个字符'</span>)
+    .<span class="fn">regex</span>(<span class="str">/^[一-龥a-zA-Z]+$/</span>, <span class="str">'只允许中英文'</span>),
+
+  email: z.<span class="fn">string</span>().<span class="fn">email</span>(<span class="str">'邮箱格式不正确'</span>),
+
+  age: z.<span class="fn">number</span>()
+    .<span class="fn">int</span>(<span class="str">'必须是整数'</span>)
+    .<span class="fn">min</span>(<span class="num">0</span>, <span class="str">'年龄不能为负'</span>)
+    .<span class="fn">max</span>(<span class="num">150</span>, <span class="str">'年龄不合理'</span>),
+
+  role: z.<span class="fn">enum</span>([<span class="str">'user'</span>, <span class="str">'admin'</span>, <span class="str">'moderator'</span>])
+})
+
+<span class="cm">// 在路由中使用</span>
+app.<span class="fn">post</span>(<span class="str">'/users'</span>, (req, res) => {
+  <span class="kw">const</span> result = createUserSchema.<span class="fn">safeParse</span>(req.body)
+  <span class="kw">if</span> (!result.success) {
+    <span class="kw">return</span> res.<span class="fn">status</span>(<span class="num">400</span>).<span class="fn">json</span>({
+      errors: result.error.<span class="fn">flatten</span>().fieldErrors
+    })
+  }
+  <span class="cm">// result.data 已经过验证和类型转换</span>
+})</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">cookie</span></div>
+        <h3>Cookie 安全配置</h3>
+      </div>
+      <pre><span class="cm">// Cookie 安全属性</span>
+res.<span class="fn">cookie</span>(<span class="str">'session'</span>, token, {
+  httpOnly: <span class="kw">true</span>,     <span class="cm">// 禁止 JS 访问，防御 XSS 窃取</span>
+  secure: <span class="kw">true</span>,       <span class="cm">// 仅通过 HTTPS 传输</span>
+  sameSite: <span class="str">'Lax'</span>,    <span class="cm">// 防御 CSRF（Strict 更安全但可能影响体验）</span>
+  maxAge: <span class="num">2</span> * <span class="num">60</span> * <span class="num">60</span> * <span class="num">1000</span>,  <span class="cm">// 2 小时过期</span>
+  path: <span class="str">'/'</span>,
+  domain: <span class="str">'.example.com'</span>
+})</pre>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🔒 httpOnly</h4>
+          <p>阻止 JavaScript 通过 <span class="inline-code">document.cookie</span> 读取，防止 XSS 窃取令牌。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🛡️ secure</h4>
+          <p>Cookie 仅通过 HTTPS 连接传输，防止中间人窃听。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🚫 sameSite</h4>
+          <p>控制跨站请求是否携带 Cookie，<span class="inline-code">Lax</span> 平衡安全与体验。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⏱️ 短过期时间</h4>
+          <p>减少令牌泄露后的攻击窗口，配合 Refresh Token 无感续期。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">monitoring</span></div>
+        <h3>日志审计与监控</h3>
+      </div>
+      <p>完善的安全监控体系是发现和响应安全事件的关键。</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📊 安全事件日志</h4>
+          <p>记录登录失败、权限拒绝、异常请求等安全事件，包含时间、IP、用户、动作。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🚨 实时告警</h4>
+          <p>暴力破解检测、异常流量告警、敏感操作通知（如密码修改、权限变更）。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📈 行为分析</h4>
+          <p>建立用户行为基线，检测异常模式：非常规时间登录、异地访问、批量操作。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔍 日志脱敏</h4>
+          <p>日志中不记录密码、Token 等敏感信息。手机号、身份证号等进行脱敏处理。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// 安全日志中间件</span>
+<span class="kw">function</span> <span class="fn">securityLogger</span>(req, res, next) {
+  <span class="kw">const</span> start = Date.<span class="fn">now</span>()
+
+  res.<span class="fn">on</span>(<span class="str">'finish'</span>, () => {
+    <span class="kw">const</span> log = {
+      timestamp: <span class="kw">new</span> <span class="typ">Date</span>().<span class="fn">toISOString</span>(),
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      ip: req.ip,
+      userAgent: req.headers[<span class="str">'user-agent'</span>],
+      userId: req.user?.id,
+      duration: Date.<span class="fn">now</span>() - start
+    }
+
+    <span class="cm">// 4xx/5xx 记录到安全日志</span>
+    <span class="kw">if</span> (res.statusCode >= <span class="num">400</span>) {
+      logger.<span class="fn">warn</span>(<span class="str">'security_event'</span>, log)
+    }
+  })
+  <span class="fn">next</span>()
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">checklist</span></div>
+        <h3>安全检查清单</h3>
+      </div>
+      <p>上线前对照以下清单进行安全自查：</p>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>✅ 认证与会话</h4>
+          <p>密码使用 bcrypt/argon2 哈希存储；JWT 使用强密钥并设置合理过期时间；实现 MFA。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ 传输安全</h4>
+          <p>全站 HTTPS；TLS 1.2+；HSTS 开启；证书自动续期。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ 输入验证</h4>
+          <p>所有外部输入服务端验证；参数化查询；输出编码；文件上传限制类型和大小。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ 依赖管理</h4>
+          <p>定期 <span class="inline-code">npm audit</span>；锁定依赖版本；自动化漏洞扫描。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ 配置安全</h4>
+          <p>敏感信息使用环境变量；生产环境关闭调试模式和详细错误信息。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ 监控响应</h4>
+          <p>安全日志完整且脱敏；告警规则覆盖关键场景；有应急响应预案。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>安全是一个持续演进的过程，没有绝对安全的系统，只有不断完善的防御</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById(btn.dataset.tab).classList.add('active')
+    })
+  })
+</script>
+</body>
+</html>

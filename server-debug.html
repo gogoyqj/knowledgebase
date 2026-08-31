@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Node.js 服务监控 · 分析 · 调试 — 从 OOM 到性能瓶颈全解析</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #000000;
+    --md-on-primary: #fff;
+    --md-primary-container: #E8E0F0;
+    --md-on-primary-container: #1D1B20;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-accent: #00897B;
+    --md-accent-light: #26A69A;
+    --md-accent-container: #B2DFDB;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F1F8F6;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #00695C, #26A69A);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-accent); }
+
+  .hero {
+    background: linear-gradient(135deg, #004D40 0%, #00695C 50%, #26A69A 100%);
+    color: #fff;
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .9;
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  .toc {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-lg);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 32px;
+    margin: -40px 0 40px;
+    position: relative;
+    z-index: 10;
+  }
+  .toc h3 {
+    font-size: 16px; font-weight: 500;
+    color: var(--md-accent);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .toc-grid a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--md-on-surface-variant);
+    font-size: 14px;
+    transition: all .2s;
+  }
+  .toc-grid a:hover {
+    background: var(--md-accent-container);
+    color: #004D40;
+  }
+  .toc-grid a .material-icons-outlined {
+    font-size: 18px; color: var(--md-accent);
+  }
+
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-title {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 26px; font-weight: 700;
+    color: var(--md-on-surface);
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--md-accent-container);
+  }
+  .section-title .material-icons-outlined {
+    color: var(--md-accent);
+    font-size: 28px;
+  }
+  .section-desc {
+    color: var(--md-on-surface-variant);
+    font-size: 15px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+  .card h4 {
+    font-size: 18px; font-weight: 600;
+    color: var(--md-on-surface);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h4 .badge {
+    font-size: 11px; font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 20px;
+    background: var(--md-accent-container);
+    color: #00695C;
+  }
+  .card h4 .badge.error {
+    background: #FCE4EC;
+    color: #C62828;
+  }
+  .card h4 .badge.warn {
+    background: #FFF3E0;
+    color: #E65100;
+  }
+  .card h4 .badge.info {
+    background: #E3F2FD;
+    color: #1565C0;
+  }
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.85;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 6px; }
+
+  pre {
+    background: #1E1E2E;
+    color: #CDD6F4;
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 14px 0;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,.3);
+  }
+  pre .comment { color: #6C7086; }
+  pre .keyword { color: #CBA6F7; }
+  pre .string { color: #A6E3A1; }
+  pre .fn { color: #89B4FA; }
+  pre .num { color: #FAB387; }
+  pre .flag { color: #F9E2AF; }
+  pre .output { color: #6C7086; }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: #E8F5E9;
+    color: #2E7D32;
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 20px;
+  }
+
+  .callout {
+    border-radius: var(--md-radius);
+    padding: 18px 22px;
+    margin: 16px 0;
+    display: flex; gap: 12px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .callout .material-icons-outlined { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .callout.danger { background: #FFEBEE; color: #B71C1C; }
+  .callout.danger .material-icons-outlined { color: #C62828; }
+  .callout.warning { background: #FFF8E1; color: #E65100; }
+  .callout.warning .material-icons-outlined { color: #EF6C00; }
+  .callout.tip { background: #E8F5E9; color: #1B5E20; }
+  .callout.tip .material-icons-outlined { color: #2E7D32; }
+  .callout.info { background: #E3F2FD; color: #0D47A1; }
+  .callout.info .material-icons-outlined { color: #1565C0; }
+
+  .flow {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .flow .step {
+    background: var(--md-surface);
+    border: 1.5px solid var(--md-outline-variant);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px; font-weight: 500;
+    color: var(--md-on-surface);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .flow .step .material-icons-outlined { font-size: 18px; color: var(--md-accent); }
+  .flow .arrow { color: var(--md-outline); font-size: 20px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+  th {
+    background: #E0F2F1;
+    font-weight: 600;
+    color: #004D40;
+    font-size: 13px;
+  }
+  td { color: var(--md-on-surface-variant); }
+  tr:hover td { background: #F1F8F6; }
+
+  .tag-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 10px 0;
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12.5px; font-weight: 500;
+    background: #E0F7FA;
+    color: #00695C;
+  }
+  .tag.pink { background: #FCE4EC; color: #AD1457; }
+  .tag.orange { background: #FFF3E0; color: #E65100; }
+  .tag.blue { background: #E3F2FD; color: #1565C0; }
+  .tag.purple { background: #F3E5F5; color: #6A1B9A; }
+  .tag.red { background: #FFEBEE; color: #C62828; }
+
+  .scenario {
+    background: linear-gradient(135deg, #E8F5E9, #E0F2F1);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+    border-left: 4px solid var(--md-accent);
+  }
+  .scenario h5 {
+    font-size: 15px; font-weight: 600;
+    color: #00695C;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .scenario p { font-size: 14px; color: #37474F; }
+
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 14px 0;
+  }
+  .tool-item {
+    background: var(--md-surface);
+    border: 1.5px solid var(--md-outline-variant);
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: all .2s;
+  }
+  .tool-item:hover {
+    border-color: var(--md-accent);
+    box-shadow: var(--md-shadow-1);
+  }
+  .tool-item .name {
+    font-size: 14px; font-weight: 600;
+    color: var(--md-on-surface);
+    margin-bottom: 4px;
+  }
+  .tool-item .desc {
+    font-size: 12.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  .footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+
+  @media (max-width: 600px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .toc-grid { grid-template-columns: 1fr; }
+    .tool-grid { grid-template-columns: 1fr 1fr; }
+    .hero { padding: 48px 16px 40px; }
+    .container { padding: 24px 14px 60px; }
+    pre { padding: 14px 16px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo"><span class="material-icons-outlined" style="font-size:22px">bug_report</span></div>
+  <h1>Node.js <span>服务调试</span>指南</h1>
+</div>
+
+<div class="hero">
+  <h2>监控 · 分析 · 定位问题</h2>
+  <p>从 OOM 内存溢出到事件循环阻塞，从 CPU 飙高到请求超时——<br>一套完整的 Node.js 生产环境问题排查方法论</p>
+</div>
+
+<div class="container">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3><span class="material-icons-outlined">menu_book</span> 导航</h3>
+    <div class="toc-grid">
+      <a href="#monitoring"><span class="material-icons-outlined">monitoring</span> 监控体系</a>
+      <a href="#memory"><span class="material-icons-outlined">memory</span> 内存问题与 OOM</a>
+      <a href="#cpu"><span class="material-icons-outlined">speed</span> CPU 性能分析</a>
+      <a href="#eventloop"><span class="material-icons-outlined">loop</span> 事件循环阻塞</a>
+      <a href="#async"><span class="material-icons-outlined">async</span> 异步问题排查</a>
+      <a href="#network"><span class="material-icons-outlined">lan</span> 网络与 I/O</a>
+      <a href="#crash"><span class="material-icons-outlined">report_problem</span> 崩溃与异常</a>
+      <a href="#tools"><span class="material-icons-outlined">build</span> 工具链总览</a>
+      <a href="#checklist"><span class="material-icons-outlined">checklist</span> 排查清单</a>
+    </div>
+  </div>
+
+  <!-- ===================== 1. 监控体系 ===================== -->
+  <div class="section" id="monitoring">
+    <div class="section-title">
+      <span class="material-icons-outlined">monitoring</span>
+      监控体系
+    </div>
+    <p class="section-desc">建立完善的监控体系是预防和快速定位问题的基础。监控分三个层次：基础设施 → 应用层 → 业务层。</p>
+
+    <div class="card">
+      <h4>监控层次模型</h4>
+      <div class="flow">
+        <div class="step"><span class="material-icons-outlined">dns</span> 基础层</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">settings</span> 运行时层</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">code</span> 应用层</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">analytics</span> 业务层</div>
+      </div>
+      <table>
+        <tr><th>层次</th><th>指标</th><th>工具</th></tr>
+        <tr><td>基础设施</td><td>CPU / 内存 / 磁盘 / 网络</td><td>Prometheus + Grafana, Datadog</td></tr>
+        <tr><td>运行时</td><td>Heap / Event Loop / GC / Handles</td><td><code>process.memoryUsage()</code>, <code>perf_hooks</code></td></tr>
+        <tr><td>应用</td><td>请求延迟 / 错误率 / 吞吐量</td><td>APM (New Relic, Elastic APM)</td></tr>
+        <tr><td>业务</td><td>成功率 / 转化率 / 自定义指标</td><td>自定义 Metrics / 日志</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>内置监控能力 <span class="badge info">Node.js 原生</span></h4>
+      <pre><span class="comment">// 获取内存使用</span>
+<span class="keyword">const</span> mem = <span class="fn">process</span>.<span class="fn">memoryUsage</span>();
+console.<span class="fn">log</span>({
+  rss:          (mem.rss / <span class="num">1024</span> / <span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">2</span>) + <span class="string">' MB'</span>,   <span class="comment">// 进程常驻内存</span>
+  heapTotal:    (mem.heapTotal / <span class="num">1024</span> / <span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">2</span>) + <span class="string">' MB'</span>,
+  heapUsed:     (mem.heapUsed / <span class="num">1024</span> / <span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">2</span>) + <span class="string">' MB'</span>,
+  external:     (mem.external / <span class="num">1024</span> / <span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">2</span>) + <span class="string">' MB'</span>,
+  arrayBuffers: (mem.arrayBuffers / <span class="num">1024</span> / <span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">2</span>) + <span class="string">' MB'</span>,
+});
+
+<span class="comment">// 获取 CPU 使用率</span>
+<span class="keyword">const</span> startUsage = <span class="fn">process</span>.<span class="fn">cpuUsage</span>();
+<span class="comment">// ... 执行一些操作 ...</span>
+<span class="keyword">const</span> endUsage = <span class="fn">process</span>.<span class="fn">cpuUsage</span>(startUsage);
+console.<span class="fn">log</span>(endUsage);  <span class="comment">// { user: 5000, system: 2000 } 微秒</span>
+
+<span class="comment">// 获取活跃句柄和请求</span>
+console.<span class="fn">log</span>(<span class="string">'Active handles:'</span>, <span class="fn">process</span>._getActiveHandles().length);
+console.<span class="fn">log</span>(<span class="string">'Active requests:'</span>, <span class="fn">process</span>._getActiveRequests().length);</pre>
+
+      <pre><span class="comment">// 使用 perf_hooks 测量事件循环延迟</span>
+<span class="keyword">const</span> { monitorEventLoopDelay } = <span class="fn">require</span>(<span class="string">'perf_hooks'</span>);
+
+<span class="keyword">const</span> h = <span class="fn">monitorEventLoopDelay</span>({ resolution: <span class="num">20</span> });
+h.<span class="fn">enable</span>();
+
+<span class="fn">setInterval</span>(() => {
+  console.<span class="fn">log</span>({
+    min:   h.min / <span class="num">1e6</span>,     <span class="comment">// ms</span>
+    max:   h.max / <span class="num">1e6</span>,
+    mean:  h.mean / <span class="num">1e6</span>,
+    p50:   h.percentile(<span class="num">50</span>) / <span class="num">1e6</span>,
+    p99:   h.percentile(<span class="num">99</span>) / <span class="num">1e6</span>,
+  });
+  h.<span class="fn">reset</span>();
+}, <span class="num">5000</span>);</pre>
+    </div>
+
+    <div class="card">
+      <h4>健康检查端点设计</h4>
+      <pre><span class="comment">// Express 健康检查中间件</span>
+app.<span class="fn">get</span>(<span class="string">'/health'</span>, <span class="keyword">async</span> (req, res) => {
+  <span class="keyword">const</span> checks = {
+    uptime:   <span class="fn">process</span>.<span class="fn">uptime</span>(),
+    memory:   <span class="fn">process</span>.<span class="fn">memoryUsage</span>(),
+    cpu:      <span class="fn">process</span>.<span class="fn">cpuUsage</span>(),
+    eventLoop:<span class="keyword"> await</span> <span class="fn">checkEventLoop</span>(),   <span class="comment">// 延迟 < 100ms</span>
+    db:       <span class="keyword"> await</span> <span class="fn">checkDatabase</span>(),     <span class="comment">// 连接池状态</span>
+    redis:    <span class="keyword"> await</span> <span class="fn">checkRedis</span>(),
+  };
+
+  <span class="keyword">const</span> healthy = checks.eventLoop.latency < <span class="num">100</span>
+    && checks.db.connected
+    && checks.redis.connected;
+
+  res.<span class="fn">status</span>(healthy ? <span class="num">200</span> : <span class="num">503</span>).<span class="fn">json</span>(checks);
+});</pre>
+    </div>
+
+    <div class="callout tip">
+      <span class="material-icons-outlined">lightbulb</span>
+      <div><strong>关键指标阈值参考：</strong>事件循环延迟 p99 > 100ms 告警，堆内存使用 > 80% 告警，GC 频率 > 10次/分钟告警，句柄泄漏（持续增长）告警。</div>
+    </div>
+  </div>
+
+  <!-- ===================== 2. 内存问题与 OOM ===================== -->
+  <div class="section" id="memory">
+    <div class="section-title">
+      <span class="material-icons-outlined">memory</span>
+      内存问题与 OOM
+    </div>
+    <p class="section-desc">OOM (Out of Memory) 是 Node.js 最常见的生产事故之一。V8 堆默认上限约 1.5GB（64位系统），超过即崩溃。</p>
+
+    <div class="card">
+      <h4>OOM 发生的三种场景</h4>
+      <div class="grid-2">
+        <div class="scenario">
+          <h5><span class="material-icons-outlined">trending_up</span> 场景一：堆内存缓慢泄漏</h5>
+          <p>内存使用率缓慢上升不回落，几天后触发 OOM。最常见原因：闭包持有引用、缓存无限增长、事件监听器未移除。</p>
+        </div>
+        <div class="scenario">
+          <h5><span class="material-icons-outlined">flash_on</span> 场景二：突发大内存分配</h5>
+          <p>一次请求处理超大文件或数据集，瞬间超出堆限制。常见于 JSON.parse 大对象、文件读入内存。</p>
+        </div>
+      </div>
+      <div class="scenario">
+        <h5><span class="material-icons-outlined">warning</span> 场景三：RSS 超限（非堆内存）</h5>
+        <p>堆未满但 RSS（常驻内存）超出系统限制。通常由 Native Module（C++ addon）、Buffer 分配、SharedArrayBuffer 导致。Linux cgroup 限制下尤其常见。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>排查步骤：Heap Snapshot 分析</h4>
+      <pre><span class="comment">// 方式一：代码中手动触发 heapdump</span>
+<span class="keyword">const</span> v8 = <span class="fn">require</span>(<span class="string">'v8'</span>);
+<span class="keyword">const</span> fs = <span class="fn">require</span>(<span class="string">'fs'</span>);
+
+<span class="comment">// 将堆快照写入文件</span>
+<span class="keyword">const</span> snapshotFile = v8.<span class="fn">writeHeapSnapshot</span>();
+console.<span class="fn">log</span>(<span class="string">'Heap snapshot written to:'</span>, snapshotFile);
+<span class="comment">// 用 Chrome DevTools Memory 面板打开 .heapsnapshot 文件</span>
+
+<span class="comment">// 方式二：定时采集（生产环境推荐）</span>
+<span class="keyword">let</span> lastHeapUsed = <span class="num">0</span>;
+<span class="fn">setInterval</span>(() => {
+  <span class="keyword">const</span> { heapUsed } = <span class="fn">process</span>.<span class="fn">memoryUsage</span>();
+  <span class="keyword">const</span> growth = heapUsed - lastHeapUsed;
+  lastHeapUsed = heapUsed;
+
+  <span class="comment">// 堆使用增长超过 100MB，自动采集快照</span>
+  <span class="keyword">if</span> (growth > <span class="num">100</span> * <span class="num">1024</span> * <span class="num">1024</span>) {
+    <span class="keyword">const</span> file = v8.<span class="fn">writeHeapSnapshot</span>();
+    console.<span class="fn">error</span>(<span class="string">`Memory surge detected! Snapshot: ${file}`</span>);
+  }
+}, <span class="num">30000</span>);</pre>
+
+      <pre><span class="comment">// 方式三：使用 --heapprod 标志（Node.js >= 16）</span>
+<span class="comment">// 开启生产环境自动堆快照，接近 OOM 时自动生成</span>
+node <span class="flag">--heapprod</span> <span class="flag">--max-old-space-size=2048</span> app.js
+
+<span class="comment">// 方式四：发送信号触发</span>
+<span class="comment">// 向进程发送 SIGUSR2 信号采集快照</span>
+kill <span class="flag">-SIGUSR2</span> &lt;pid&gt;</pre>
+    </div>
+
+    <div class="card">
+      <h4>排查步骤：堆内存对比分析</h4>
+      <pre><span class="comment">// 在两个时间点分别采集 heap snapshot：</span>
+<span class="comment">// 1. 启动后稳定状态 → snapshot-1.heapsnapshot</span>
+<span class="comment">// 2. 内存持续增长后 → snapshot-2.heapsnapshot</span>
+<span class="comment">// 在 Chrome DevTools Memory 面板中：</span>
+<span class="comment">//   - 加载 snapshot-2</span>
+<span class="comment">//   - 点击 "Comparison" 视图</span>
+<span class="comment">//   - 选择 snapshot-1 作为对比基准</span>
+<span class="comment">//   - 按 "#Delta" 降序排列</span>
+<span class="comment">//   - 找到对象数量持续增长的类 → 定位泄漏源</span></pre>
+    </div>
+
+    <div class="card">
+      <h4>常见内存泄漏模式 <span class="badge error">高频</span></h4>
+      <pre><span class="comment">// ❌ 泄漏模式 1：缓存无限增长</span>
+<span class="keyword">const</span> cache = {};
+<span class="keyword">function</span> <span class="fn">getUser</span>(id) {
+  <span class="keyword">if</span> (!cache[id]) {
+    cache[id] = <span class="fn">fetchFromDB</span>(id);
+  }
+  <span class="keyword">return</span> cache[id];
+}
+<span class="comment">// ✅ 修复：使用 LRU 缓存或 WeakRef</span>
+<span class="keyword">const</span> { LRUCache } = <span class="fn">require</span>(<span class="string">'lru-cache'</span>);
+<span class="keyword">const</span> cache = <span class="keyword">new</span> <span class="fn">LRUCache</span>({ max: <span class="num">500</span>, ttl: <span class="num">1000</span> * <span class="num">60</span> * <span class="num">5</span> });</pre>
+
+      <pre><span class="comment">// ❌ 泄漏模式 2：事件监听器未移除</span>
+<span class="keyword">class</span> Service {
+  <span class="fn">start</span>() {
+    emitter.<span class="fn">on</span>(<span class="string">'data'</span>, <span class="keyword">this</span>.handleData);
+    <span class="comment">// 每次调用 start() 都新增监听器</span>
+  }
+}
+<span class="comment">// ✅ 修复：确保对称添加/移除</span>
+<span class="keyword">class</span> Service {
+  <span class="fn">start</span>() { emitter.<span class="fn">on</span>(<span class="string">'data'</span>, <span class="keyword">this</span>.handleData); }
+  <span class="fn">stop</span>()  { emitter.<span class="fn">off</span>(<span class="string">'data'</span>, <span class="keyword">this</span>.handleData); }
+}
+
+<span class="comment">// 检测监听器泄漏</span>
+<span class="fn">setInterval</span>(() => {
+  <span class="keyword">const</span> count = emitter.<span class="fn">listenerCount</span>(<span class="string">'data'</span>);
+  <span class="keyword">if</span> (count > <span class="num">10</span>) console.<span class="fn">warn</span>(<span class="string">`Listener leak: ${count} listeners`</span>);
+}, <span class="num">60000</span>);</pre>
+
+      <pre><span class="comment">// ❌ 泄漏模式 3：闭包持有大对象引用</span>
+<span class="keyword">function</span> <span class="fn">createHandler</span>() {
+  <span class="keyword">const</span> bigData = <span class="fn">loadHugeDataset</span>();  <span class="comment">// 100MB</span>
+  <span class="keyword">return</span> () => {
+    console.<span class="fn">log</span>(bigData.length);  <span class="comment">// 闭包持有引用</span>
+  };
+}
+<span class="comment">// ✅ 修复：提取需要的值，释放大数据</span>
+<span class="keyword">function</span> <span class="fn">createHandler</span>() {
+  <span class="keyword">const</span> bigData = <span class="fn">loadHugeDataset</span>();
+  <span class="keyword">const</span> len = bigData.length;  <span class="comment">// 只保留需要的值</span>
+  <span class="keyword">return</span> () => console.<span class="fn">log</span>(len);
+}</pre>
+
+      <pre><span class="comment">// ❌ 泄漏模式 4：Timer 未清理</span>
+<span class="keyword">function</span> <span class="fn">setupPolling</span>() {
+  <span class="fn">setInterval</span>(() => { <span class="comment">/* ... */</span> }, <span class="num">1000</span>);
+  <span class="comment">// 进程永远不会退出，句柄泄漏</span>
+}
+<span class="comment">// ✅ 修复：保存引用并清理</span>
+<span class="keyword">let</span> timer;
+<span class="keyword">function</span> <span class="fn">setupPolling</span>() {
+  timer = <span class="fn">setInterval</span>(() => { <span class="comment">/* ... */</span> }, <span class="num">1000</span>);
+  timer.<span class="fn">unref</span>();  <span class="comment">// 允许进程正常退出</span>
+}
+<span class="keyword">function</span> <span class="fn">stopPolling</span>() { <span class="fn">clearInterval</span>(timer); }</pre>
+    </div>
+
+    <div class="card">
+      <h4>V8 内存调优参数</h4>
+      <pre><span class="comment"># 调整老生代堆大小上限（默认 ~1.5GB）</span>
+node <span class="flag">--max-old-space-size=4096</span> app.js  <span class="comment"># 4GB</span>
+
+<span class="comment"># 调整新生代大小（默认几MB，适合短生命周期对象多的场景）</span>
+node <span class="flag">--max-semi-space-size=64</span> app.js  <span class="comment"># 64MB</span>
+
+<span class="comment"># 开启 GC 日志（分析 GC 行为）</span>
+node <span class="flag">--trace-gc</span> <span class="flag">--trace-gc-verbose</span> app.js
+<span class="comment"># 输出示例：</span>
+<span class="comment"># [12345:0x102800000]    45231 ms: Scavenge 23.4 (45.0) -> 18.2 (48.0) MB, 2.1 / 0.0 ms</span>
+<span class="comment"># [12345:0x102800000]   120456 ms: Mark-sweep 890.5 (920.0) -> 312.7 (340.0) MB, 45.3 / 0.0 ms</span>
+
+<span class="comment"># 使用 --expose-gc 手动触发 GC</span>
+node <span class="flag">--expose-gc</span> app.js
+<span class="comment"># 代码中: global.gc();</span></pre>
+    </div>
+
+    <div class="callout danger">
+      <span class="material-icons-outlined">error</span>
+      <div><strong>Docker/K8s 环境注意：</strong>容器的内存限制由 cgroup 控制，Node.js 进程的 RSS（不仅是堆）必须低于容器限制。建议 <code>--max-old-space-size</code> 设为容器限制的 70-80%，留出 Buffer 和 Native 内存空间。进程 RSS 超限时会被 OOM Killer 杀掉，没有堆快照可抓。</div>
+    </div>
+  </div>
+
+  <!-- ===================== 3. CPU 性能分析 ===================== -->
+  <div class="section" id="cpu">
+    <div class="section-title">
+      <span class="material-icons-outlined">speed</span>
+      CPU 性能分析
+    </div>
+    <p class="section-desc">CPU 飙高通常意味着某个函数在密集计算或陷入死循环。定位热点函数是关键。</p>
+
+    <div class="card">
+      <h4>CPU Profiling — 使用 --prof</h4>
+      <pre><span class="comment"># 方式一：V8 内置 profiler</span>
+node <span class="flag">--prof</span> app.js
+<span class="comment"># 生成 isolate-*.log 文件</span>
+
+<span class="comment"># 解析日志为人类可读格式</span>
+node <span class="flag">--prof-process</span> isolate-0x*.log > cpu-profile.txt
+
+<span class="comment"># 输出中关注：</span>
+<span class="comment"># [Summary]: 总 ticks 分布</span>
+<span class="comment"># [JavaScript]: JS 函数 ticks 排名</span>
+<span class="comment"># [C++]: C++ 函数 ticks 排名（V8 内部）</span></pre>
+
+      <pre><span class="comment"># 方式二：使用 CPU Profiler 生成火焰图</span>
+node <span class="flag">--cpu-prof</span> <span class="flag">--cpu-prof-dir=./profiles</span> app.js
+<span class="comment"># 生成 .cpuprofile 文件，用 Chrome DevTools 打开</span>
+<span class="comment"># 或使用 speedscope (https://www.speedscope.app/) 可视化</span></pre>
+    </div>
+
+    <div class="card">
+      <h4>运行时 CPU Profiling（不重启进程）</h4>
+      <pre><span class="comment">// 使用 inspector 模块在运行时采集 CPU Profile</span>
+<span class="keyword">const</span> inspector = <span class="fn">require</span>(<span class="string">'inspector'</span>);
+<span class="keyword">const</span> fs = <span class="fn">require</span>(<span class="string">'fs'</span>);
+
+<span class="keyword">async function</span> <span class="fn">startProfiling</span>(durationMs = <span class="num">10000</span>) {
+  <span class="keyword">const</span> session = <span class="keyword">new</span> inspector.<span class="fn">Session</span>();
+  session.<span class="fn">connect</span>();
+  session.<span class="fn">post</span>(<span class="string">'Profiler.enable'</span>);
+
+  session.<span class="fn">post</span>(<span class="string">'Profiler.start'</span>);
+
+  <span class="keyword">await new</span> <span class="fn">Promise</span>(r => <span class="fn">setTimeout</span>(r, durationMs));
+
+  <span class="keyword">const</span> { profile } = <span class="keyword">await new</span> <span class="fn">Promise</span>((resolve) => {
+    session.<span class="fn">post</span>(<span class="string">'Profiler.stop'</span>, (err, params) => <span class="fn">resolve</span>(params));
+  });
+
+  fs.<span class="fn">writeFileSync</span>(
+    <span class="string">'./cpu-profile.cpuprofile'</span>,
+    JSON.<span class="fn">stringify</span>(profile)
+  );
+  session.<span class="fn">disconnect</span>();
+  console.<span class="fn">log</span>(<span class="string">'CPU profile saved.'</span>);
+}
+
+<span class="comment">// 暴露为 HTTP 接口（生产环境安全起见加鉴权）</span>
+app.<span class="fn">get</span>(<span class="string">'/debug/cpu-profile'</span>, <span class="keyword">async</span> (req, res) => {
+  <span class="keyword">const</span> duration = <span class="fn">parseInt</span>(req.query.duration) || <span class="num">10000</span>;
+  <span class="keyword">await</span> <span class="fn">startProfiling</span>(duration);
+  res.<span class="fn">download</span>(<span class="string">'./cpu-profile.cpuprofile'</span>);
+});</pre>
+    </div>
+
+    <div class="card">
+      <h4>生产环境火焰图采集</h4>
+      <pre><span class="comment"># 使用 0x 生成交互式火焰图</span>
+npx <span class="fn">0x</span> <span class="flag">--output-dir=./flamegraph</span> app.js
+
+<span class="comment"># 对正在运行的进程采样（需配合 --inspect）</span>
+npx <span class="fn">0x</span> <span class="flag">--pid</span> &lt;pid&gt;
+
+<span class="comment"># Linux 下使用 perf + flamegraph 工具链</span>
+perf record <span class="flag">-F 99</span> <span class="flag">-p</span> &lt;pid&gt> <span class="flag">-g</span> <span class="flag">-- sleep 30</span>
+perf script | stackcollapse-perf.pl | flamegraph.pl > flame.svg</pre>
+    </div>
+
+    <div class="callout warning">
+      <span class="material-icons-outlined">warning</span>
+      <div><strong>CPU 100% 不一定是 Bug：</strong>也可能是正常的密集计算（如加密、压缩、数据处理）。关键是区分是"一直在忙"还是"不该忙的时候在忙"。结合火焰图看调用栈即可判断。</div>
+    </div>
+  </div>
+
+  <!-- ===================== 4. 事件循环阻塞 ===================== -->
+  <div class="section" id="eventloop">
+    <div class="section-title">
+      <span class="material-icons-outlined">loop</span>
+      事件循环阻塞
+    </div>
+    <p class="section-desc">Node.js 单线程，事件循环被阻塞意味着所有请求都在排队等待。同步 I/O、密集计算、JSON.parse 大对象都是常见元凶。</p>
+
+    <div class="card">
+      <h4>检测事件循环阻塞</h4>
+      <pre><span class="comment">// 方式一：自定义事件循环延迟监控</span>
+<span class="keyword">let</span> lastCheck = <span class="fn">process</span>.<span class="fn">hrtime</span>.<span class="fn">bigint</span>();
+
+<span class="fn">setInterval</span>(() => {
+  <span class="keyword">const</span> now = <span class="fn">process</span>.<span class="fn">hrtime</span>.<span class="fn">bigint</span>();
+  <span class="keyword">const</span> delay = <span class="fn">Number</span>(now - lastCheck - <span class="num">1000000000n</span>) / <span class="num">1e6</span>;
+  <span class="comment">// delay 理论值 0ms（1s interval），实际值 > 50ms 说明阻塞</span>
+  <span class="keyword">if</span> (delay > <span class="num">50</span>) {
+    console.<span class="fn">warn</span>(<span class="string">`Event loop blocked for ${delay.toFixed(1)}ms`</span>);
+  }
+  lastCheck = now;
+}, <span class="num">1000</span>);
+
+<span class="comment">// 方式二：使用 blocked-at 模块（自动定位阻塞代码位置）</span>
+<span class="keyword">const</span> blocked = <span class="fn">require</span>(<span class="string">'blocked-at'</span>);
+<span class="fn">blocked</span>((time, stack) => {
+  console.<span class="fn">warn</span>(<span class="string">`Blocked for ${time}ms at:`</span>, stack);
+}, { threshold: <span class="num">50</span> });</pre>
+    </div>
+
+    <div class="card">
+      <h4>常见阻塞源与解决方案</h4>
+      <table>
+        <tr><th>阻塞源</th><th>表现</th><th>解决方案</th></tr>
+        <tr>
+          <td><code>JSON.parse()</code> 大对象</td>
+          <td>处理大请求体时延迟飙升</td>
+          <td>流式 JSON 解析（如 <code>JSONStream</code>），限制请求体大小</td>
+        </tr>
+        <tr>
+          <td><code>fs.readFileSync()</code></td>
+          <td>磁盘 I/O 阻塞</td>
+          <td>改用 <code>fs.promises.readFile()</code></td>
+        </tr>
+        <tr>
+          <td>正则回溯 (ReDoS)</td>
+          <td>特定输入导致正则卡死</td>
+          <td>使用 <code>re2</code> 库，避免嵌套量词</td>
+        </tr>
+        <tr>
+          <td>密集计算</td>
+          <td>CPU 密集型任务阻塞主线程</td>
+          <td>Worker Threads 或拆分为小任务用 <code>setImmediate</code></td>
+        </tr>
+        <tr>
+          <td>同步 crypto</td>
+          <td><code>crypto.pbkdf2Sync</code> 等</td>
+          <td>使用异步版本 <code>crypto.pbkdf2</code></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Worker Threads 卸载 CPU 密集任务</h4>
+      <pre><span class="comment">// worker.js</span>
+<span class="keyword">const</span> { parentPort } = <span class="fn">require</span>(<span class="string">'worker_threads'</span>);
+
+parentPort.<span class="fn">on</span>(<span class="string">'message'</span>, (task) => {
+  <span class="keyword">const</span> result = <span class="fn">heavyComputation</span>(task.data);
+  parentPort.<span class="fn">postMessage</span>(result);
+});
+
+<span class="comment">// main.js — Worker 池模式</span>
+<span class="keyword">const</span> { Worker } = <span class="fn">require</span>(<span class="string">'worker_threads'</span>);
+<span class="keyword">const</span> os = <span class="fn">require</span>(<span class="string">'os'</span>);
+
+<span class="keyword">class</span> <span class="fn">WorkerPool</span> {
+  <span class="fn">constructor</span>(size = os.<span class="fn">cpus</span>().length) {
+    <span class="keyword">this</span>.workers = Array.<span class="fn">from</span>({ length: size }, () =>
+      <span class="keyword">new</span> <span class="fn">Worker</span>(<span class="string">'./worker.js'</span>)
+    );
+    <span class="keyword">this</span>.queue = [];
+    <span class="keyword">this</span>.idle = [...<span class="keyword">this</span>.workers];
+  }
+
+  <span class="fn">run</span>(data) {
+    <span class="keyword">return new</span> <span class="fn">Promise</span>((resolve) => {
+      <span class="keyword">const</span> dispatch = () => {
+        <span class="keyword">const</span> worker = <span class="keyword">this</span>.idle.<span class="fn">pop</span>();
+        worker.<span class="fn">once</span>(<span class="string">'message'</span>, (result) => {
+          <span class="keyword">this</span>.idle.<span class="fn">push</span>(worker);
+          <span class="fn">resolve</span>(result);
+          <span class="keyword">if</span> (<span class="keyword">this</span>.queue.length) <span class="keyword">this</span>.queue.<span class="fn">shift</span>()();
+        });
+        worker.<span class="fn">postMessage</span>(data);
+      };
+      <span class="keyword">this</span>.idle.length ? <span class="fn">dispatch</span>() : <span class="keyword">this</span>.queue.<span class="fn">push</span>(dispatch);
+    });
+  }
+}</pre>
+    </div>
+  </div>
+
+  <!-- ===================== 5. 异步问题排查 ===================== -->
+  <div class="section" id="async">
+    <div class="section-title">
+      <span class="material-icons-outlined">async</span>
+      异步问题排查
+    </div>
+    <p class="section-desc">异步代码中的 Bug 往往难以复现和定位：Promise 链断裂、Unhandled Rejection、异步资源泄漏……</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Unhandled Promise Rejection <span class="badge error">崩溃</span></h4>
+        <p>Node.js 15+ 默认 unhandledRejection 会终止进程。</p>
+        <pre><span class="comment">// 全局捕获（临时兜底，不是解决方案）</span>
+process.<span class="fn">on</span>(<span class="string">'unhandledRejection'</span>, (reason, p) => {
+  console.<span class="fn">error</span>(<span class="string">'Unhandled Rejection:'</span>, reason);
+  <span class="comment">// 记录日志、上报，但考虑退出</span>
+});
+
+<span class="comment">// 根本解决：所有 Promise 链都要处理</span>
+<span class="keyword">try</span> {
+  <span class="keyword">const</span> result = <span class="keyword">await</span> <span class="fn">someAsyncOp</span>();
+} <span class="keyword">catch</span> (err) {
+  <span class="fn">handleError</span>(err);
+}</pre>
+      </div>
+
+      <div class="card">
+        <h4>Async Hooks 追踪 <span class="badge warn">高级</span></h4>
+        <pre><span class="comment">// 追踪异步资源的创建和销毁</span>
+<span class="keyword">const</span> async_hooks = <span class="fn">require</span>(<span class="string">'async_hooks'</span>);
+
+<span class="keyword">const</span> active = <span class="keyword">new</span> <span class="fn">Map</span>();
+<span class="keyword">const</span> hook = async_hooks.<span class="fn">createHook</span>({
+  <span class="fn">init</span>(asyncId, type) {
+    <span class="keyword">if</span> (type === <span class="string">'Timeout'</span> || type === <span class="string">'PROMISE'</span>) {
+      active.<span class="fn">set</span>(asyncId, {
+        type,
+        stack: <span class="keyword">new</span> <span class="fn">Error</span>().stack,
+        created: <span class="fn">Date</span>.<span class="fn">now</span>(),
+      });
+    }
+  },
+  <span class="fn">destroy</span>(asyncId) {
+    active.<span class="fn">delete</span>(asyncId);
+  }
+});
+hook.<span class="fn">enable</span>();
+
+<span class="comment">// 定期检查未销毁的异步资源</span>
+<span class="fn">setInterval</span>(() => {
+  <span class="keyword">if</span> (active.size > <span class="num">1000</span>) {
+    console.<span class="fn">error</span>(<span class="string">`Async leak: ${active.size} active resources`</span>);
+    <span class="comment">// 输出最早创建的资源堆栈</span>
+    <span class="keyword">const</span> oldest = [...active.<span class="fn">values</span>()][<span class="num">0</span>];
+    console.<span class="fn">error</span>(oldest.stack);
+  }
+}, <span class="num">30000</span>);</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>AbortController 超时控制</h4>
+      <pre><span class="comment">// 给异步操作加超时，防止永远挂起</span>
+<span class="keyword">async function</span> <span class="fn">fetchWithTimeout</span>(url, timeoutMs = <span class="num">5000</span>) {
+  <span class="keyword">const</span> controller = <span class="keyword">new</span> <span class="fn">AbortController</span>();
+  <span class="keyword">const</span> timer = <span class="fn">setTimeout</span>(() => controller.<span class="fn">abort</span>(), timeoutMs);
+
+  <span class="keyword">try</span> {
+    <span class="keyword">const</span> res = <span class="keyword">await</span> <span class="fn">fetch</span>(url, { signal: controller.signal });
+    <span class="keyword">return</span> res;
+  } <span class="keyword">finally</span> {
+    <span class="fn">clearTimeout</span>(timer);
+  }
+}
+
+<span class="comment">// 数据库查询超时</span>
+<span class="keyword">const</span> result = <span class="keyword">await</span> Promise.<span class="fn">race</span>([
+  db.<span class="fn">query</span>(<span class="string">'SELECT ...'</span>),
+  <span class="keyword">new</span> <span class="fn">Promise</span>((_, reject) =>
+    <span class="fn">setTimeout</span>(() => <span class="fn">reject</span>(<span class="keyword">new</span> <span class="fn">Error</span>(<span class="string">'DB timeout'</span>)), <span class="num">10000</span>)
+  )
+]);</pre>
+    </div>
+
+    <div class="callout info">
+      <span class="material-icons-outlined">info</span>
+      <div><strong>AsyncLocalStorage 追踪请求链路：</strong>在微服务或复杂中间件链中，使用 <code>AsyncLocalStorage</code> 可以贯穿整个异步调用链传递上下文（如 requestId），无需手动透传。这是排查分布式系统问题的利器。</div>
+    </div>
+  </div>
+
+  <!-- ===================== 6. 网络与 I/O ===================== -->
+  <div class="section" id="network">
+    <div class="section-title">
+      <span class="material-icons-outlined">lan</span>
+      网络与 I/O 问题
+    </div>
+    <p class="section-desc">连接泄漏、DNS 解析慢、Socket 超时……网络问题是微服务架构中最常见的故障来源。</p>
+
+    <div class="card">
+      <h4>HTTP 连接泄漏排查</h4>
+      <pre><span class="comment">// 检查活跃的 socket 连接</span>
+<span class="keyword">const</span> http = <span class="fn">require</span>(<span class="string">'http'</span>);
+
+<span class="comment">// 自定义 Agent 追踪连接</span>
+<span class="keyword">const</span> agent = <span class="keyword">new</span> http.<span class="fn">Agent</span>({
+  keepAlive: <span class="keyword">true</span>,
+  maxSockets: <span class="num">50</span>,
+  maxFreeSockets: <span class="num">10</span>,
+  timeout: <span class="num">30000</span>,
+});
+
+<span class="comment">// 监控 socket 数量</span>
+<span class="fn">setInterval</span>(() => {
+  <span class="keyword">const</span> sockets = Object.<span class="fn">entries</span>(agent.sockets)
+    .<span class="fn">map</span>(([k, v]) => <span class="string">`${k}: ${v.length}`</span>);
+  console.<span class="fn">log</span>(<span class="string">'Active sockets:'</span>, sockets);
+}, <span class="num">10000</span>);
+
+<span class="comment">// 常见泄漏原因：</span>
+<span class="comment">// 1. 未调用 res.resume() 消费响应体 → socket 无法复用</span>
+<span class="comment">// 2. 未正确处理错误事件 → socket 残留</span>
+<span class="comment">// 3. keepAlive + 未设置 timeout → 连接不释放</span></pre>
+
+      <pre><span class="comment">// ✅ 安全的 HTTP 请求模板</span>
+<span class="keyword">async function</span> <span class="fn">safeRequest</span>(url, options = {}) {
+  <span class="keyword">const</span> controller = <span class="keyword">new</span> <span class="fn">AbortController</span>();
+  <span class="keyword">const</span> timer = <span class="fn">setTimeout</span>(() => controller.<span class="fn">abort</span>(), options.timeout || <span class="num">10000</span>);
+
+  <span class="keyword">try</span> {
+    <span class="keyword">const</span> res = <span class="keyword">await</span> <span class="fn">fetch</span>(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    <span class="comment">// 必须消费响应体，否则 socket 不归还</span>
+    <span class="keyword">const</span> body = <span class="keyword">await</span> res.<span class="fn">text</span>();
+    <span class="keyword">return</span> { status: res.status, body };
+  } <span class="keyword">catch</span> (err) {
+    <span class="keyword">if</span> (err.name === <span class="string">'AbortError'</span>) {
+      <span class="keyword">throw new</span> <span class="fn">Error</span>(<span class="string">`Request timeout: ${url}`</span>);
+    }
+    <span class="keyword">throw</span> err;
+  } <span class="keyword">finally</span> {
+    <span class="fn">clearTimeout</span>(timer);
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <h4>数据库连接池监控</h4>
+      <pre><span class="comment">// 以 pg (PostgreSQL) 为例</span>
+<span class="keyword">const</span> { Pool } = <span class="fn">require</span>(<span class="string">'pg'</span>);
+<span class="keyword">const</span> pool = <span class="keyword">new</span> <span class="fn">Pool</span>({
+  max: <span class="num">20</span>,
+  idleTimeoutMillis: <span class="num">30000</span>,
+  connectionTimeoutMillis: <span class="num">5000</span>,
+});
+
+<span class="comment">// 监控连接池状态</span>
+pool.<span class="fn">on</span>(<span class="string">'error'</span>, (err) => {
+  console.<span class="fn">error</span>(<span class="string">'Unexpected pool error:'</span>, err);
+});
+
+<span class="fn">setInterval</span>(() => {
+  console.<span class="fn">log</span>({
+    total:     pool.totalCount,    <span class="comment">// 总连接数</span>
+    idle:      pool.idleCount,     <span class="comment">// 空闲连接</span>
+    waiting:   pool.waitingCount,  <span class="comment">// 等待队列长度</span>
+  });
+  <span class="keyword">if</span> (pool.waitingCount > <span class="num">0</span>) {
+    console.<span class="fn">warn</span>(<span class="string">'Connection pool exhausted!'</span>);
+  }
+}, <span class="num">5000</span>);</pre>
+    </div>
+  </div>
+
+  <!-- ===================== 7. 崩溃与异常 ===================== -->
+  <div class="section" id="crash">
+    <div class="section-title">
+      <span class="material-icons-outlined">report_problem</span>
+      崩溃与异常处理
+    </div>
+    <p class="section-desc">未捕获异常会导致进程退出。完善的错误处理和进程管理是生产稳定的最后防线。</p>
+
+    <div class="card">
+      <h4>全局错误捕获</h4>
+      <pre><span class="comment">// 1. 未捕获异常</span>
+process.<span class="fn">on</span>(<span class="string">'uncaughtException'</span>, (err, origin) => {
+  console.<span class="fn">error</span>(<span class="string">`Uncaught Exception [${origin}]:`</span>, err);
+  <span class="comment">// 记录日志后必须退出（状态可能已损坏）</span>
+  <span class="fn">gracefulShutdown</span>(<span class="num">1</span>);
+});
+
+<span class="comment">// 2. 未处理的 Promise rejection</span>
+process.<span class="fn">on</span>(<span class="string">'unhandledRejection'</span>, (reason, promise) => {
+  console.<span class="fn">error</span>(<span class="string">'Unhandled Rejection:'</span>, reason);
+  <span class="comment">// Node.js 15+ 默认终止进程</span>
+});
+
+<span class="comment">// 3. 警告（deprecated API 等）</span>
+process.<span class="fn">on</span>(<span class="string">'warning'</span>, (warn) => {
+  console.<span class="fn">warn</span>(<span class="string">`Warning: ${warn.name} - ${warn.message}`</span>);
+  <span class="keyword">if</span> (warn.stack) console.<span class="fn">warn</span>(warn.stack);
+});
+
+<span class="comment">// 4. Worker Thread 错误</span>
+worker.<span class="fn">on</span>(<span class="string">'error'</span>, (err) => {
+  console.<span class="fn">error</span>(<span class="string">'Worker error:'</span>, err);
+});
+worker.<span class="fn">on</span>(<span class="string">'exit'</span>, (code) => {
+  <span class="keyword">if</span> (code !== <span class="num">0</span>) console.<span class="fn">error</span>(<span class="string">`Worker exited with code ${code}`</span>);
+});</pre>
+    </div>
+
+    <div class="card">
+      <h4>优雅关闭 (Graceful Shutdown)</h4>
+      <pre><span class="keyword">let</span> isShuttingDown = <span class="keyword">false</span>;
+
+<span class="keyword">async function</span> <span class="fn">gracefulShutdown</span>(signal) {
+  <span class="keyword">if</span> (isShuttingDown) <span class="keyword">return</span>;
+  isShuttingDown = <span class="keyword">true</span>;
+  console.<span class="fn">log</span>(<span class="string">`Received ${signal}. Shutting down gracefully...`</span>);
+
+  <span class="comment">// 1. 停止接收新请求</span>
+  server.<span class="fn">close</span>(() => {
+    console.<span class="fn">log</span>(<span class="string">'HTTP server closed.'</span>);
+  });
+
+  <span class="comment">// 2. 等待正在处理的请求完成（最多 30s）</span>
+  <span class="keyword">const</span> deadline = <span class="fn">setTimeout</span>(() => {
+    console.<span class="fn">error</span>(<span class="string">'Shutdown timeout, forcing exit.'</span>);
+    process.<span class="fn">exit</span>(<span class="num">1</span>);
+  }, <span class="num">30000</span>);
+
+  <span class="keyword">try</span> {
+    <span class="comment">// 3. 关闭数据库连接</span>
+    <span class="keyword">await</span> pool.<span class="fn">end</span>();
+    <span class="comment">// 4. 关闭 Redis 连接</span>
+    <span class="keyword">await</span> redis.<span class="fn">quit</span>();
+    <span class="comment">// 5. 刷新日志</span>
+    <span class="keyword">await</span> logger.<span class="fn">flush</span>();
+
+    console.<span class="fn">log</span>(<span class="string">'Graceful shutdown complete.'</span>);
+    <span class="fn">clearTimeout</span>(deadline);
+    process.<span class="fn">exit</span>(<span class="num">0</span>);
+  } <span class="keyword">catch</span> (err) {
+    console.<span class="fn">error</span>(<span class="string">'Error during shutdown:'</span>, err);
+    process.<span class="fn">exit</span>(<span class="num">1</span>);
+  }
+}
+
+process.<span class="fn">on</span>(<span class="string">'SIGTERM'</span>, () => <span class="fn">gracefulShutdown</span>(<span class="string">'SIGTERM'</span>));
+process.<span class="fn">on</span>(<span class="string">'SIGINT'</span>,  () => <span class="fn">gracefulShutdown</span>(<span class="string">'SIGINT'</span>));</pre>
+    </div>
+
+    <div class="card">
+      <h4>进程管理器配置 <span class="badge">PM2</span></h4>
+      <pre><span class="comment">// ecosystem.config.js</span>
+module.exports = {
+  apps: [{
+    name: <span class="string">'api-server'</span>,
+    script: <span class="string">'./app.js'</span>,
+    instances: <span class="string">'max'</span>,
+    exec_mode: <span class="string">'cluster'</span>,
+    max_memory_restart: <span class="string">'1.5G'</span>,      <span class="comment">// OOM 前自动重启</span>
+    <span class="flag">node_args</span>: <span class="string">'--max-old-space-size=1536'</span>,
+    <span class="flag">kill_timeout</span>: <span class="num">30000</span>,              <span class="comment">// 优雅关闭超时</span>
+    <span class="flag">listen_timeout</span>: <span class="num">10000</span>,
+    <span class="flag">max_restarts</span>: <span class="num">10</span>,                 <span class="comment">// 15 分钟内最多重启 10 次</span>
+    <span class="flag">min_uptime</span>: <span class="string">'10s'</span>,
+    <span class="flag">restart_delay</span>: <span class="num">5000</span>,
+    <span class="flag">exp_backoff_restart_delay</span>: <span class="num">100</span>,  <span class="comment">// 指数退避重启</span>
+    env: {
+      NODE_ENV: <span class="string">'production'</span>,
+    },
+    <span class="comment">// 日志配置</span>
+    error_file: <span class="string">'./logs/error.log'</span>,
+    out_file:   <span class="string">'./logs/out.log'</span>,
+    merge_logs: <span class="keyword">true</span>,
+    log_date_format: <span class="string">'YYYY-MM-DD HH:mm:ss.SSS'</span>,
+  }]
+};</pre>
+    </div>
+
+    <div class="callout danger">
+      <span class="material-icons-outlined">error</span>
+      <div><strong>不要吞掉错误！</strong><code>catch(err) { }</code> 空 catch 是生产环境最常见的隐患。至少记录日志。使用 <code>--throw-deprecation</code> 和 <code>--throw-on-unhandled-rejection</code> 标志在开发阶段捕获隐患。</div>
+    </div>
+  </div>
+
+  <!-- ===================== 8. 工具链总览 ===================== -->
+  <div class="section" id="tools">
+    <div class="section-title">
+      <span class="material-icons-outlined">build</span>
+      工具链总览
+    </div>
+    <p class="section-desc">选择合适的工具组合，覆盖从开发到生产的全链路监控。</p>
+
+    <div class="card">
+      <h4>命令行诊断工具</h4>
+      <div class="tool-grid">
+        <div class="tool-item">
+          <div class="name">node --inspect</div>
+          <div class="desc">开启 Chrome DevTools 调试器，支持断点、Heap Snapshot、CPU Profile</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">node --prof</div>
+          <div class="desc">V8 内置 profiler，生成 CPU ticks 日志用于分析热点函数</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">clinic.js</div>
+          <div class="desc">一站式诊断工具：doctor（自动诊断）、flame（火焰图）、bubbleprof（异步）</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">0x</div>
+          <div class="desc">零配置生成交互式火焰图，直接在浏览器中分析 CPU 时间分布</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">ndb</div>
+          <div class="desc">改进的 Node.js 调试器（Chrome DevTools fork），支持 npm script 断点</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">autocannon</div>
+          <div class="desc">HTTP 基准测试工具，模拟高并发定位性能瓶颈</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">why-is-node-running</div>
+          <div class="desc">进程不退出时使用，列出所有阻止退出的活跃句柄和调用栈</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">llnode / lldb</div>
+          <div class="desc">从 core dump 文件离线分析崩溃现场，查看 JS 对象和调用栈</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>APM 与可观测性平台</h4>
+      <div class="tool-grid">
+        <div class="tool-item">
+          <div class="name">Prometheus + Grafana</div>
+          <div class="desc">开源指标收集与可视化，配合 prom-client 暴露 Node.js 指标</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">Elastic APM</div>
+          <div class="desc">开源 APM，自动追踪请求链路、数据库查询、外部 HTTP 调用</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">OpenTelemetry</div>
+          <div class="desc">统一的可观测性框架：Traces + Metrics + Logs，厂商无关</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">Sentry</div>
+          <div class="desc">错误追踪平台，自动捕获异常、聚合相似错误、支持 Source Map</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">Datadog</div>
+          <div class="desc">全栈可观测性 SaaS，集成 APM、日志、基础设施监控、告警</div>
+        </div>
+        <div class="tool-item">
+          <div class="name">New Relic</div>
+          <div class="desc">老牌 APM，Node.js 深度集成，自动发现事务和数据库查询</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>clinic.js 诊断套件示例</h4>
+      <pre><span class="comment"># 安装</span>
+npm i <span class="flag">-g</span> clinic
+
+<span class="comment"># 1. 自动诊断 — 检测常见的性能问题</span>
+npx clinic doctor <span class="flag">-- node</span> app.js
+<span class="comment"># 自动生成报告，标识事件循环延迟、CPU 使用率等问题</span>
+
+<span class="comment"># 2. 火焰图 — 定位 CPU 热点</span>
+npx clinic flame <span class="flag">-- node</span> app.js
+
+<span class="comment"># 3. 异步分析 — 可视化异步操作链</span>
+npx clinic bubbleprof <span class="flag">-- node</span> app.js
+
+<span class="comment"># 4. 对比两次运行结果</span>
+npx clinic flame <span class="flag">--compare</span> v1.flamegraph v2.flamegraph</pre>
+    </div>
+  </div>
+
+  <!-- ===================== 9. 排查清单 ===================== -->
+  <div class="section" id="checklist">
+    <div class="section-title">
+      <span class="material-icons-outlined">checklist</span>
+      问题排查清单
+    </div>
+    <p class="section-desc">遇到问题时，按此清单逐步排查，快速缩小范围。</p>
+
+    <div class="card">
+      <h4>🔴 OOM 崩溃排查流程</h4>
+      <div class="flow">
+        <div class="step"><span class="material-icons-outlined">search</span> 确认 OOM 类型</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">memory</span> Heap 还是 RSS?</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">camera</span> 抓 Heap Snapshot</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">compare</span> 对比分析</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">bug_report</span> 定位泄漏源</div>
+      </div>
+      <ol>
+        <li>查看进程日志中的 <code>JavaScript heap out of memory</code> 或 <code>Allocation failed</code></li>
+        <li>检查 <code>process.memoryUsage()</code> 确认是 heap 还是 RSS 超限</li>
+        <li>Heap 超限 → 用 <code>v8.writeHeapSnapshot()</code> 或 <code>--heapprod</code> 抓快照</li>
+        <li>RSS 超限 → 检查 Buffer / Native Module / 共享内存分配</li>
+        <li>Chrome DevTools 加载快照，Comparison 视图找增长最快的对象</li>
+        <li>Retainers 视图追溯引用链，找到 GC Root 到泄漏对象的路径</li>
+        <li>修复后用 <code>process.memoryUsage()</code> 持续观察确认</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4>🟡 响应变慢排查流程</h4>
+      <div class="flow">
+        <div class="step"><span class="material-icons-outlined">timer</span> 确认延迟来源</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">speed</span> CPU 还是 I/O?</div>
+        <span class="arrow">→</span>
+        <div class="step"><span class="material-icons-outlined">tune</span> 对症下药</div>
+      </div>
+      <ol>
+        <li>查看 APM 或日志中的请求延迟分位值（p50/p95/p99）</li>
+        <li>CPU 高 → <code>node --cpu-prof</code> 或 <code>0x</code> 抓火焰图</li>
+        <li>事件循环延迟高 → <code>monitorEventLoopDelay()</code> 确认，<code>blocked-at</code> 定位阻塞源</li>
+        <li>I/O 延迟高 → 检查数据库慢查询日志、外部 API 调用延迟</li>
+        <li>GC 停顿长 → <code>--trace-gc</code> 分析 GC 频率和耗时，调整堆大小</li>
+        <li>连接池耗尽 → 监控 pool.waitingCount，调整 maxSockets / pool size</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4>🟠 进程异常退出排查</h4>
+      <ol>
+        <li>检查退出码：0=正常，1=未捕获异常，128+signal=被信号杀死</li>
+        <li><code>SIGKILL (137)</code> → 通常是 OOM Killer，检查容器内存限制</li>
+        <li><code>SIGSEGV (139)</code> → 段错误，检查 Native Module 或 V8 Bug</li>
+        <li>查看 PM2 日志：<code>pm2 logs --lines 200</code></li>
+        <li>生成 core dump：<code>ulimit -c unlimited</code> + <code>--report-on-fatalerror</code></li>
+        <li>用 <code>llnode</code> 分析 core dump</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4>🟢 日常防御清单</h4>
+      <div class="tag-row">
+        <span class="tag"><span class="material-icons-outlined" style="font-size:14px">check</span> 设置 --max-old-space-size</span>
+        <span class="tag"><span class="material-icons-outlined" style="font-size:14px">check</span> 配置健康检查端点</span>
+        <span class="tag"><span class="material-icons-outlined" style="font-size:14px">check</span> 进程管理器自动重启</span>
+        <span class="tag"><span class="material-icons-outlined" style="font-size:14px">check</span> 优雅关闭处理</span>
+        <span class="tag pink"><span class="material-icons-outlined" style="font-size:14px">check</span> uncaughtException 捕获</span>
+        <span class="tag pink"><span class="material-icons-outlined" style="font-size:14px">check</span> unhandledRejection 处理</span>
+        <span class="tag orange"><span class="material-icons-outlined" style="font-size:14px">check</span> 事件循环延迟监控</span>
+        <span class="tag orange"><span class="material-icons-outlined" style="font-size:14px">check</span> 内存使用率监控</span>
+        <span class="tag blue"><span class="material-icons-outlined" style="font-size:14px">check</span> 连接池状态监控</span>
+        <span class="tag blue"><span class="material-icons-outlined" style="font-size:14px">check</span> 错误率告警</span>
+        <span class="tag purple"><span class="material-icons-outlined" style="font-size:14px">check</span> 定期 Heap Snapshot</span>
+        <span class="tag purple"><span class="material-icons-outlined" style="font-size:14px">check</span> GC 日志分析</span>
+        <span class="tag red"><span class="material-icons-outlined" style="font-size:14px">check</span> 容器内存留 20% buffer</span>
+        <span class="tag red"><span class="material-icons-outlined" style="font-size:14px">check</span> 请求体大小限制</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Node.js 调试命令速查</h4>
+      <table>
+        <tr><th>场景</th><th>命令</th></tr>
+        <tr><td>启动调试</td><td><code>node --inspect app.js</code></td></tr>
+        <tr><td>远程调试</td><td><code>node --inspect=0.0.0.0:9229 app.js</code></td></tr>
+        <tr><td>断点调试（不暂停）</td><td><code>node --inspect-brk app.js</code></td></tr>
+        <tr><td>CPU Profile</td><td><code>node --cpu-prof app.js</code></td></tr>
+        <tr><td>Heap Snapshot</td><td><code>node --heapprod app.js</code></td></tr>
+        <tr><td>GC 日志</td><td><code>node --trace-gc app.js</code></td></tr>
+        <tr><td>Deprecation 警告</td><td><code>node --throw-deprecation app.js</code></td></tr>
+        <tr><td>Core Dump 分析</td><td><code>node --report-on-fatalerror app.js</code></td></tr>
+        <tr><td>运行时发送信号</td><td><code>kill -SIGUSR2 &lt;pid&gt;</code> (触发 snapshot)</td></tr>
+        <tr><td>查看进程限制</td><td><code>cat /proc/&lt;pid&gt;/limits</code></td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Node.js 服务监控 · 分析 · 调试指南 — 涵盖 OOM、CPU、事件循环、网络、崩溃全场景
+</div>
+
+</body>
+</html>
