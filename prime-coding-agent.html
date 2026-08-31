@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Coding Agent — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #42A5F5;
+    --md-primary-dark: #0D47A1;
+    --md-secondary: #00897B;
+    --md-surface: #FFFFFF;
+    --md-background: #F5F5F5;
+    --md-on-primary: #FFFFFF;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-error: #D32F2F;
+    --md-elevation-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    --md-elevation-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+    --md-elevation-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+  /* App Bar */
+  .app-bar {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px;
+    box-shadow: var(--md-elevation-2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-bar h1 { font-weight: 400; font-size: 22px; letter-spacing: 0.5px; }
+  .app-bar .subtitle { font-size: 14px; opacity: 0.85; margin-top: 2px; }
+  /* Layout */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+  /* Cards */
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elevation-1);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: var(--md-elevation-2); }
+  .card-header {
+    padding: 20px 24px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-header .icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .card-header h2 { font-size: 20px; font-weight: 500; }
+  .card-body { padding: 0 24px 20px; }
+  /* Section title */
+  .section-title {
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--md-primary);
+    margin: 32px 0 16px;
+    padding-left: 4px;
+  }
+  /* Layer chips */
+  .layer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+  }
+  .layer-chip {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-sm);
+    box-shadow: var(--md-elevation-1);
+    padding: 16px 20px;
+    border-left: 4px solid var(--md-primary);
+  }
+  .layer-chip.green { border-left-color: var(--md-secondary); }
+  .layer-chip.red { border-left-color: var(--md-error); }
+  .layer-chip.orange { border-left-color: #EF6C00; }
+  .layer-chip.purple { border-left-color: #7B1FA2; }
+  .layer-chip h3 { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+  .layer-chip p { font-size: 13px; color: var(--md-on-surface-variant); }
+  .layer-chip code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    background: #E3F2FD;
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--md-primary-dark);
+  }
+  /* File tree */
+  .file-tree {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    background: #FAFAFA;
+    padding: 16px 20px;
+    border-radius: var(--md-radius-sm);
+    border: 1px solid var(--md-outline);
+    overflow-x: auto;
+  }
+  .file-tree .dir { color: var(--md-primary); font-weight: 500; }
+  .file-tree .file { color: var(--md-on-surface-variant); }
+  .file-tree .comment { color: #9E9E9E; font-style: italic; }
+  /* Table */
+  .md-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .md-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: #E3F2FD;
+    font-weight: 500;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--md-primary-dark);
+  }
+  .md-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #E0E0E0;
+  }
+  .md-table tr:last-child td { border-bottom: none; }
+  .md-table tr:hover td { background: #F5F5F5; }
+  .md-table code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    background: #F5F5F5;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  /* SVG container */
+  .svg-container {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elevation-2);
+    padding: 24px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .svg-container svg { display: block; margin: 0 auto; }
+  /* Badge */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge.blue { background: #E3F2FD; color: var(--md-primary-dark); }
+  .badge.green { background: #E8F5E9; color: #2E7D32; }
+  .badge.orange { background: #FFF3E0; color: #E65100; }
+  .badge.purple { background: #F3E5F5; color: #7B1FA2; }
+  /* Summary card */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .summary-stat {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-sm);
+    box-shadow: var(--md-elevation-1);
+    padding: 20px;
+    text-align: center;
+  }
+  .summary-stat .number {
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--md-primary);
+  }
+  .summary-stat .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--md-on-surface-variant);
+    margin-top: 4px;
+  }
+  @media (max-width: 768px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .layer-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+  <h1>Prime Coding Agent — Architecture</h1>
+  <div class="subtitle">packages/coding-agent/ · Internal architecture reference</div>
+</div>
+
+<div class="container">
+
+<!-- Summary Stats -->
+<div class="summary-grid">
+  <div class="summary-stat">
+    <div class="number">170+</div>
+    <div class="label">Source Files</div>
+  </div>
+  <div class="summary-stat">
+    <div class="number">6</div>
+    <div class="label">Run Modes</div>
+  </div>
+  <div class="summary-stat">
+    <div class="number">5</div>
+    <div class="label">Core Layers</div>
+  </div>
+  <div class="summary-stat">
+    <div class="number">40+</div>
+    <div class="label">UI Components</div>
+  </div>
+</div>
+
+<!-- Infrastructure SVG -->
+<div class="svg-container">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" width="1100" height="820">
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#1565C0"/>
+      </marker>
+      <marker id="arrow-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#9E9E9E"/>
+      </marker>
+      <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#00897B"/>
+      </marker>
+      <filter id="shadow">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+      </filter>
+      <linearGradient id="grad-primary" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#1565C0;stop-opacity:1"/>
+        <stop offset="100%" style="stop-color:#0D47A1;stop-opacity:1"/>
+      </linearGradient>
+      <linearGradient id="grad-secondary" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#00897B;stop-opacity:1"/>
+        <stop offset="100%" style="stop-color:#00695C;stop-opacity:1"/>
+      </linearGradient>
+      <linearGradient id="grad-orange" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#EF6C00;stop-opacity:1"/>
+        <stop offset="100%" style="stop-color:#E65100;stop-opacity:1"/>
+      </linearGradient>
+      <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#7B1FA2;stop-opacity:1"/>
+        <stop offset="100%" style="stop-color:#6A1B9A;stop-opacity:1"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Title -->
+    <text x="550" y="30" text-anchor="middle" font-family="Roboto, sans-serif" font-size="18" font-weight="500" fill="#212121">Infrastructure &amp; Data Flow</text>
+
+    <!-- ═══════════ LAYER 1: CLI Entry ═══════════ -->
+    <rect x="30" y="50" width="1040" height="90" rx="12" fill="#E3F2FD" stroke="#BBDEFB" stroke-width="1"/>
+    <text x="50" y="72" font-family="Roboto, sans-serif" font-size="12" font-weight="500" fill="#1565C0" text-transform="uppercase" letter-spacing="1">CLI LAYER</text>
+
+    <rect x="50" y="82" width="130" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="115" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli.ts</text>
+
+    <rect x="200" y="82" width="130" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="265" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli-main.ts</text>
+
+    <rect x="350" y="82" width="150" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="425" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli/args.ts</text>
+
+    <rect x="520" y="82" width="180" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="610" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli/command-registry.ts</text>
+
+    <rect x="720" y="82" width="160" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="800" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli/daemon-launch.ts</text>
+
+    <rect x="900" y="82" width="150" height="44" rx="8" fill="url(#grad-primary)" filter="url(#shadow)"/>
+    <text x="975" y="108" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">cli/session-resolver.ts</text>
+
+    <!-- Arrow CLI → Core -->
+    <line x1="550" y1="140" x2="550" y2="165" stroke="#1565C0" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- ═══════════ LAYER 2: Main / Config ═══════════ -->
+    <rect x="180" y="165" width="740" height="60" rx="10" fill="white" stroke="#1565C0" stroke-width="2" filter="url(#shadow)"/>
+    <text x="550" y="190" text-anchor="middle" font-family="Roboto, sans-serif" font-size="14" font-weight="500" fill="#1565C0">main.ts — Orchestrator</text>
+    <text x="550" y="210" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#616161">parseArgs → resolveConfig → createAgentSession → selectMode</text>
+
+    <!-- Arrow Main → Core -->
+    <line x1="550" y1="225" x2="550" y2="255" stroke="#1565C0" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- ═══════════ LAYER 3: Core Engine ═══════════ -->
+    <rect x="30" y="255" width="1040" height="200" rx="12" fill="#E8F5E9" stroke="#C8E6C9" stroke-width="1"/>
+    <text x="50" y="277" font-family="Roboto, sans-serif" font-size="12" font-weight="500" fill="#2E7D32" letter-spacing="1">CORE ENGINE</text>
+
+    <!-- Agent Session -->
+    <rect x="50" y="290" width="200" height="70" rx="8" fill="url(#grad-secondary)" filter="url(#shadow)"/>
+    <text x="150" y="318" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">AgentSession</text>
+    <text x="150" y="338" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="rgba(255,255,255,0.8)">agent-session.ts</text>
+
+    <!-- SDK -->
+    <rect x="50" y="370" width="200" height="70" rx="8" fill="url(#grad-secondary)" filter="url(#shadow)"/>
+    <text x="150" y="398" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="white" font-weight="500">SDK</text>
+    <text x="150" y="418" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="rgba(255,255,255,0.8)">sdk.ts</text>
+
+    <!-- Tools -->
+    <rect x="270" y="290" width="160" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="350" y="318" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Tools</text>
+    <text x="350" y="338" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">bash · edit · ipython</text>
+
+    <!-- Extensions -->
+    <rect x="450" y="290" width="160" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="530" y="318" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Extensions</text>
+    <text x="530" y="338" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">loader · runner · wrapper</text>
+
+    <!-- Compaction -->
+    <rect x="630" y="290" width="160" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="710" y="318" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Compaction</text>
+    <text x="710" y="338" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">branch · summarizer</text>
+
+    <!-- Session Mgmt -->
+    <rect x="810" y="290" width="240" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="930" y="318" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Session Management</text>
+    <text x="930" y="338" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">manager · lease · resolver · stats</text>
+
+    <!-- Auth / Model -->
+    <rect x="270" y="370" width="200" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="370" y="398" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Auth &amp; Models</text>
+    <text x="370" y="418" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">auth-storage · model-resolver</text>
+
+    <!-- Prompts / Skills -->
+    <rect x="490" y="370" width="200" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="590" y="398" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Prompts &amp; Skills</text>
+    <text x="590" y="418" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">system-prompt · skills · rlm</text>
+
+    <!-- MCP / Kernel -->
+    <rect x="710" y="370" width="160" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="790" y="398" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">MCP &amp; Kernel</text>
+    <text x="790" y="418" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">mcp-manager · kernel/</text>
+
+    <!-- Event Bus -->
+    <rect x="890" y="370" width="160" height="70" rx="8" fill="white" stroke="#00897B" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="970" y="398" text-anchor="middle" font-family="Roboto, sans-serif" font-size="13" fill="#00695C" font-weight="500">Event Bus</text>
+    <text x="970" y="418" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#616161">event-bus · telemetry</text>
+
+    <!-- Arrows inside Core -->
+    <line x1="150" y1="360" x2="150" y2="370" stroke="#00897B" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+    <line x1="250" y1="325" x2="270" y2="325" stroke="#9E9E9E" stroke-width="1" stroke-dasharray="4" marker-end="url(#arrow-gray)"/>
+
+    <!-- Arrow Core → Modes -->
+    <line x1="550" y1="455" x2="550" y2="485" stroke="#1565C0" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- ═══════════ LAYER 4: Run Modes ═══════════ -->
+    <rect x="30" y="485" width="1040" height="130" rx="12" fill="#FFF3E0" stroke="#FFE0B2" stroke-width="1"/>
+    <text x="50" y="507" font-family="Roboto, sans-serif" font-size="12" font-weight="500" fill="#E65100" letter-spacing="1">RUN MODES</text>
+
+    <rect x="50" y="520" width="150" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="125" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">Interactive</text>
+    <text x="125" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">TUI / Ink</text>
+
+    <rect x="220" y="520" width="130" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="285" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">Daemon</text>
+    <text x="285" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">supervisor · socket</text>
+
+    <rect x="370" y="520" width="130" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="435" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">ACP</text>
+    <text x="435" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">agent protocol</text>
+
+    <rect x="520" y="520" width="130" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="585" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">RPC</text>
+    <text x="585" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">JSON-RPC</text>
+
+    <rect x="670" y="520" width="130" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="735" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">Print</text>
+    <text x="735" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">headless</text>
+
+    <rect x="820" y="520" width="130" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
+    <text x="885" y="545" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white" font-weight="500">Agents View</text>
+    <text x="885" y="561" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.8)">session browser</text>
+
+    <!-- Session Worker (below modes) -->
+    <rect x="50" y="590" width="180" height="18" rx="4" fill="#FFE0B2"/>
+    <text x="140" y="603" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#E65100">session-worker/ · private-framing</text>
+
+    <!-- Arrow Modes → UI -->
+    <line x1="350" y1="615" x2="350" y2="645" stroke="#1565C0" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="750" y1="615" x2="750" y2="645" stroke="#1565C0" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- ═══════════ LAYER 5: UI / Presentation ═══════════ -->
+    <rect x="30" y="645" width="500" height="160" rx="12" fill="#F3E5F5" stroke="#E1BEE7" stroke-width="1"/>
+    <text x="50" y="667" font-family="Roboto, sans-serif" font-size="12" font-weight="500" fill="#7B1FA2" letter-spacing="1">INTERACTIVE UI</text>
+
+    <rect x="50" y="680" width="220" height="50" rx="8" fill="white" stroke="#7B1FA2" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="160" y="703" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#7B1FA2" font-weight="500">Components (40+)</text>
+    <text x="160" y="718" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">message · tool · diff · footer</text>
+
+    <rect x="290" y="680" width="220" height="50" rx="8" fill="white" stroke="#7B1FA2" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="400" y="703" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#7B1FA2" font-weight="500">Theme Engine</text>
+    <text x="400" y="718" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">code-highlighter · working-icon</text>
+
+    <rect x="50" y="745" width="460" height="50" rx="8" fill="white" stroke="#7B1FA2" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="280" y="768" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#7B1FA2" font-weight="500">Agent Connection Layer</text>
+    <text x="280" y="783" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">InProcessAgentConnection · DaemonAgentConnection · snapshot</text>
+
+    <!-- Daemon infra -->
+    <rect x="550" y="645" width="520" height="160" rx="12" fill="#ECEFF1" stroke="#CFD8DC" stroke-width="1"/>
+    <text x="570" y="667" font-family="Roboto, sans-serif" font-size="12" font-weight="500" fill="#546E7A" letter-spacing="1">DAEMON INFRASTRUCTURE</text>
+
+    <rect x="570" y="680" width="160" height="50" rx="8" fill="white" stroke="#546E7A" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="650" y="703" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#546E7A" font-weight="500">Supervisor</text>
+    <text x="650" y="718" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">process · ownership</text>
+
+    <rect x="750" y="680" width="160" height="50" rx="8" fill="white" stroke="#546E7A" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="830" y="703" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#546E7A" font-weight="500">Socket Protocol</text>
+    <text x="830" y="718" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">daemon-protocol · client</text>
+
+    <rect x="570" y="745" width="160" height="50" rx="8" fill="white" stroke="#546E7A" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="650" y="768" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#546E7A" font-weight="500">Session Catalog</text>
+    <text x="650" y="783" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">saved · heartbeat · list</text>
+
+    <rect x="750" y="745" width="160" height="50" rx="8" fill="white" stroke="#546E7A" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="830" y="768" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#546E7A" font-weight="500">Worker Recovery</text>
+    <text x="830" y="783" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">journal · compact-stream</text>
+
+    <rect x="930" y="680" width="120" height="115" rx="8" fill="white" stroke="#546E7A" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="990" y="720" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#546E7A" font-weight="500">Utils</text>
+    <text x="990" y="740" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">git · shell</text>
+    <text x="990" y="755" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">clipboard · paths</text>
+    <text x="990" y="770" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">image · semaphore</text>
+    <text x="990" y="785" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#616161">frontmatter</text>
+
+    <!-- External dependencies -->
+    <text x="550" y="815" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#9E9E9E">External: @earendil-works/pi-ai · @earendil-works/pi-tui · chalk · vitest</text>
+  </svg>
+</div>
+
+<!-- ═══════════ Architecture Layers ═══════════ -->
+<div class="section-title">Architecture Layers</div>
+
+<div class="layer-grid">
+  <div class="layer-chip">
+    <h3>🔧 CLI Layer</h3>
+    <p>Entry point and argument parsing. <code>cli.ts</code> bootstraps the process; <code>cli-main.ts</code> handles the main flow. Sub-modules in <code>cli/</code> manage daemon launch, session resolution, file processing, and command routing.</p>
+  </div>
+  <div class="layer-chip green">
+    <h3>⚙️ Core Engine</h3>
+    <p>The shared runtime. <code>AgentSession</code> drives the conversation loop. Tools (<code>bash</code>, <code>edit</code>, <code>ipython</code>) execute actions. Extensions provide plugin hooks. Compaction manages context window pressure.</p>
+  </div>
+  <div class="layer-chip orange">
+    <h3>🚀 Run Modes</h3>
+    <p>Six execution modes: <strong>Interactive</strong> (TUI), <strong>Daemon</strong> (background supervisor), <strong>ACP</strong> (agent protocol), <strong>RPC</strong> (JSON-RPC), <strong>Print</strong> (headless), and <strong>Agents View</strong> (session browser).</p>
+  </div>
+  <div class="layer-chip purple">
+    <h3>🎨 Presentation</h3>
+    <p>40+ Ink/React components for the terminal UI. Theme engine with syntax highlighting. The <code>AgentConnection</code> abstraction bridges modes to the UI layer with <code>InProcess</code> and <code>Daemon</code> variants.</p>
+  </div>
+</div>
+
+<!-- ═══════════ Directory Structure ═══════════ -->
+<div class="section-title">Directory Structure</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="file-tree">
+<span class="dir">packages/coding-agent/src/</span>
+├── <span class="file">cli.ts</span>              <span class="comment">// Thin entry — delegates to cli-main</span>
+├── <span class="file">cli-main.ts</span>         <span class="comment">// CLI arg parsing → main() orchestration</span>
+├── <span class="file">main.ts</span>             <span class="comment">// Central orchestrator: config → session → mode</span>
+├── <span class="file">config.ts</span>           <span class="comment">// Paths, VERSION, APP_NAME, env resolution</span>
+├── <span class="file">index.ts</span>            <span class="comment">// Public API barrel export</span>
+├── <span class="file">migrations.ts</span>       <span class="comment">// Schema migrations for session files</span>
+├── <span class="file">package-manager-cli.ts</span> <span class="comment">// Package manager integration CLI</span>
+│
+├── <span class="dir">cli/</span>                  <span class="comment">// CLI sub-commands and utilities</span>
+│   ├── <span class="file">args.ts</span>           <span class="comment">// Argument parser (Mode, Flags)</span>
+│   ├── <span class="file">command-registry.ts</span> <span class="comment">// Help text, command discovery</span>
+│   ├── <span class="file">daemon-launch.ts</span>  <span class="comment">// Start/attach to daemon process</span>
+│   ├── <span class="file">daemon-command.ts</span> <span class="comment">// 'daemon' sub-command handler</span>
+│   ├── <span class="file">file-processor.ts</span> <span class="comment">// Process @file arguments</span>
+│   ├── <span class="file">initial-message.ts</span> <span class="comment">// Build first user message</span>
+│   ├── <span class="file">owned-session-worker.ts</span> <span class="comment">// Worker process lifecycle</span>
+│   ├── <span class="file">session-resolver.ts</span> <span class="comment">// Resolve session path/name</span>
+│   └── <span class="file">subprocess-launch.ts</span> <span class="comment">// Fork child processes</span>
+│
+├── <span class="dir">core/</span>                 <span class="comment">// Shared engine (all modes depend on this)</span>
+│   ├── <span class="file">agent-session.ts</span>  <span class="comment">// ★ Central class: conversation loop</span>
+│   ├── <span class="file">agent-session-config.ts</span> <span class="comment">// Runtime config types</span>
+│   ├── <span class="file">agent-session-runtime.ts</span> <span class="comment">// Runtime lifecycle</span>
+│   ├── <span class="file">agent-session-services.ts</span> <span class="comment">// DI service factory</span>
+│   ├── <span class="file">sdk.ts</span>            <span class="comment">// Public SDK: createAgentSession()</span>
+│   ├── <span class="file">event-bus.ts</span>      <span class="comment">// Typed pub/sub for session events</span>
+│   ├── <span class="file">auth-storage.ts</span>   <span class="comment">// Credential persistence (file/memory)</span>
+│   ├── <span class="file">model-resolver.ts</span> <span class="comment">// Model selection logic</span>
+│   ├── <span class="file">model-registry.ts</span> <span class="comment">// Available model catalog</span>
+│   ├── <span class="file">system-prompt.ts</span>  <span class="comment">// System prompt assembly</span>
+│   ├── <span class="file">skills.ts</span>         <span class="comment">// Skill loading (markdown + python)</span>
+│   ├── <span class="file">session-manager.ts</span> <span class="comment">// Session file I/O, entries, history</span>
+│   ├── <span class="file">session-lease.ts</span>  <span class="comment">// Locking for concurrent access</span>
+│   ├── <span class="file">settings-manager.ts</span> <span class="comment">// User settings persistence</span>
+│   ├── <span class="file">telemetry.ts</span>      <span class="comment">// Usage analytics</span>
+│   │
+│   ├── <span class="dir">compaction/</span>       <span class="comment">// Context window management</span>
+│   │   ├── <span class="file">compaction.ts</span>   <span class="comment">// Main compaction algorithm</span>
+│   │   ├── <span class="file">branch-summarization.ts</span> <span class="comment">// Summarize conversation branches</span>
+│   │   └── <span class="file">utils.ts</span>        <span class="comment">// Token estimation helpers</span>
+│   │
+│   ├── <span class="dir">extensions/</span>       <span class="comment">// Plugin system</span>
+│   │   ├── <span class="file">loader.ts</span>       <span class="comment">// Discover &amp; load extension files</span>
+│   │   ├── <span class="file">runner.ts</span>       <span class="comment">// Execute extension hooks</span>
+│   │   ├── <span class="file">wrapper.ts</span>      <span class="comment">// Wrap tools for extension API</span>
+│   │   ├── <span class="file">types.ts</span>        <span class="comment">// Extension, ExtensionAPI, etc.</span>
+│   │   └── <span class="dir">builtin/</span>       <span class="comment">// Built-in extensions</span>
+│   │
+│   ├── <span class="dir">kernel/</span>           <span class="comment">// Process bootstrapping</span>
+│   │   ├── <span class="file">bootstrap.ts</span>    <span class="comment">// Kernel startup sequence</span>
+│   │   ├── <span class="file">fork-server.ts</span>  <span class="comment">// Fork a server child process</span>
+│   │   └── <span class="file">state-snapshot.ts</span> <span class="comment">// Capture kernel state</span>
+│   │
+│   ├── <span class="dir">tools/</span>            <span class="comment">// Agent tool definitions</span>
+│   │   ├── <span class="file">bash.ts</span>         <span class="comment">// Shell execution tool</span>
+│   │   ├── <span class="file">edit.ts</span>         <span class="comment">// File edit tool</span>
+│   │   ├── <span class="file">ipython.ts</span>      <span class="comment">// Jupyter/IPython tool</span>
+│   │   ├── <span class="file">file-mutation-queue.ts</span> <span class="comment">// Serialized file writes</span>
+│   │   └── <span class="file">code-preview.ts</span> <span class="comment">// Code snippet preview</span>
+│   │
+│   ├── <span class="dir">prompts/</span>          <span class="comment">// Prompt templates</span>
+│   └── <span class="dir">mcp/</span>              <span class="comment">// MCP (Model Context Protocol)</span>
+│
+├── <span class="dir">modes/</span>                <span class="comment">// Execution modes (mutually exclusive)</span>
+│   ├── <span class="dir">interactive/</span>      <span class="comment">// Terminal UI mode (Ink/React)</span>
+│   │   ├── <span class="file">interactive-mode.ts</span> <span class="comment">// Main interactive loop</span>
+│   │   ├── <span class="file">interactive-mode-services.ts</span> <span class="comment">// UI service DI</span>
+│   │   ├── <span class="dir">components/</span>    <span class="comment">// 40+ Ink components</span>
+│   │   ├── <span class="dir">theme/</span>         <span class="comment">// Syntax highlight, themes</span>
+│   │   └── <span class="file">auth-flows.ts</span>  <span class="comment">// Login dialogs</span>
+│   │
+│   ├── <span class="dir">daemon/</span>           <span class="comment">// Background daemon mode</span>
+│   │   ├── <span class="file">daemon-mode.ts</span>  <span class="comment">// Daemon entry point</span>
+│   │   ├── <span class="file">daemon-supervisor.ts</span> <span class="comment">// Process supervisor</span>
+│   │   ├── <span class="file">daemon-socket.ts</span> <span class="comment">// Unix socket server</span>
+│   │   ├── <span class="file">daemon-client.ts</span> <span class="comment">// Client for daemon comms</span>
+│   │   ├── <span class="file">daemon-protocol.ts</span> <span class="comment">// Wire protocol types</span>
+│   │   ├── <span class="file">daemon-session-list.ts</span> <span class="comment">// Session catalog</span>
+│   │   └── <span class="file">compact-session-stream.ts</span> <span class="comment">// Streaming compaction</span>
+│   │
+│   ├── <span class="dir">acp/</span>              <span class="comment">// Agent Communication Protocol</span>
+│   │   ├── <span class="file">acp-mode.ts</span>     <span class="comment">// ACP mode runner</span>
+│   │   └── <span class="file">acp-events.ts</span>   <span class="comment">// ACP event mapping</span>
+│   │
+│   ├── <span class="dir">rpc/</span>              <span class="comment">// JSON-RPC mode</span>
+│   │   ├── <span class="file">rpc-mode.ts</span>     <span class="comment">// RPC server</span>
+│   │   └── <span class="file">rpc-client.ts</span>   <span class="comment">// RPC client</span>
+│   │
+│   ├── <span class="dir">agent-connection/</span> <span class="comment">// Abstraction over daemon vs in-process</span>
+│   │   ├── <span class="file">in-process-agent-connection.ts</span>
+│   │   └── <span class="file">daemon-agent-connection.ts</span>
+│   │
+│   ├── <span class="dir">agents-view/</span>      <span class="comment">// Multi-session browser</span>
+│   └── <span class="file">print-mode.ts</span>     <span class="comment">// Headless single-shot mode</span>
+│
+└── <span class="dir">utils/</span>                <span class="comment">// Shared utilities</span>
+    ├── <span class="file">git.ts</span>            <span class="comment">// Git operations</span>
+    ├── <span class="file">shell.ts</span>          <span class="comment">// Shell detection</span>
+    ├── <span class="file">clipboard.ts</span>      <span class="comment">// Clipboard access</span>
+    ├── <span class="file">paths.ts</span>          <span class="comment">// Path normalization</span>
+    ├── <span class="file">semaphore.ts</span>      <span class="comment">// Concurrency primitive</span>
+    ├── <span class="file">frontmatter.ts</span>    <span class="comment">// YAML frontmatter parser</span>
+    └── <span class="file">image-convert.ts</span>  <span class="comment">// Image processing</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Core Concepts ═══════════ -->
+<div class="section-title">Core Concepts</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon" style="background:#E3F2FD;color:#1565C0;">⚡</div>
+    <h2>AgentSession — The Heart</h2>
+  </div>
+  <div class="card-body">
+    <p style="margin-bottom:12px;">The central class that drives the entire conversation loop. It manages message history, tool execution, model calls, and context compaction.</p>
+    <table class="md-table">
+      <tr><th>Responsibility</th><th>Module</th><th>Description</th></tr>
+      <tr><td>Conversation Loop</td><td><code>agent-session.ts</code></td><td>Send prompt → receive response → execute tools → repeat</td></tr>
+      <tr><td>Runtime Config</td><td><code>agent-session-config.ts</code></td><td>Model, thinking level, max tokens, tool config</td></tr>
+      <tr><td>Service DI</td><td><code>agent-session-services.ts</code></td><td>Factory for creating sessions with injected dependencies</td></tr>
+      <tr><td>Public SDK</td><td><code>sdk.ts</code></td><td><code>createAgentSession()</code> — programmatic API</td></tr>
+      <tr><td>Observability</td><td><code>agent-observe.ts</code></td><td>Tracing, metrics, debugging hooks</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon" style="background:#E8F5E9;color:#2E7D32;">🔌</div>
+    <h2>Extension System</h2>
+  </div>
+  <div class="card-body">
+    <p style="margin-bottom:12px;">A plugin architecture that lets external modules hook into the session lifecycle. Extensions can register tools, slash commands, modify prompts, and render custom UI.</p>
+    <table class="md-table">
+      <tr><th>Phase</th><th>Module</th><th>Description</th></tr>
+      <tr><td>Discovery</td><td><code>loader.ts</code></td><td>Scan directories for extension files, load &amp; validate</td></tr>
+      <tr><td>Registration</td><td><code>runner.ts</code></td><td>Execute extension factories, collect hooks</td></tr>
+      <tr><td>Wrapping</td><td><code>wrapper.ts</code></td><td>Wrap registered tools with extension API surface</td></tr>
+      <tr><td>Types</td><td><code>types.ts</code></td><td><code>Extension</code>, <code>ExtensionAPI</code>, <code>ToolDefinition</code>, etc.</td></tr>
+    </table>
+    <p style="margin-top:12px;font-size:13px;color:#616161;">Key hooks: <code>onSessionStart</code>, <code>onBeforeAgentStart</code>, <code>onToolCall</code>, <code>onTurnEnd</code>, <code>onSessionShutdown</code></p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon" style="background:#FFF3E0;color:#EF6C00;">🔄</div>
+    <h2>Run Modes</h2>
+  </div>
+  <div class="card-body">
+    <table class="md-table">
+      <tr><th>Mode</th><th>Entry</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge blue">Interactive</span></td>
+        <td><code>interactive-mode.ts</code></td>
+        <td>Full terminal UI with Ink/React components. Supports TUI rendering, keybindings, auth flows, onboarding.</td>
+      </tr>
+      <tr>
+        <td><span class="badge green">Daemon</span></td>
+        <td><code>daemon-mode.ts</code></td>
+        <td>Background supervisor process. Manages sessions over Unix sockets. Supports multi-client, heartbeats, session recovery.</td>
+      </tr>
+      <tr>
+        <td><span class="badge orange">ACP</span></td>
+        <td><code>acp-mode.ts</code></td>
+        <td>Agent Communication Protocol — for inter-agent orchestration. Maps ACP events to session events.</td>
+      </tr>
+      <tr>
+        <td><span class="badge purple">RPC</span></td>
+        <td><code>rpc-mode.ts</code></td>
+        <td>JSON-RPC server mode. Programmatic control via typed commands and responses.</td>
+      </tr>
+      <tr>
+        <td><span class="badge blue">Print</span></td>
+        <td><code>print-mode.ts</code></td>
+        <td>Headless single-shot execution. Input → response → exit. No TUI.</td>
+      </tr>
+      <tr>
+        <td><span class="badge green">Agents View</span></td>
+        <td><code>agents-view-mode.ts</code></td>
+        <td>Multi-session browser. View, search, and attach to running daemon sessions.</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="icon" style="background:#F3E5F5;color:#7B1FA2;">🛠</div>
+    <h2>Tools</h2>
+  </div>
+  <div class="card-body">
+    <table class="md-table">
+      <tr><th>Tool</th><th>Module</th><th>Description</th></tr>
+      <tr><td><strong>Bash</strong></td><td><code>bash.ts</code></td><td>Shell command execution with sandbox support, output truncation, spawn hooks</td></tr>
+      <tr><td><strong>Edit</strong></td><td><code>edit.ts</code></td><td>File editing with diff generation, mutation queue serialization</td></tr>
+      <tr><td><strong>IPython</strong></td><td><code>ipython.ts</code></td><td>Jupyter kernel integration for data science workflows</td></tr>
+      <tr><td><strong>Code Preview</strong></td><td><code>code-preview.ts</code></td><td>Render code snippets with syntax highlighting</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════ Data Flow ═══════════ -->
+<div class="section-title">Data Flow</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="file-tree">
+<span class="comment">  ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐</span>
+<span class="comment">  │  User Input  │────▶│   CLI Layer   │────▶│    main.ts       │</span>
+<span class="comment">  └─────────────┘     └──────────────┘     └────────┬────────┘</span>
+<span class="comment">                                                     │</span>
+<span class="comment">                              ┌───────────────────────┼───────────────────────┐</span>
+<span class="comment">                              ▼                       ▼                       ▼</span>
+<span class="comment">                    ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐</span>
+<span class="comment">                    │  Resolve     │     │ Create Session   │     │  Select Mode     │</span>
+<span class="comment">                    │  Config &amp;    │     │ Services (DI)    │     │  (interactive,   │</span>
+<span class="comment">                    │  Auth        │     │ + AgentSession   │     │   daemon, acp,   │</span>
+<span class="comment">                    └──────────────┘     └────────┬─────────┘     │   rpc, print)    │</span>
+<span class="comment">                                                  │               └────────┬─────────┘</span>
+<span class="comment">                                                  ▼                        │</span>
+<span class="comment">                                     ┌───────────────────┐                 │</span>
+<span class="comment">                                     │   AgentSession     │◀────────────────┘</span>
+<span class="comment">                                     │  ┌─────────────┐  │</span>
+<span class="comment">                                     │  │ Prompt → LLM │  │</span>
+<span class="comment">                                     │  │ → Tool Exec  │  │</span>
+<span class="comment">                                     │  │ → Compact    │  │</span>
+<span class="comment">                                     │  │ → Repeat     │  │</span>
+<span class="comment">                                     │  └─────────────┘  │</span>
+<span class="comment">                                     └───────────────────┘</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Key Design Patterns ═══════════ -->
+<div class="section-title">Key Design Patterns</div>
+
+<div class="layer-grid">
+  <div class="layer-chip">
+    <h3>🏗 Service Injection</h3>
+    <p><code>createAgentSessionServices()</code> produces a service bag. <code>createAgentSessionFromServices()</code> consumes it. This decouples session creation from concrete dependencies, enabling testability.</p>
+  </div>
+  <div class="layer-chip green">
+    <h3>🔌 Extension Hooks</h3>
+    <p>Lifecycle hooks (<code>onSessionStart</code>, <code>onToolCall</code>, etc.) allow extensions to intercept and modify behavior without touching core code. Extensions are discovered at startup.</p>
+  </div>
+  <div class="layer-chip orange">
+    <h3>📡 Event Bus</h3>
+    <p>Typed pub/sub (<code>createEventBus()</code>) decouples producers and consumers. Session events flow through the bus to UI components, telemetry, and extensions independently.</p>
+  </div>
+  <div class="layer-chip purple">
+    <h3>🔗 Agent Connection</h3>
+    <p>Abstracts the transport between UI and agent. <code>InProcessAgentConnection</code> for direct mode; <code>DaemonAgentConnection</code> for socket-based daemon mode. Both implement the same interface.</p>
+  </div>
+  <div class="layer-chip red">
+    <h3>📦 Compaction</h3>
+    <p>When context approaches the window limit, the compaction system summarizes older conversation turns and branch summaries to free space while preserving key information.</p>
+  </div>
+  <div class="layer-chip">
+    <h3>🔒 Session Lease</h3>
+    <p>File-based locking prevents concurrent access to the same session. <code>canonicalSessionPath()</code> normalizes paths; <code>SessionAlreadyActiveError</code> guards conflicts.</p>
+  </div>
+</div>
+
+<!-- ═══════════ Dependencies ═══════════ -->
+<div class="section-title">External Dependencies</div>
+
+<div class="card">
+  <div class="card-body">
+    <table class="md-table">
+      <tr><th>Package</th><th>Role</th></tr>
+      <tr><td><code>@earendil-works/pi-ai</code></td><td>AI model abstraction layer — API client, model types, MCP integration</td></tr>
+      <tr><td><code>@earendil-works/pi-tui</code></td><td>Terminal UI framework (Ink/React-based) — ProcessTerminal, TUI, keybindings</td></tr>
+      <tr><td><code>chalk</code></td><td>Terminal color output</td></tr>
+      <tr><td><code>vitest</code></td><td>Unit testing framework</td></tr>
+    </table>
+  </div>
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

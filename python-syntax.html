@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 语法糖速查</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #6750A4;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #EADDFF;
+    --md-on-primary-container: #21005D;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-error-container: #F9DEDC;
+    --md-shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.24);
+    --md-shadow-2: 0 3px 6px rgba(0,0,0,.15), 0 2px 4px rgba(0,0,0,.12);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+
+  /* Top App Bar */
+  .app-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--md-surface);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--md-shadow);
+  }
+  .app-bar h1 {
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--md-on-surface);
+  }
+  .app-bar .subtitle {
+    font-size: 14px;
+    color: var(--md-on-surface-variant);
+    margin-left: auto;
+  }
+
+  /* Navigation Rail */
+  .layout {
+    display: flex;
+    min-height: calc(100vh - 64px);
+  }
+  .nav-rail {
+    position: sticky;
+    top: 64px;
+    width: 220px;
+    min-width: 220px;
+    padding: 16px 12px;
+    border-right: 1px solid var(--md-outline-variant);
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    background: var(--md-surface);
+  }
+  .nav-rail a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 28px;
+    text-decoration: none;
+    color: var(--md-on-surface-variant);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all .2s;
+  }
+  .nav-rail a:hover {
+    background: var(--md-secondary-container);
+    color: var(--md-on-surface);
+  }
+  .nav-rail .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 16px 16px 4px;
+  }
+
+  /* Main Content */
+  .content {
+    flex: 1;
+    max-width: 900px;
+    padding: 24px 32px 80px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow .2s;
+  }
+  .card:hover {
+    box-shadow: var(--md-shadow-2);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px 8px;
+  }
+  .card-header .material-icons {
+    color: var(--md-primary);
+    font-size: 24px;
+  }
+  .card-header h2 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .card-header .chip {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 16px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .card-body {
+    padding: 8px 24px 24px;
+  }
+  .card-body p {
+    color: var(--md-on-surface-variant);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  /* Code blocks */
+  .code-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .code-block {
+    background: #1C1B1F;
+    border-radius: var(--md-radius-sm);
+    overflow: hidden;
+  }
+  .code-block .label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #2B2930;
+    color: var(--md-outline);
+  }
+  .code-block .label .material-icons {
+    font-size: 16px;
+    color: var(--md-tertiary-container);
+  }
+  .code-block pre {
+    padding: 12px 16px;
+    overflow-x: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #E6E1E5;
+  }
+  .code-block.full {
+    grid-column: 1 / -1;
+  }
+
+  /* Syntax highlighting */
+  .kw  { color: #D0BCFF; }        /* keywords: def, class, if */
+  .fn  { color: #CCC2DC; }        /* function names */
+  .str { color: #F2B8B5; }        /* strings */
+  .cm  { color: #79747E; }        /* comments */
+  .op  { color: #EFB8C8; }        /* operators */
+  .num { color: #FFB4AB; }        /* numbers */
+  .dec { color: #FFB4AB; }        /* decorators */
+  .bi  { color: #C3E88D; }        /* builtins */
+  .typ { color: #89DDFF; }        /* types */
+  .var { color: #EEFFFF; }        /* variables */
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 16px;
+    margin-right: 6px;
+  }
+  .badge-py36 { background: #E8DEF8; color: #4A4458; }
+  .badge-py38 { background: #FFD8E4; color: #633B48; }
+  .badge-py310 { background: #D3E4FD; color: #3A4A63; }
+
+  /* Hero Section */
+  .hero {
+    background: linear-gradient(135deg, var(--md-primary-container), var(--md-tertiary-container));
+    border-radius: var(--md-radius);
+    padding: 40px 32px;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--md-on-primary-container);
+    margin-bottom: 8px;
+  }
+  .hero p {
+    color: var(--md-on-surface-variant);
+    font-size: 16px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .nav-rail { display: none; }
+    .content { padding: 16px; }
+    .code-compare { grid-template-columns: 1fr; }
+    .hero { padding: 24px 16px; }
+    .hero h1 { font-size: 24px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 3px; }
+
+  /* Anchor offset */
+  .section-anchor { scroll-margin-top: 80px; }
+</style>
+</head>
+<body>
+
+<!-- App Bar -->
+<header class="app-bar">
+  <span class="material-icons">code</span>
+  <h1>Python 语法糖速查</h1>
+  <span class="subtitle">与 JS 差异较大的语法特性</span>
+</header>
+
+<div class="layout">
+  <!-- Nav Rail -->
+  <nav class="nav-rail">
+    <div class="section-label">语法特性</div>
+    <a href="#destructuring"><span class="material-icons">scatter_plot</span> 解构赋值</a>
+    <a href="#comprehension"><span class="material-icons">filter_list</span> 推导式</a>
+    <a href="#slice"><span class="material-icons">content_cut</span> 切片</a>
+    <a href="#ternary"><span class="material-icons">compare_arrows</span> 三元表达式</a>
+    <a href="#walrus"><span class="material-icons">assignment</span> 海象运算符</a>
+    <a href="#chain-compare"><span class="material-icons">linear_scale</span> 链式比较</a>
+    <a href="#multi-return"><span class="material-icons">call_split</span> 多返回值</a>
+    <a href="#decorator"><span class="material-icons">auto_awesome</span> 装饰器</a>
+    <a href="#fstring"><span class="material-icons">text_format</span> f-string</a>
+    <a href="#match"><span class="material-icons">alt_route</span> match/case</a>
+    <a href="#with"><span class="material-icons">security</span> with 上下文</a>
+    <a href="#async"><span class="material-icons">sync</span> async/await</a>
+  </nav>
+
+  <!-- Content -->
+  <main class="content">
+
+    <div class="hero">
+      <h1>Python Syntax Sugar 🐍</h1>
+      <p>与 JavaScript 差异较大的 Python 语法特性速查手册</p>
+    </div>
+
+    <!-- 1. 解构赋值 -->
+    <div class="card section-anchor" id="destructuring">
+      <div class="card-header">
+        <span class="material-icons">scatter_plot</span>
+        <h2>解构赋值</h2>
+        <span class="chip">基础语法</span>
+      </div>
+      <div class="card-body">
+        <p>Python 的解构比 JS 更强大，支持星号收集、嵌套解构。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 交换变量（ES6+）</span>
+[a, b] <span class="op">=</span> [b, a];
+
+<span class="cm">// 没有原生 rest 解构到数组中间</span>
+<span class="kw">const</span> [first, <span class="op">...</span>rest] <span class="op">=</span> [<span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>,<span class="num">4</span>];
+<span class="cm">// rest = [2,3,4] ✅</span></pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 交换变量</span>
+a, b <span class="op">=</span> b, a
+
+<span class="cm"># 星号收集 — 更灵活</span>
+first, <span class="op">*</span>rest <span class="op">=</span> [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>]
+<span class="cm"># rest = [2, 3, 4]</span>
+
+<span class="cm"># 星号可以在任意位置</span>
+first, <span class="op">*</span>mid, last <span class="op">=</span> [<span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>,<span class="num">4</span>]
+<span class="cm"># mid = [2, 3]</span>
+
+<span class="cm"># 嵌套解构</span>
+(a, b), c <span class="op">=</span> [<span class="num">1</span>, <span class="num">2</span>], <span class="num">3</span>
+<span class="cm"># a=1, b=2, c=3</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 推导式 -->
+    <div class="card section-anchor" id="comprehension">
+      <div class="card-header">
+        <span class="material-icons">filter_list</span>
+        <h2>列表 / 字典 / 集合推导式</h2>
+        <span class="chip">核心语法</span>
+      </div>
+      <div class="card-body">
+        <p>用一行代码完成 filter + map，JS 需要链式调用多个方法。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 列表：filter + map</span>
+<span class="kw">const</span> result <span class="op">=</span> arr
+  .<span class="fn">filter</span>(x <span class="op">=></span> x <span class="op">></span> <span class="num">0</span>)
+  .<span class="fn">map</span>(x <span class="op">=></span> x <span class="op">*</span> <span class="num">2</span>);
+
+<span class="cm">// 对象：reduce 或 Object.fromEntries</span>
+<span class="kw">const</span> d <span class="op">=</span> Object.<span class="fn">fromEntries</span>(
+  items.<span class="fn">filter</span>(([, v]) <span class="op">=></span> v <span class="op">></span> <span class="num">0</span>)
+);</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 列表推导</span>
+result <span class="op">=</span> [x <span class="op">*</span> <span class="num">2</span> <span class="kw">for</span> x <span class="kw">in</span> arr <span class="kw">if</span> x <span class="op">></span> <span class="num">0</span>]
+
+<span class="cm"># 字典推导</span>
+d <span class="op">=</span> {k: v <span class="kw">for</span> k, v <span class="kw">in</span> items <span class="kw">if</span> v <span class="op">></span> <span class="num">0</span>}
+
+<span class="cm"># 集合推导</span>
+s <span class="op">=</span> {x <span class="op">%</span> <span class="num">10</span> <span class="kw">for</span> x <span class="kw">in</span> arr}
+
+<span class="cm"># 嵌套推导</span>
+flat <span class="op">=</span> [x <span class="kw">for</span> sub <span class="kw">in</span> matrix <span class="kw">for</span> x <span class="kw">in</span> sub]
+
+<span class="cm"># 生成器表达式（惰性求值）</span>
+total <span class="op">=</span> <span class="bi">sum</span>(x <span class="op">*</span> <span class="num">2</span> <span class="kw">for</span> x <span class="kw">in</span> arr)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 切片 -->
+    <div class="card section-anchor" id="slice">
+      <div class="card-header">
+        <span class="material-icons">content_cut</span>
+        <h2>切片 Slicing</h2>
+        <span class="chip">核心语法</span>
+      </div>
+      <div class="card-body">
+        <p>用 <code>start:stop:step</code> 语法操作序列，简洁到 JS 羡慕。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 取子数组</span>
+arr.<span class="fn">slice</span>(<span class="num">1</span>, <span class="num">3</span>);
+
+<span class="cm">// 反转（会修改原数组）</span>
+arr.<span class="fn">reverse</span>();
+
+<span class="cm">// 隔一个取一个？自己写循环</span>
+arr.<span class="fn">filter</span>((_, i) <span class="op">=></span> i <span class="op">%</span> <span class="num">2</span> <span class="op">===</span> <span class="num">0</span>);</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 取索引 1-2</span>
+arr[<span class="num">1</span>:<span class="num">3</span>]
+
+<span class="cm"># 反转（不修改原数组）</span>
+arr[::<span class="op">-</span><span class="num">1</span>]
+
+<span class="cm"># 步长 2，隔一个取一个</span>
+arr[::<span class="num">2</span>]
+
+<span class="cm"># 取最后 3 个</span>
+arr[<span class="op">-</span><span class="num">3</span>:]
+
+<span class="cm"># 浅拷贝</span>
+copy <span class="op">=</span> arr[:]
+
+<span class="cm"># 字符串也能切</span>
+<span class="str">"hello"</span>[<span class="num">1</span>:<span class="num">4</span>]  <span class="cm"># "ell"</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 三元表达式 -->
+    <div class="card section-anchor" id="ternary">
+      <div class="card-header">
+        <span class="material-icons">compare_arrows</span>
+        <h2>三元表达式</h2>
+        <span class="chip">语法差异</span>
+      </div>
+      <div class="card-body">
+        <p>顺序完全不同：<code>a if cond else b</code> vs <code>cond ? a : b</code></p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="kw">const</span> x <span class="op">=</span> ok <span class="op">?</span> <span class="str">"yes"</span> <span class="op">:</span> <span class="str">"no"</span>;</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre>x <span class="op">=</span> <span class="str">"yes"</span> <span class="kw">if</span> ok <span class="kw">else</span> <span class="str">"no"</span></pre>
+          </div>
+        </div>
+        <p>⚠️ Python 的三元是一个<strong>表达式</strong>，不是语句。可以嵌套（但不建议）：</p>
+        <div class="code-block full">
+          <pre><span class="cm"># 可以但别这么做</span>
+x <span class="op">=</span> <span class="str">"a"</span> <span class="kw">if</span> p <span class="kw">else</span> <span class="str">"b"</span> <span class="kw">if</span> q <span class="kw">else</span> <span class="str">"c"</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 海象运算符 -->
+    <div class="card section-anchor" id="walrus">
+      <div class="card-header">
+        <span class="material-icons">assignment</span>
+        <h2>海象运算符 :=</h2>
+        <span class="badge badge-py38">3.8+</span>
+      </div>
+      <div class="card-body">
+        <p>在表达式内部赋值并返回值，JS 没有对应语法。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 需要先声明再判断</span>
+<span class="kw">const</span> n <span class="op">=</span> data.<span class="var">length</span>;
+<span class="kw">if</span> (n <span class="op">></span> <span class="num">10</span>) {
+  console.<span class="fn">log</span>(<span class="str">`too long: ${n}`</span>);
+}
+
+<span class="cm">// 正则匹配？需要额外变量</span>
+<span class="kw">const</span> m <span class="op">=</span> str.<span class="fn">match</span>(<span class="op">/</span><span class="str">\d+</span><span class="op">/</span>);
+<span class="kw">if</span> (m) {
+  console.<span class="fn">log</span>(m[<span class="num">0</span>]);
+}</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 赋值同时判断</span>
+<span class="kw">if</span> (n <span class="op">:=</span> <span class="bi">len</span>(data)) <span class="op">></span> <span class="num">10</span>:
+    <span class="bi">print</span>(<span class="str">f"too long: </span>{n}<span class="str">"</span>)
+
+<span class="cm"># while 循环中读取</span>
+<span class="kw">while</span> (line <span class="op">:=</span> <span class="fn">input</span>()) <span class="op">!=</span> <span class="str">"quit"</span>:
+    <span class="fn">process</span>(line)
+
+<span class="cm"># 列表推导中复用计算</span>
+results <span class="op">=</span> [y <span class="kw">for</span> x <span class="kw">in</span> data
+           <span class="kw">if</span> (y <span class="op">:=</span> <span class="fn">transform</span>(x)) <span class="op">></span> <span class="num">0</span>]</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 链式比较 -->
+    <div class="card section-anchor" id="chain-compare">
+      <div class="card-header">
+        <span class="material-icons">linear_scale</span>
+        <h2>链式比较</h2>
+        <span class="chip">语法差异</span>
+      </div>
+      <div class="card-body">
+        <p>数学写法直接写进代码，JS 需要手动用 <code>&&</code> 拼接。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="kw">if</span> (x <span class="op">></span> <span class="num">0</span> <span class="op">&&</span> x <span class="op"><</span> <span class="num">10</span>) { <span class="cm">/* ... */</span> }
+
+<span class="kw">if</span> (a <span class="op"><=</span> b <span class="op">&&</span> b <span class="op">===</span> c) { <span class="cm">/* ... */</span> }</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="kw">if</span> <span class="num">0</span> <span class="op"><</span> x <span class="op"><</span> <span class="num">10</span>:
+    ...
+
+<span class="cm"># 可以链接多个</span>
+<span class="kw">if</span> a <span class="op"><=</span> b <span class="op">==</span> c:
+    ...
+
+<span class="cm"># 等价于 a <= b and b == c</span>
+<span class="cm"># 但 b 只求值一次！</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. 多返回值 -->
+    <div class="card section-anchor" id="multi-return">
+      <div class="card-header">
+        <span class="material-icons">call_split</span>
+        <h2>多返回值 / 元组解包</h2>
+        <span class="chip">核心语法</span>
+      </div>
+      <div class="card-body">
+        <p>Python 函数天然支持返回多个值（本质是元组），直接解包。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 需要返回数组或对象</span>
+<span class="kw">function</span> <span class="fn">divide</span>(a, b) {
+  <span class="kw">return</span> [Math.<span class="fn">floor</span>(a/b), a <span class="op">%</span> b];
+}
+<span class="kw">const</span> [q, r] <span class="op">=</span> <span class="fn">divide</span>(<span class="num">17</span>, <span class="num">5</span>);</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="kw">def</span> <span class="fn">divide</span>(a, b):
+    <span class="kw">return</span> a <span class="op">//</span> b, a <span class="op">%</span> b
+
+q, r <span class="op">=</span> <span class="fn">divide</span>(<span class="num">17</span>, <span class="num">5</span>)
+<span class="cm"># q=3, r=2</span>
+
+<span class="cm"># 丢弃不需要的值用 _</span>
+_, r <span class="op">=</span> <span class="fn">divide</span>(<span class="num">17</span>, <span class="num">5</span>)
+
+<span class="cm"># enumerate 也是多返回值</span>
+<span class="kw">for</span> i, val <span class="kw">in</span> <span class="bi">enumerate</span>(items):
+    <span class="bi">print</span>(i, val)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. 装饰器 -->
+    <div class="card section-anchor" id="decorator">
+      <div class="card-header">
+        <span class="material-icons">auto_awesome</span>
+        <h2>装饰器 @</h2>
+        <span class="chip">核心语法</span>
+      </div>
+      <div class="card-body">
+        <p>用 <code>@</code> 语法给函数/类添加行为，等价于高阶函数包装。JS 需要手动调用或用实验性 decorators。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 手动包装</span>
+<span class="kw">function</span> <span class="fn">logged</span>(fn) {
+  <span class="kw">return</span> (...args) <span class="op">=></span> {
+    console.<span class="fn">log</span>(<span class="str">`calling ${fn.name}`</span>);
+    <span class="kw">return</span> <span class="fn">fn</span>(...args);
+  };
+}
+<span class="kw">const</span> home <span class="op">=</span> <span class="fn">logged</span>(<span class="kw">function</span> <span class="fn">home</span>() {<span class="cm">/*...*/</span>});
+
+<span class="cm">// JS decorators（Stage 3，实验性）</span>
+<span class="dec">@logged</span>
+<span class="kw">function</span> <span class="fn">home</span>() {<span class="cm">/*...*/</span>}</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 定义装饰器</span>
+<span class="kw">def</span> <span class="fn">logged</span>(fn):
+    <span class="kw">def</span> <span class="fn">wrapper</span>(<span class="op">*</span>args, <span class="op">**</span>kwargs):
+        <span class="bi">print</span>(<span class="str">f"calling </span>{fn.<span class="var">__name__</span>}<span class="str">"</span>)
+        <span class="kw">return</span> <span class="fn">fn</span>(<span class="op">*</span>args, <span class="op">**</span>kwargs)
+    <span class="kw">return</span> wrapper
+
+<span class="dec">@logged</span>
+<span class="kw">def</span> <span class="fn">home</span>(): ...
+
+<span class="cm"># 等价于 home = logged(home)</span>
+
+<span class="cm"># 带参数的装饰器</span>
+<span class="dec">@app.route</span>(<span class="str">"/"</span>)
+<span class="kw">def</span> <span class="fn">home</span>(): ...
+
+<span class="cm"># 可叠加</span>
+<span class="dec">@login_required</span>
+<span class="dec">@cache</span>(ttl=<span class="num">60</span>)
+<span class="kw">def</span> <span class="fn">get_data</span>(): ...</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. f-string -->
+    <div class="card section-anchor" id="fstring">
+      <div class="card-header">
+        <span class="material-icons">text_format</span>
+        <h2>f-string 格式化</h2>
+        <span class="badge badge-py36">3.6+</span>
+      </div>
+      <div class="card-body">
+        <p>比 JS 模板字符串更强大，支持表达式、格式化、调试输出。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 模板字符串</span>
+<span class="str">`hello ${name}`</span>
+
+<span class="cm">// 格式化需要额外处理</span>
+price.<span class="fn">toFixed</span>(<span class="num">2</span>)
+
+<span class="cm">// 调试输出？自己拼</span>
+console.<span class="fn">log</span>(<span class="str">`x=${x}, y=${y}`</span>);</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># 基础</span>
+<span class="str">f"hello </span>{name}<span class="str">"</span>
+
+<span class="cm"># 格式化小数位</span>
+<span class="str">f"price: </span>{price<span class="op">:</span>.<span class="num">2</span>f}<span class="str">"</span>
+
+<span class="cm"># 千分位分隔</span>
+<span class="str">f"count: </span>{n<span class="op">:</span>,}<span class="str">"</span>
+
+<span class="cm"># 调试输出（3.8+）=号自动打印变量名</span>
+x, y <span class="op">=</span> <span class="num">1</span>, <span class="num">2</span>
+<span class="str">f"</span>{x<span class="op">=</span>}, {y<span class="op">=</span>}<span class="str">"</span>
+<span class="cm"># → "x=1, y=2"</span>
+
+<span class="cm"># 表达式</span>
+<span class="str">f"result: </span>{x <span class="op">+</span> y<span class="op">:</span>.<span class="num">2</span>f}<span class="str">"</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. match/case -->
+    <div class="card section-anchor" id="match">
+      <div class="card-header">
+        <span class="material-icons">alt_route</span>
+        <h2>match / case 模式匹配</h2>
+        <span class="badge badge-py310">3.10+</span>
+      </div>
+      <div class="card-body">
+        <p>远超 JS 的 switch/case：支持解构、守卫条件、类型匹配。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="kw">switch</span> (command) {
+  <span class="kw">case</span> <span class="str">"quit"</span>:
+    <span class="fn">exit</span>();
+    <span class="kw">break</span>;
+  <span class="kw">case</span> <span class="str">"hello"</span>:
+  <span class="kw">case</span> <span class="str">"hi"</span>:
+    <span class="fn">greet</span>();
+    <span class="kw">break</span>;
+  <span class="kw">default</span>:
+    <span class="cm">// 守卫条件？不行</span>
+    <span class="cm">// 解构？不行</span>
+}</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="kw">match</span> command:
+    <span class="kw">case</span> <span class="str">"quit"</span>:
+        <span class="fn">exit</span>()
+    <span class="kw">case</span> <span class="str">"hello"</span> <span class="op">|</span> <span class="str">"hi"</span>:      <span class="cm"># 多值</span>
+        <span class="fn">greet</span>()
+    <span class="kw">case</span> <span class="bi">str</span>(s) <span class="kw">if</span> <span class="bi">len</span>(s) <span class="op">></span> <span class="num">5</span>: <span class="cm"># 守卫</span>
+        <span class="bi">print</span>(s)
+
+<span class="cm"># 解构匹配</span>
+<span class="kw">match</span> point:
+    <span class="kw">case</span> (<span class="num">0</span>, <span class="num">0</span>):               <span class="cm"># 字面量</span>
+        <span class="bi">print</span>(<span class="str">"origin"</span>)
+    <span class="kw">case</span> (x, <span class="num">0</span>) <span class="op">|</span> (<span class="num">0</span>, x):     <span class="cm"># 变量绑定</span>
+        <span class="bi">print</span>(<span class="str">f"axis: </span>{x}<span class="str">"</span>)
+    <span class="kw">case</span> (x, y):
+        <span class="bi">print</span>(<span class="str">f"</span>{x}<span class="str">, </span>{y}<span class="str">"</span>)
+
+<span class="cm"># 类匹配</span>
+<span class="kw">match</span> event:
+    <span class="kw">case</span> Click(position<span class="op">=</span>(x, y)):
+        <span class="fn">handle_click</span>(x, y)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. with -->
+    <div class="card section-anchor" id="with">
+      <div class="card-header">
+        <span class="material-icons">security</span>
+        <h2>with 上下文管理器</h2>
+        <span class="chip">核心语法</span>
+      </div>
+      <div class="card-body">
+        <p>自动管理资源生命周期，替代 try/finally。JS 没有原生对应语法。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 没有 with，手动管理</span>
+<span class="kw">let</span> conn;
+<span class="kw">try</span> {
+  conn <span class="op">=</span> <span class="kw">await</span> <span class="fn">connect</span>();
+  <span class="kw">await</span> conn.<span class="fn">query</span>(<span class="str">"..."</span>);
+} <span class="kw">finally</span> {
+  conn <span class="op">&&</span> conn.<span class="fn">close</span>();
+}
+
+<span class="cm">// 或用 using（ES2024 提案）</span>
+<span class="kw">using</span> conn <span class="op">=</span> <span class="kw">await</span> <span class="fn">connect</span>();</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="cm"># with 自动管理</span>
+<span class="kw">with</span> <span class="fn">open</span>(<span class="str">"file.txt"</span>) <span class="kw">as</span> f:
+    data <span class="op">=</span> f.<span class="fn">read</span>()
+<span class="cm"># 自动调用 f.close()，即使抛异常</span>
+
+<span class="cm"># 多个资源</span>
+<span class="kw">with</span> <span class="fn">open</span>(<span class="str">"in.txt"</span>) <span class="kw">as</span> fin, <span class="fn">open</span>(<span class="str">"out.txt"</span>, <span class="str">"w"</span>) <span class="kw">as</span> fout:
+    fout.<span class="fn">write</span>(fin.<span class="fn">read</span>())
+
+<span class="cm"># 异步版本</span>
+<span class="kw">async with</span> httpx.<span class="typ">AsyncClient</span>() <span class="kw">as</span> client:
+    resp <span class="op">=</span> <span class="kw">await</span> client.<span class="fn">get</span>(<span class="str">"..."</span>)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12. async/await -->
+    <div class="card section-anchor" id="async">
+      <div class="card-header">
+        <span class="material-icons">sync</span>
+        <h2>async / await 异步</h2>
+        <span class="chip">语法相似</span>
+      </div>
+      <div class="card-body">
+        <p>语法和 JS 几乎一样，但 Python 是<strong>协作式并发</strong>（单线程事件循环），需要显式 <code>await</code>。</p>
+        <div class="code-compare">
+          <div class="code-block">
+            <div class="label"><span class="material-icons">javascript</span> JavaScript</div>
+            <pre><span class="cm">// 自动调度，无需显式让出</span>
+<span class="kw">async function</span> <span class="fn">fetch</span>() {
+  <span class="kw">const</span> res <span class="op">=</span> <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">"/api"</span>);
+  <span class="kw">return</span> res.<span class="fn">json</span>();
+}
+
+<span class="cm">// 并发</span>
+<span class="kw">const</span> [a, b] <span class="op">=</span> <span class="kw">await</span> Promise.<span class="fn">all</span>([
+  <span class="fn">fetch</span>(<span class="str">"/a"</span>), <span class="fn">fetch</span>(<span class="str">"/b"</span>)
+]);</pre>
+          </div>
+          <div class="code-block">
+            <div class="label"><span class="material-icons">code</span> Python</div>
+            <pre><span class="kw">async def</span> <span class="fn">fetch</span>():
+    resp <span class="op">=</span> <span class="kw">await</span> client.<span class="fn">get</span>(<span class="str">"/api"</span>)
+    <span class="kw">return</span> resp.<span class="fn">json</span>()
+
+<span class="cm"># 并发</span>
+a, b <span class="op">=</span> <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+    <span class="fn">fetch</span>(<span class="str">"/a"</span>), <span class="fn">fetch</span>(<span class="str">"/b"</span>)
+)
+
+<span class="cm"># 异步迭代</span>
+<span class="kw">async for</span> msg <span class="kw">in</span> websocket:
+    <span class="kw">await</span> <span class="fn">process</span>(msg)
+
+<span class="cm"># 异步上下文</span>
+<span class="kw">async with</span> <span class="fn">connect</span>() <span class="kw">as</span> conn:
+    <span class="kw">await</span> conn.<span class="fn">query</span>(<span class="str">"..."</span>)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center; padding:32px 0 0; color:var(--md-outline); font-size:13px;">
+      <span class="material-icons" style="font-size:16px; vertical-align:middle;">auto_awesome</span>
+      Python 语法糖速查 &middot; 2026
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

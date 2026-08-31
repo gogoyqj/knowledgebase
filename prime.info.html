@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Agent — Python Skill & Daemon 架构</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #E1BEE7;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-dim: #F5F5F5;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0,0,0,0.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+    --md-radius-xs: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px 16px;
+    box-shadow: 0 2px 4px var(--md-shadow);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: 0.02em; }
+  .top-bar .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; font-weight: 300; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+  .chip .material-icons-outlined { font-size: 16px; }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 14px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .material-icons-outlined { font-size: 20px; }
+
+  .card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px var(--md-shadow); }
+  .card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--md-on-surface); }
+  .card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); line-height: 1.7; }
+  .card ul { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  code {
+    font-family: 'Roboto Mono', monospace; font-size: 12.5px;
+    background: var(--md-surface-dim); padding: 2px 6px;
+    border-radius: 4px; color: var(--md-primary);
+  }
+  pre {
+    background: #263238; color: #EEFFFF;
+    padding: 16px 20px; border-radius: var(--md-radius-sm);
+    overflow-x: auto; font-family: 'Roboto Mono', monospace;
+    font-size: 12.5px; line-height: 1.7;
+    margin: 12px 0;
+  }
+  pre .kw { color: #C792EA; }
+  pre .fn { color: #82AAFF; }
+  pre .str { color: #C3E88D; }
+  pre .cmt { color: #546E7A; }
+  pre .typ { color: #FFCB6B; }
+  pre .var { color: #F78C6C; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 500;
+    color: var(--md-on-surface-variant); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--md-outline-variant); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--md-primary-light); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--md-primary-container); color: #1565C0; }
+  .badge-green  { background: var(--md-secondary-container); color: #00695C; }
+  .badge-purple { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .badge-red    { background: var(--md-error-container); color: var(--md-error); }
+
+  .flow {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; padding: 20px 0;
+  }
+  .flow-node {
+    padding: 10px 18px; border-radius: var(--md-radius-sm);
+    font-size: 13px; font-weight: 500; text-align: center;
+    min-width: 110px;
+  }
+  .flow-node.primary   { background: var(--md-primary-container); color: #1565C0; }
+  .flow-node.secondary { background: var(--md-secondary-container); color: #00695C; }
+  .flow-node.tertiary  { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .flow-node.surface   { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+  .flow-arrow {
+    font-size: 20px; color: var(--md-outline);
+    display: flex; align-items: center;
+  }
+
+  .accent-block {
+    border-left: 4px solid var(--md-primary);
+    padding: 12px 16px; margin: 12px 0;
+    background: var(--md-primary-light); border-radius: 0 var(--md-radius-xs) var(--md-radius-xs) 0;
+    font-size: 13px; color: var(--md-on-surface-variant);
+  }
+
+  .diagram-box {
+    background: var(--md-surface-container);
+    border: 2px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 24px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .diagram-box pre {
+    background: transparent; color: var(--md-on-surface);
+    text-align: left; display: inline-block; margin: 0;
+  }
+  .diagram-box pre .box  { color: var(--md-primary); }
+  .diagram-box pre .arr  { color: var(--md-outline); }
+  .diagram-box pre .note { color: var(--md-on-surface-variant); }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    margin: 0 4px 6px 0;
+  }
+
+  .toc {
+    position: fixed; right: 24px; top: 100px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .toc a {
+    font-size: 11px; color: var(--md-on-surface-variant);
+    text-decoration: none; padding: 3px 10px;
+    border-radius: 4px; transition: 0.15s;
+  }
+  .toc a:hover { background: var(--md-primary-light); color: var(--md-primary); }
+  @media (max-width: 1400px) { .toc { display: none; } }
+
+  .highlight-row td:first-child { font-weight: 500; color: var(--md-on-surface); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>Prime Agent — Python Skill & Daemon 架构</h1>
+  <div class="subtitle">coding-agent 内部两大核心机制：Python 虚拟环境 & Kernel 桥接、Daemon 多进程架构</div>
+</div>
+
+<nav class="toc">
+  <a href="#python-env">Python 环境</a>
+  <a href="#kernel-bridge">Kernel 桥接</a>
+  <a href="#rlm-api">RLM API</a>
+  <a href="#daemon-arch">Daemon 架构</a>
+  <a href="#daemon-comm">通信协议</a>
+  <a href="#worker-lifecycle">Worker 生命周期</a>
+  <a href="#pros-cons">Pros & Cons</a>
+</nav>
+
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 1: Python Skill                      -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="python-env">
+    <div class="section-title">
+      <span class="material-icons-outlined">terminal</span>
+      Python 虚拟环境初始化
+    </div>
+
+    <div class="card">
+      <h3>ensureKernelPython() — 首次运行自动搭建</h3>
+      <p>coding-agent 需要一个 IPython kernel 来执行 Python 代码。首次运行时，<code>ensureKernelPython()</code> 通过 <code>uv</code> 自动创建一个隔离的 Python 虚拟环境。</p>
+
+      <div class="accent-block">
+        源码位置：<code>packages/coding-agent/src/core/kernel/bootstrap.ts</code>
+      </div>
+
+      <div class="flow">
+        <div class="flow-node primary">uv python install</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node secondary">uv venv .venv --seed</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node tertiary">uv pip install 依赖</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node surface">✓ ready</div>
+      </div>
+
+      <p>具体步骤：</p>
+      <ul>
+        <li><code>uv python install 3.12</code> — 安装指定版本 Python</li>
+        <li><code>uv venv &lt;dir&gt; --python 3.12 --seed</code> — 创建 <code>.venv</code> 虚拟环境（含 <code>bin/python</code>、<code>lib/</code>）</li>
+        <li><code>uv pip install ipykernel prime-agent-runtime ...</code> — 装入 kernel 运行所需依赖</li>
+        <li>同步安装 <strong>Python Skills</strong>（如有）</li>
+      </ul>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>venv 目录解析</h3>
+        <p><code>resolveWritableKernelVenvDir()</code> 按优先级选择目录：</p>
+        <ul>
+          <li>主目录（<code>PRIME_AGENT_KERNEL_VENV</code> 环境变量指定）</li>
+          <li>Fallback 到 XDG 目录</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>自定义 Python</h3>
+        <p>设置 <code>PRIME_AGENT_KERNEL_PYTHON</code> 环境变量可跳过自动搭建，直接使用已有的 Python（需预装 ipykernel、prime-agent-runtime）。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 2: Kernel Bridge                     -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="kernel-bridge">
+    <div class="section-title">
+      <span class="material-icons-outlined">sync_alt</span>
+      Python ↔ TypeScript 桥接机制
+    </div>
+
+    <div class="card">
+      <h3>核心思路：Python 是薄壳，TS 是引擎</h3>
+      <p>Python skill 自身不直接持有 API key、不直接调 LLM API。所有需要 host 能力的操作，都通过 <strong>Jupyter Comm</strong>（ipykernel 的双向通信通道）转发回 TypeScript 侧执行。</p>
+    </div>
+
+    <div class="diagram-box">
+      <pre>
+<span class="box">┌─────────────────────┐</span>     <span class="arr">Jupyter Comm</span>     <span class="box">┌─────────────────────────┐</span>
+<span class="box">│</span>  Python Skill 代码   <span class="box">│</span> ◄───────────────────► <span class="box">│</span>  TS Host (Daemon/Worker) <span class="box">│</span>
+<span class="box">│</span>                     <span class="box">│</span>   host.request target  <span class="box">│</span>                         <span class="box">│</span>
+<span class="box">│</span>  data processing    <span class="box">│</span>                       <span class="box">│</span>  LLM API calls           <span class="box">│</span>
+<span class="box">│</span>  pandas / numpy     <span class="box">│</span>                       <span class="box">│</span>  session management      <span class="box">│</span>
+<span class="box">│</span>  computation        <span class="box">│</span>                       <span class="box">│</span>  harness CRUD            <span class="box">│</span>
+<span class="box">└─────────────────────┘</span>                       <span class="box">│</span>  subagent spawn          <span class="box">│</span>
+                                                <span class="box">└─────────────────────────┘</span>
+      </pre>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 3: RLM API                           -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="rlm-api">
+    <div class="section-title">
+      <span class="material-icons-outlined">api</span>
+      rlm 模块 — Python 侧 API 清单
+    </div>
+
+    <div class="card">
+      <h3><code>rlm</code> 模块（prime-agent-runtime）</h3>
+      <p>源码位于 <code>dist/prime-agent-runtime/src/rlm/__init__.py</code>，提供以下桥接函数：</p>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>函数</th>
+          <th>Comm Target</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>host_request(type, payload)</code></td>
+          <td><span class="badge badge-blue">host.request</span></td>
+          <td>通用桥接 — Python 发 <code>{type, ...payload}</code> 给 TS，TS 按 type 分发处理</td>
+        </tr>
+        <tr>
+          <td><code>rlm.run(prompt, **kwargs)</code></td>
+          <td><span class="badge badge-green">rlm.run</span></td>
+          <td>Spawn 一个递归子 agent，返回 <code>RLMSpawnHandle</code></td>
+        </tr>
+        <tr>
+          <td><code>rlm.find_models(query, limit)</code></td>
+          <td><span class="badge badge-green">rlm.find_models</span></td>
+          <td>查询可用 LLM 模型列表</td>
+        </tr>
+        <tr>
+          <td><code>rlm.list_subagents()</code></td>
+          <td><span class="badge badge-green">rlm.list_subagents</span></td>
+          <td>列出当前 session 的子 agent</td>
+        </tr>
+        <tr>
+          <td><code>rlm.delete_subagent(target)</code></td>
+          <td><span class="badge badge-green">rlm.delete_subagent</span></td>
+          <td>删除指定子 agent</td>
+        </tr>
+        <tr>
+          <td><code>rlm.harness.*</code></td>
+          <td><span class="badge badge-purple">harness</span></td>
+          <td>Harness CRUD（skill、memory 等持久化操作）</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card" style="margin-top: 16px;">
+      <h3>调用链路详解</h3>
+<pre>
+<span class="cmt"># Python skill 代码</span>
+<span class="kw">await</span> <span class="fn">rlm.run</span>(<span class="str">"do something"</span>)
+    <span class="cmt"># ↓ 内部实现</span>
+    <span class="kw">await</span> <span class="fn">host_request</span>(<span class="str">"rlm.run"</span>, {<span class="str">"prompt"</span>: prompt, <span class="str">"kwargs"</span>: kwargs})
+        <span class="cmt"># ↓ 通过 ipykernel Comm 发送</span>
+        comm = <span class="typ">Comm</span>(target_name=<span class="str">"host.request"</span>)
+        comm.open(data={<span class="str">"type"</span>: <span class="str">"rlm.run"</span>, ...payload})
+        <span class="cmt"># ↓ 等待 TS 侧回复</span>
+        <span class="kw">return</span> <span class="kw">await</span> future  <span class="cmt"># TS resolve 后 Python 拿到结果</span>
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>Python skill 职责边界</h3>
+      <div class="grid-2">
+        <div>
+          <p style="font-weight:500; color: var(--md-secondary); margin-bottom: 8px;">✓ Python 侧做</p>
+          <ul>
+            <li>数据处理（pandas、numpy）</li>
+            <li>数值计算、统计分析</li>
+            <li>文件格式转换</li>
+            <li>本地数据 pipeline</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-weight:500; color: var(--md-error); margin-bottom: 8px;">✗ Python 侧不做（转发 TS）</p>
+          <ul>
+            <li>LLM API 调用</li>
+            <li>Session 管理</li>
+            <li>Subagent 生命周期</li>
+            <li>Harness 持久化</li>
+            <li>模型发现与选择</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 4: Daemon Architecture               -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="daemon-arch">
+    <div class="section-title">
+      <span class="material-icons-outlined">dns</span>
+      Daemon 多进程架构
+    </div>
+
+    <div class="card">
+      <h3>Client 是瘦客户端，不执行 agent 逻辑</h3>
+      <p>prime-agent 的 client（CLI / IDE 插件 / Web UI）只负责 UI 渲染和用户输入。所有 agent 逻辑都在 <strong>Daemon 进程</strong>中执行，Daemon 通过 <code>spawn</code> 为每个 session 创建独立的 <strong>Worker 子进程</strong>。</p>
+    </div>
+
+    <div class="diagram-box">
+      <pre>
+<span class="box">┌─────────────────┐</span>    <span class="arr">Unix Socket (JSONL)</span>    <span class="box">┌───────────────────────┐</span>
+<span class="box">│</span>                 <span class="box">│</span> ◄───────────────────────► <span class="box">│</span>                       <span class="box">│</span>
+<span class="box">│</span>  Client (瘦)    <span class="box">│</span>   DaemonCommand /         <span class="box">│</span>  Daemon (Supervisor)   <span class="box">│</span>
+<span class="box">│</span>                 <span class="box">│</span>   DaemonOutbound          <span class="box">│</span>  常驻进程              <span class="box">│</span>
+<span class="box">│</span>  • UI 渲染      <span class="box">│</span>                            <span class="box">│</span>  • session 编目        <span class="box">│</span>
+<span class="box">│</span>  • 用户输入     <span class="box">│</span>                            <span class="box">│</span>  • worker 生命周期     <span class="box">│</span>
+<span class="box">│</span>  • 事件展示     <span class="box">│</span>                            <span class="box">│</span>  • cron 调度           <span class="box">│</span>
+<span class="box">└─────────────────┘</span>                            <span class="box">│</span>  • recovery journal   <span class="box">│</span>
+                                                <span class="box">└───────────┬───────────┘</span>
+                                                            <span class="arr">│ spawn</span>
+                                          <span class="arr">┌─────────────────┼─────────────────┐</span>
+                                          <span class="arr">│</span>                 <span class="arr">│</span>                 <span class="arr">│</span>
+                                    <span class="box">┌─────▼─────┐</span>   <span class="box">┌─────▼─────┐</span>   <span class="box">┌─────▼─────┐</span>
+                                    <span class="box">│</span> Worker A  <span class="box">│</span>   <span class="box">│</span> Worker B  <span class="box">│</span>   <span class="box">│</span> Worker C  <span class="box">│</span>
+                                    <span class="box">│</span> session 1 <span class="box">│</span>   <span class="box">│</span> session 2 <span class="box">│</span>   <span class="box">│</span> session 3 <span class="box">│</span>
+                                    <span class="box">└───────────┘</span>   <span class="box">└───────────┘</span>   <span class="box">└───────────┘</span>
+                                    <span class="note">agent 逻辑在这里跑</span>
+      </pre>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 5: Communication Protocol            -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="daemon-comm">
+    <div class="section-title">
+      <span class="material-icons-outlined">swap_horiz</span>
+      Daemon 通信协议
+    </div>
+
+    <div class="card">
+      <h3>JSONL over Unix Socket</h3>
+      <p>Client 与 Daemon 之间通过 Unix socket 通信，协议为 JSONL（每行一个 JSON 对象）。当前版本：<code>DAEMON_PROTOCOL_VERSION = 7</code>，schema revision <code>16</code>。</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3><span class="badge badge-blue">Client → Daemon</span></h3>
+        <p><code>DaemonCommand</code> — 客户端发起的命令：</p>
+        <ul>
+          <li>创建/恢复 session</li>
+          <li>发送用户消息</li>
+          <li>查询 session 列表</li>
+          <li>停止/删除 session</li>
+          <li>管理 cron jobs</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3><span class="badge badge-green">Daemon → Client</span></h3>
+        <p><code>DaemonOutbound</code> — daemon 推送的事件：</p>
+        <ul>
+          <li><code>daemon_hello</code> — 连接握手</li>
+          <li>Agent 回复流</li>
+          <li>Session 状态变更</li>
+          <li>进度通知</li>
+          <li>Error 事件</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>DemonClient 能力协商</h3>
+      <p>连接时 client 声明支持的 capabilities，daemon 返回 server capabilities：</p>
+      <div style="margin-top: 8px;">
+        <span class="tag">attach_snapshot</span>
+        <span class="tag">event_sequence</span>
+        <span class="tag">extension_ui</span>
+        <span class="tag">slim_attach</span>
+        <span class="tag">...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 6: Worker Lifecycle                  -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="worker-lifecycle">
+    <div class="section-title">
+      <span class="material-icons-outlined">settings_ethernet</span>
+      Worker 子进程生命周期
+    </div>
+
+    <div class="card">
+      <h3>launchWorker() — Supervisor 如何创建 Worker</h3>
+      <p>源码位于 <code>daemon-supervisor.ts:2157</code>，关键步骤：</p>
+<pre>
+<span class="cmt">// 1. 构建启动参数</span>
+<span class="kw">const</span> launch = <span class="fn">createCliSubprocessLaunchSpec</span>([<span class="str">"--mode"</span>, <span class="str">"daemon"</span>, <span class="str">"--daemon-socket"</span>, socketPath]);
+
+<span class="cmt">// 2. 设置 worker 环境变量</span>
+<span class="kw">const</span> workerEnvironment = <span class="fn">createCliSubprocessEnv</span>({
+  ...process.env,
+  <span class="var">DAEMON_WORKER_ROLE_ENV</span>: <span class="str">"1"</span>,
+  <span class="var">DAEMON_WORKER_TOKEN_ENV</span>: token,
+  <span class="var">DAEMON_WORKER_ACTIVE_SESSION_ID_ENV</span>: rootActiveSessionId,
+  <span class="var">DAEMON_WORKER_SUPERVISOR_SOCKET_ENV</span>: <span class="kw">this</span>.socketPath,
+  <span class="var">DAEMON_WORKER_RECOVERY_JOURNAL_ENV</span>: recoveryJournalPath,
+  ...
+});
+
+<span class="cmt">// 3. spawn 独立进程</span>
+<span class="kw">const</span> child = <span class="fn">spawn</span>(launch.command, launch.args, {
+  cwd: config.cwd ?? process.cwd(),
+  detached: <span class="kw">true</span>,       <span class="cmt">// 独立进程组</span>
+  env: workerEnvironment,
+  stdio: [<span class="str">"ignore"</span>, <span class="str">"ignore"</span>, <span class="str">"pipe"</span>, <span class="str">"pipe"</span>],
+});
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>Worker 独立性</h3>
+      <div class="grid-3">
+        <div>
+          <p style="font-weight:500; margin-bottom: 4px;">独立 socket</p>
+          <p>每个 worker 有自己的 Unix socket 路径，daemon 通过它与 worker 通信。</p>
+        </div>
+        <div>
+          <p style="font-weight:500; margin-bottom: 4px;">认证 token</p>
+          <p>每个 worker 分配随机 <code>authenticationToken</code>，防止未授权连接。</p>
+        </div>
+        <div>
+          <p style="font-weight:500; margin-bottom: 4px;">Recovery Journal</p>
+          <p>worker 崩溃后可从 journal 恢复 session 状态，不丢失上下文。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Client 断开不影响 Agent</h3>
+      <div class="accent-block">
+        Client 断开连接时，Daemon 和 Worker 继续运行。Client 重新 <code>attach</code> 即可接上正在进行的 session。这就是为什么需要 session recovery、orphan process journal 等机制。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>完整架构总览</h3>
+      <div class="diagram-box">
+        <pre style="font-size: 11.5px;">
+<span class="box">┌─────────┐</span>    <span class="arr">JSONL/Socket</span>    <span class="box">┌───────────────────────────────────────────────┐</span>
+<span class="box">│</span> Client  <span class="box">│</span> ◄───────────────► <span class="box">│</span>  Daemon Supervisor                            <span class="box">│</span>
+<span class="box">│</span> (瘦)    <span class="box">│</span>                   <span class="box">│</span>                                               <span class="box">│</span>
+<span class="box">└─────────┘</span>                   <span class="box">│</span>  ┌─────────────────────────────────────────┐  <span class="box">│</span>
+                              <span class="box">│</span>  │  Worker Process (--mode daemon)         │  <span class="box">│</span>
+                              <span class="box">│</span>  │                                         │  <span class="box">│</span>
+                              <span class="box">│</span>  │  ┌───────────────────────────────────┐  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  Agent Session                    │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  • LLM API calls                  │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  • Tool execution (Bash, etc.)    │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  • Session management             │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  └────────────────┬──────────────────┘  │  <span class="box">│</span>
+                              <span class="box">│</span>  │                   │ Jupyter Comm        │  <span class="box">│</span>
+                              <span class="box">│</span>  │  ┌────────────────▼──────────────────┐  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  IPython Kernel (.venv)           │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  • Python skill 执行              │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  │  • rlm.* → 转发回 TS              │  │  <span class="box">│</span>
+                              <span class="box">│</span>  │  └───────────────────────────────────┘  │  <span class="box">│</span>
+                              <span class="box">│</span>  └─────────────────────────────────────────┘  <span class="box">│</span>
+                              <span class="box">└───────────────────────────────────────────────┘</span>
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  Part 7: Pros & Cons                       -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="section" id="pros-cons">
+    <div class="section-title">
+      <span class="material-icons-outlined">balance</span>
+      设计权衡 — Pros & Cons
+    </div>
+
+    <!-- Python Skill Bridge -->
+    <div class="card">
+      <h3>Python Skill 桥接架构</h3>
+      <div class="grid-2" style="margin-top: 12px;">
+        <div style="background: #E8F5E9; border-radius: var(--md-radius-sm); padding: 16px 20px;">
+          <p style="font-weight: 500; color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons-outlined" style="font-size:18px;">thumb_up</span> Pros
+          </p>
+          <ul style="font-size: 13px; color: #33691E; line-height: 1.8; padding-left: 18px;">
+            <li><strong>安全隔离</strong> — Python 不持有 API key，skill 代码无法直接访问 LLM 资源，降低泄露风险</li>
+            <li><strong>单一事实来源</strong> — session 状态、模型配置、harness 数据全由 TS 侧管理，避免双端状态不一致</li>
+            <li><strong>Python 生态复用</strong> — 直接使用 pandas/numpy/scipy 等成熟库做数据处理，不需要 TS 重写</li>
+            <li><strong>Skill 可插拔</strong> — Python skill 通过 <code>pyproject.tomx</code> 声明依赖，<code>syncPythonSkills()</code> 按需安装，不污染基础环境</li>
+            <li><strong>统一 agent 模型</strong> — rlm.run() 让 Python skill 也能 spawn 子 agent，TS/Python 侧能力一致</li>
+          </ul>
+        </div>
+        <div style="background: #FBE9E7; border-radius: var(--md-radius-sm); padding: 16px 20px;">
+          <p style="font-weight: 500; color: #C62828; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons-outlined" style="font-size:18px;">thumb_down</span> Cons
+          </p>
+          <ul style="font-size: 13px; color: #B71C1C; line-height: 1.8; padding-left: 18px;">
+            <li><strong>Comm 延迟</strong> — 每次 host_request 走 Jupyter Comm 往返，比进程内调用多一跳序列化/反序列化</li>
+            <li><strong>调试困难</strong> — 跨进程桥接链路长（Python → Comm → TS handler），错误堆栈不连续，定位问题成本高</li>
+            <li><strong>ipykernel 耦合</strong> — 桥接强依赖 ipykernel 的 Comm 机制，kernel 版本变动可能 break 兼容性</li>
+            <li><strong>异步复杂度</strong> — Python 侧所有 rlm 调用都是 async，skill 作者必须熟悉 asyncio，否则容易写出阻塞代码卡住 kernel</li>
+            <li><strong>冷启动成本</strong> — 首次运行需 uv 安装 Python + 创建 venv + 装依赖，约 30s；venv 本身也占磁盘空间</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daemon Architecture -->
+    <div class="card">
+      <h3>Daemon 多进程架构</h3>
+      <div class="grid-2" style="margin-top: 12px;">
+        <div style="background: #E8F5E9; border-radius: var(--md-radius-sm); padding: 16px 20px;">
+          <p style="font-weight: 500; color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons-outlined" style="font-size:18px;">thumb_up</span> Pros
+          </p>
+          <ul style="font-size: 13px; color: #33691E; line-height: 1.8; padding-left: 18px;">
+            <li><strong>Session 持久性</strong> — client 断开不影响 agent 运行，re-attach 即恢复，支持长时间任务（小时级）</li>
+            <li><strong>进程隔离</strong> — 每个 session 独立进程，一个 session crash 不影响其他 session 和 daemon 本身</li>
+            <li><strong>Client 无关性</strong> — CLI、IDE 插件、Web UI 都走同一协议，任意 client 可连接任意 session</li>
+            <li><strong>Recovery 机制</strong> — recovery journal + orphan process journal，worker 崩溃可重建状态，不丢失上下文</li>
+            <li><strong>多 session 并行</strong> — daemon 同时管理多个 worker，各 session 独立运行互不阻塞</li>
+          </ul>
+        </div>
+        <div style="background: #FBE9E7; border-radius: var(--md-radius-sm); padding: 16px 20px;">
+          <p style="font-weight: 500; color: #C62828; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons-outlined" style="font-size:18px;">thumb_down</span> Cons
+          </p>
+          <ul style="font-size: 13px; color: #B71C1C; line-height: 1.8; padding-left: 18px;">
+            <li><strong>内存开销</strong> — 每个 worker 是独立 Node.js 进程，N 个 session ≈ N 份 V8 heap，空闲 session 也占内存（需 eviction 策略）</li>
+            <li><strong>架构复杂度高</strong> — supervisor → worker → kernel 三层进程，涉及 socket 通信、token 认证、journal 恢复、orphan 清理等大量机制</li>
+            <li><strong>协议维护成本</strong> — JSONL 协议已到 schema revision 16，向后兼容约束让演进变慢，每改一版需考虑旧 client</li>
+            <li><strong>调试链路长</strong> — 问题可能出在 client → daemon socket → worker → kernel comm 任一环节，日志分散在多个进程</li>
+            <li><strong>启动延迟</strong> — 创建 session 需 spawn worker 子进程 + 可能的 kernel 初始化，首 token 延迟比 in-process 模式更高</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card">
+      <h3>设计哲学总结</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>Python Skill 桥接</th>
+            <th>Daemon 多进程</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>核心目标</td>
+            <td>复用 Python 生态 + 安全隔离</td>
+            <td>Session 持久化 + 多端连接</td>
+          </tr>
+          <tr>
+            <td>隔离粒度</td>
+            <td><span class="badge badge-green">语言级</span> Python ↔ TS 运行时隔离</td>
+            <td><span class="badge badge-blue">进程级</span> session 间进程隔离</td>
+          </tr>
+          <tr>
+            <td>状态管理</td>
+            <td>TS 侧单一事实源，Python 是无状态执行器</td>
+            <td>Daemon 集中管理，Worker 持有 session 状态</td>
+          </tr>
+          <tr>
+            <td>复杂度代价</td>
+            <td>Comm 桥接 + asyncio 要求</td>
+            <td>三层进程 + 协议版本管理</td>
+          </tr>
+          <tr>
+            <td>典型瓶颈</td>
+            <td>频繁 host_request 的序列化开销</td>
+            <td>多 session 内存压力</td>
+          </tr>
+          <tr>
+            <td>共同点</td>
+            <td colspan="2" style="text-align: center;">两者都用「瘦执行层 + 集中控制」模式 — 执行端不持有关键资源，核心逻辑收敛到 TS host</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

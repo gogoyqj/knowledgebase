@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Agent Python Skill 技术架构</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+:root {
+  --md-primary: #1565C0;
+  --md-primary-light: #1E88E5;
+  --md-primary-dark: #0D47A1;
+  --md-secondary: #00897B;
+  --md-surface: #FFFFFF;
+  --md-background: #FAFAFA;
+  --md-error: #D32F2F;
+  --md-on-primary: #FFFFFF;
+  --md-on-surface: #212121;
+  --md-on-surface-variant: #616161;
+  --md-outline: #E0E0E0;
+  --md-elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.24);
+  --md-elevation-2: 0 3px 6px rgba(0,0,0,.15), 0 2px 4px rgba(0,0,0,.12);
+  --md-elevation-3: 0 10px 20px rgba(0,0,0,.15), 0 3px 6px rgba(0,0,0,.10);
+  --md-radius: 12px;
+  --md-radius-sm: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background: var(--md-background);
+  color: var(--md-on-surface);
+  line-height: 1.6;
+}
+
+/* ── Top App Bar ── */
+.app-bar {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  padding: 20px 0;
+  box-shadow: var(--md-elevation-2);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-bar .container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.app-bar h1 { font-size: 22px; font-weight: 500; }
+.app-bar .subtitle { font-size: 14px; opacity: .85; font-weight: 300; }
+.app-bar .material-icons { font-size: 28px; }
+
+/* ── Layout ── */
+.container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+main { padding: 32px 0 64px; }
+
+/* ── Navigation Rail (TOC) ── */
+.page-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.toc {
+  position: sticky;
+  top: 88px;
+  background: var(--md-surface);
+  border-radius: var(--md-radius);
+  box-shadow: var(--md-elevation-1);
+  padding: 16px 0;
+}
+.toc-title {
+  padding: 0 16px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--md-on-surface-variant);
+}
+.toc a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  text-decoration: none;
+  color: var(--md-on-surface-variant);
+  font-size: 14px;
+  font-weight: 400;
+  transition: all .2s;
+  border-left: 3px solid transparent;
+}
+.toc a:hover {
+  background: #E3F2FD;
+  color: var(--md-primary);
+}
+.toc a .material-icons { font-size: 18px; opacity: .7; }
+
+@media (max-width: 900px) {
+  .page-layout { grid-template-columns: 1fr; }
+  .toc { display: none; }
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--md-surface);
+  border-radius: var(--md-radius);
+  box-shadow: var(--md-elevation-1);
+  padding: 24px;
+  margin-bottom: 24px;
+  transition: box-shadow .2s;
+}
+.card:hover { box-shadow: var(--md-elevation-2); }
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.card-header .icon-badge {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.card-header .icon-badge .material-icons { font-size: 22px; color: #fff; }
+.card-header h2 { font-size: 20px; font-weight: 500; }
+.card h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 20px 0 8px;
+  color: var(--md-primary);
+}
+.card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); }
+.card ul, .card ol { padding-left: 20px; margin: 8px 0; }
+.card li { margin: 4px 0; }
+
+/* ── Hero Section ── */
+.hero {
+  background: linear-gradient(135deg, var(--md-primary-dark), var(--md-primary-light));
+  color: #fff;
+  border-radius: var(--md-radius);
+  padding: 40px 32px;
+  margin-bottom: 32px;
+  box-shadow: var(--md-elevation-2);
+}
+.hero h2 { font-size: 28px; font-weight: 300; margin-bottom: 8px; }
+.hero p { font-size: 15px; opacity: .9; max-width: 700px; }
+.hero .chips { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.chip-outline {
+  border: 1px solid rgba(255,255,255,.5);
+  color: #fff;
+}
+.chip-fill {
+  background: rgba(255,255,255,.2);
+  color: #fff;
+}
+
+/* ── Architecture Diagram ── */
+.arch-diagram {
+  background: #F5F5F5;
+  border-radius: var(--md-radius-sm);
+  padding: 24px;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+.arch-diagram pre {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #37474F;
+  white-space: pre;
+  margin: 0;
+}
+
+/* ── Code Block ── */
+.code-block {
+  background: #263238;
+  border-radius: var(--md-radius-sm);
+  padding: 16px 20px;
+  margin: 12px 0;
+  overflow-x: auto;
+  position: relative;
+}
+.code-block pre {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #ECEFF1;
+  margin: 0;
+  white-space: pre;
+}
+.code-block .lang-tag {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: #78909C;
+  font-family: 'Roboto Mono', monospace;
+}
+.code-block .comment { color: #607D8B; }
+.code-block .keyword { color: #82B1FF; }
+.code-block .string { color: #C3E88D; }
+.code-block .func { color: #FFCB6B; }
+.code-block .cls { color: #FF5370; }
+
+code {
+  font-family: 'Roboto Mono', monospace;
+  background: #ECEFF1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #D32F2F;
+}
+
+/* ── Flow Steps ── */
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 16px 0;
+}
+.flow-step {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+.flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 40px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--md-outline);
+}
+.flow-step .step-dot {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  flex-shrink: 0;
+  z-index: 1;
+}
+.flow-step .step-content {
+  padding: 8px 0 24px;
+}
+.flow-step .step-content h4 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.flow-step .step-content p {
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+}
+.flow-step.alt .step-dot {
+  background: var(--md-secondary);
+}
+
+/* ── Table ── */
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.md-table th {
+  text-align: left;
+  padding: 12px 16px;
+  background: #E3F2FD;
+  color: var(--md-primary-dark);
+  font-weight: 500;
+  font-size: 13px;
+}
+.md-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--md-outline);
+  color: var(--md-on-surface-variant);
+}
+.md-table tr:hover td { background: #F5F5F5; }
+
+/* ── Chips for labels ── */
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.tag-ts { background: #3178C6; color: #fff; }
+.tag-py { background: #306998; color: #FFD43B; }
+.tag-file { background: #E8EAF6; color: #3949AB; }
+
+/* ── Highlight Box ── */
+.highlight-box {
+  border-left: 4px solid var(--md-primary);
+  background: #E3F2FD;
+  padding: 12px 16px;
+  border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+  margin: 12px 0;
+  font-size: 14px;
+  color: #1565C0;
+}
+.highlight-box.warn {
+  border-left-color: #F57F17;
+  background: #FFF8E1;
+  color: #F57F17;
+}
+.highlight-box .material-icons {
+  font-size: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* ── Grid ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ── Mini Card ── */
+.mini-card {
+  background: #F5F5F5;
+  border-radius: var(--md-radius-sm);
+  padding: 16px;
+}
+.mini-card h4 {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mini-card p { font-size: 13px; }
+
+/* ── Section Anchor ── */
+section { scroll-margin-top: 88px; }
+</style>
+</head>
+<body>
+
+<!-- App Bar -->
+<header class="app-bar">
+  <div class="container">
+    <span class="material-icons">memory</span>
+    <div>
+      <h1>Prime Agent Python Skill 技术架构</h1>
+      <div class="subtitle">从 Skill 发现到 Kernel 执行的完整链路</div>
+    </div>
+  </div>
+</header>
+
+<main>
+<div class="container">
+<div class="page-layout">
+
+<!-- TOC -->
+<nav class="toc">
+  <div class="toc-title">目录</div>
+  <a href="#overview"><span class="material-icons">dashboard</span>架构总览</a>
+  <a href="#lifecycle"><span class="material-icons">timeline</span>执行生命周期</a>
+  <a href="#discovery"><span class="material-icons">search</span>Skill 发现</a>
+  <a href="#bootstrap"><span class="material-icons">build</span>Kernel 引导</a>
+  <a href="#kernel-start"><span class="material-icons">power_settings_new</span>Kernel 启动</a>
+  <a href="#execution"><span class="material-icons">play_arrow</span>Skill 执行</a>
+  <a href="#skill-spec"><span class="material-icons">description</span>Skill 规范</a>
+  <a href="#host-bridge"><span class="material-icons">swap_horiz</span>Host 通信</a>
+  <a href="#state"><span class="material-icons">storage</span>状态管理</a>
+  <a href="#key-files"><span class="material-icons">folder_open</span>关键文件</a>
+</nav>
+
+<div>
+
+<!-- Hero -->
+<div class="hero" id="overview">
+  <h2>架构总览</h2>
+  <p>Prime Agent 的 Python Skill 系统采用 <strong>TypeScript Host + IPython Kernel + Python Runtime</strong> 三层架构。所有 Python Skill 共享同一个持久化 IPython Kernel，模型通过生成代码字符串直接在 Kernel 中执行 Skill。</p>
+  <div class="chips">
+    <span class="chip chip-fill"><span class="material-icons" style="font-size:16px">code</span>TypeScript Host</span>
+    <span class="chip chip-outline">IPython Kernel</span>
+    <span class="chip chip-outline">Python Runtime (rlm)</span>
+    <span class="chip chip-outline">ZMQ IPC</span>
+  </div>
+</div>
+
+<!-- Architecture Diagram -->
+<div class="card">
+  <div class="card-header">
+    <div class="icon-badge" style="background:var(--md-primary)"><span class="material-icons">account_tree</span></div>
+    <h2>整体架构</h2>
+  </div>
+  <div class="arch-diagram">
+<pre>
+┌─────────────────────────────────────────────────────────────────┐
+│                    TypeScript Host (Node.js)                     │
+│                                                                  │
+│  ┌──────────────┐   ┌───────────────┐   ┌────────────────────┐  │
+│  │  skills.ts    │   │  agent-session │   │  ipython.ts        │  │
+│  │  Skill 发现   │──▶│  会话管理      │──▶│  Kernel 生命周期   │  │
+│  │  加载 & 验证  │   │  工具注册      │   │  代码执行          │  │
+│  └──────────────┘   └───────────────┘   └────────┬───────────┘  │
+│                                                   │              │
+│  ┌──────────────┐                        ┌────────▼───────────┐  │
+│  │ bootstrap.ts  │                        │  KernelManager     │  │
+│  │ venv 创建     │                        │  (ZMQ transport)   │  │
+│  │ 依赖安装      │                        └────────┬───────────┘  │
+│  └──────────────┘                                 │              │
+└───────────────────────────────────────────────────┼──────────────┘
+                                                    │ ZMQ
+┌───────────────────────────────────────────────────┼──────────────┐
+│                   IPython Kernel                   │              │
+│  ┌────────────────────────────────────────────────▼───────────┐  │
+│  │                  Kernel Global Namespace                    │  │
+│  │                                                            │  │
+│  │   rlm  ───────────  kernel shim (spawn 子 agent)           │  │
+│  │   harness ────────  持久化状态 (CRUD)                       │  │
+│  │   websearch ──────  Skill 模块 (pre-imported)              │  │
+│  │   compact  ───────  Skill 模块 (pre-imported)              │  │
+│  │   goal  ──────────  Skill 模块 (pre-imported)              │  │
+│  │   ... ────────────  其他 Skill 模块                        │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │              prime-agent-runtime (rlm)                      │  │
+│  │  ┌──────────┐  ┌───────────┐  ┌──────────────────────────┐ │  │
+│  │  │ __init__ │  │ harness   │  │ skill.py                 │ │  │
+│  │  │ rlm.run  │  │ Harness   │  │ CLI 入口 (console_script)│ │  │
+│  │  │ host_req │  │ State     │  │ run_cli()                │ │  │
+│  │  └──────────┘  └───────────┘  └──────────────────────────┘ │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+  </div>
+  <div class="highlight-box">
+    <span class="material-icons">info</span>
+    核心设计：所有 Python Skill 共享同一个 IPython Kernel 进程，模型通过生成 Python 代码字符串直接调用 Skill，无独立 tool call。
+  </div>
+</div>
+
+<!-- Lifecycle -->
+<div class="card" id="lifecycle">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#F57F17"><span class="material-icons">timeline</span></div>
+    <h2>执行生命周期</h2>
+  </div>
+  <p>从用户输入到 Skill 执行完成，经过以下阶段：</p>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-dot">1</div>
+      <div class="step-content">
+        <h4>Skill 发现 <span class="tag tag-ts">TypeScript</span></h4>
+        <p><code>loadSkills()</code> 扫描三个来源的目录，找到 <code>SKILL.md</code> + <code>pyproject.toml</code> + <code>src/&lt;name&gt;/__init__.py</code>，标记为 Python Skill</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">2</div>
+      <div class="step-content">
+        <h4>System Prompt 注入 <span class="tag tag-ts">TypeScript</span></h4>
+        <p><code>formatSkillsForPrompt()</code> 生成 <code>&lt;available_skills&gt;</code> XML 块，告诉模型哪些 Skill 已在 Kernel 中可用</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">3</div>
+      <div class="step-content">
+        <h4>Kernel 环境引导 <span class="tag tag-ts">TypeScript</span></h4>
+        <p><code>ensureKernelPython()</code> 首次运行时通过 <code>uv</code> 创建 venv，安装 ipykernel、prime-agent-runtime、所有 Skill 包</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">4</div>
+      <div class="step-content">
+        <h4>Kernel 启动 & Skill 预加载 <span class="tag tag-ts">TypeScript</span> <span class="tag tag-py">Python</span></h4>
+        <p><code>IpythonKernelProvisioner.ensure()</code> 启动 IPython 进程，执行 <code>buildRlmBootstrapCode()</code> 将所有 Skill 模块导入 Kernel 全局命名空间</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">5</div>
+      <div class="step-content">
+        <h4>模型生成代码 <span class="tag tag-py">Python</span></h4>
+        <p>模型根据 system prompt 中的 Skill 列表，生成 <code>ipython</code> tool call，代码中直接使用 Skill 模块名调用</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">6</div>
+      <div class="step-content">
+        <h4>代码发送到 Kernel <span class="tag tag-ts">TypeScript</span></h4>
+        <p><code>KernelManager.execute(code)</code> 通过 ZMQ 将代码字符串发送到 IPython Kernel</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">7</div>
+      <div class="step-content">
+        <h4>Skill 执行 <span class="tag tag-py">Python</span></h4>
+        <p>Kernel 中的全局变量（如 <code>websearch</code>）是预加载的 Skill 模块，<code>await websearch(...)</code> 直接调用 <code>run()</code></p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-dot">8</div>
+      <div class="step-content">
+        <h4>结果回传 <span class="tag tag-ts">TypeScript</span></h4>
+        <p>stdout + result 通过 ZMQ 返回 TypeScript，格式化为 <code>tool_result</code> 喂回模型</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Discovery -->
+<div class="card" id="discovery">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#00897B"><span class="material-icons">search</span></div>
+    <h2>Skill 发现阶段</h2>
+  </div>
+  <p><span class="tag tag-file">skills.ts</span></p>
+  <h3>扫描来源</h3>
+  <div class="grid-3">
+    <div class="mini-card">
+      <h4><span class="material-icons" style="color:var(--md-primary);font-size:18px">person</span>用户级</h4>
+      <p><code>~/.prime/agent/skills/</code></p>
+    </div>
+    <div class="mini-card">
+      <h4><span class="material-icons" style="color:var(--md-secondary);font-size:18px">folder</span>项目级</h4>
+      <p><code>&lt;cwd&gt;/.prime/skills/</code></p>
+    </div>
+    <div class="mini-card">
+      <h4><span class="material-icons" style="color:#F57F17;font-size:18px">link</span>显式路径</h4>
+      <p><code>--skill</code> 参数指定</p>
+    </div>
+  </div>
+
+  <h3>Python Skill 检测条件</h3>
+  <p><code>detectPythonSkill()</code> 必须同时满足三个条件：</p>
+  <div class="code-block">
+    <span class="lang-tag">skills.ts</span>
+<pre>
+<span class="comment">// 1. pyproject.toml 存在且是文件</span>
+<span class="keyword">const</span> pyprojectPath = <span class="func">join</span>(skillDir, <span class="string">"pyproject.toml"</span>);
+
+<span class="comment">// 2. import name 合法 (web-search → web_search)</span>
+<span class="keyword">const</span> importName = <span class="func">pythonImportNameForSkill</span>(name);
+
+<span class="comment">// 3. src/&lt;import_name&gt;/__init__.py 存在</span>
+<span class="keyword">const</span> packageInitPath = <span class="func">join</span>(skillDir, <span class="string">"src"</span>, importName, <span class="string">"__init__.py"</span>);
+</pre>
+  </div>
+
+  <h3>Skill 数据结构</h3>
+  <div class="code-block">
+    <span class="lang-tag">TypeScript</span>
+<pre>
+<span class="keyword">interface</span> <span class="cls">PythonSkill</span> <span class="keyword">extends</span> <span class="cls">BaseSkill</span> {
+  kind: <span class="string">"python"</span>;
+  python: {
+    importName: <span class="cls">string</span>;    <span class="comment">// "websearch"</span>
+    packagePath: <span class="cls">string</span>;   <span class="comment">// "/path/to/skills/websearch"</span>
+    pyprojectPath: <span class="cls">string</span>; <span class="comment">// "/path/to/skills/websearch/pyproject.toml"</span>
+  };
+}
+</pre>
+  </div>
+</div>
+
+<!-- Bootstrap -->
+<div class="card" id="bootstrap">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#D32F2F"><span class="material-icons">build</span></div>
+    <h2>Kernel 环境引导</h2>
+  </div>
+  <p><span class="tag tag-file">bootstrap.ts</span></p>
+  <p>首次运行时自动完成 Python 环境搭建（约 30 秒），后续通过 hash 检测变化增量更新。</p>
+
+  <h3>引导流程</h3>
+  <div class="code-block">
+    <span class="lang-tag">Shell</span>
+<pre>
+<span class="comment"># 1. 安装 Python 3.11</span>
+uv python install 3.11
+
+<span class="comment"># 2. 创建 venv</span>
+uv venv ~/.prime/agent/kernel-venv --python 3.11 --seed
+
+<span class="comment"># 3. 安装核心依赖</span>
+uv pip install ipykernel prime-agent-runtime dill \
+  requests httpx pyyaml tomli python-dotenv \
+  pandas numpy scipy beautifulsoup4 lxml pydantic tyro
+
+<span class="comment"># 4. 安装所有 Python Skills (editable mode)</span>
+uv pip install --editable /path/to/skills/websearch
+uv pip install --editable /path/to/skills/compact
+uv pip install --editable /path/to/skills/goal
+...
+</pre>
+  </div>
+
+  <h3>版本管理</h3>
+  <div class="grid-2">
+    <div class="mini-card">
+      <h4><span class="material-icons" style="color:var(--md-primary);font-size:18px">description</span>.bootstrap-version</h4>
+      <p>记录 schema 版本、runtime hash、每个 skill 的 pyproject hash，变化时自动重建</p>
+    </div>
+    <div class="mini-card">
+      <h4><span class="material-icons" style="color:#D32F2F;font-size:18px">lock</span>.bootstrap.lock</h4>
+      <p>目录锁防止并发引导冲突，含 PID 检测进程存活，30s 超时自动清理</p>
+    </div>
+  </div>
+
+  <h3>Skill 依赖拓扑排序</h3>
+  <p><code>sortPythonSkillsForInstall()</code> 解析每个 Skill 的 <code>pyproject.toml</code> 中的 dependencies，对本地兄弟 Skill 进行拓扑排序，确保安装顺序正确。</p>
+
+  <div class="highlight-box warn">
+    <span class="material-icons">warning</span>
+    环境变量 <code>PRIME_AGENT_KERNEL_PYTHON</code> 可跳过自动引导，指向一个已配置好的 Python 环境。
+  </div>
+</div>
+
+<!-- Kernel Start -->
+<div class="card" id="kernel-start">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#7B1FA2"><span class="material-icons">power_settings_new</span></div>
+    <h2>Kernel 启动 & Skill 预加载</h2>
+  </div>
+  <p><span class="tag tag-file">ipython.ts</span></p>
+
+  <h3>启动序列</h3>
+  <div class="code-block">
+    <span class="lang-tag">ipython.ts</span>
+<pre>
+<span class="comment">// IpythonKernelProvisioner.startKernel()</span>
+
+<span class="comment">// 1. 等待前一个 provisioner 释放 (如 /reload)</span>
+<span class="keyword">await</span> readyGate;
+
+<span class="comment">// 2. 创建 KernelManager，启动 IPython 进程</span>
+<span class="keyword">const</span> m = <span class="keyword">new</span> <span class="cls">KernelManager</span>({ python, cwd, env, pythonSkills });
+<span class="keyword">await</span> m.<span class="func">start</span>();
+
+<span class="comment">// 3. 恢复上一个 session 的 namespace 快照 (通过 dill)</span>
+<span class="keyword">await</span> m.<span class="func">restoreState</span>();
+
+<span class="comment">// 4. 执行 bootstrap 代码 — 导入 rlm + 所有 skills</span>
+<span class="keyword">const</span> bootstrap = <span class="keyword">await</span> m.<span class="func">execute</span>(<span class="func">buildRlmBootstrapCode</span>(pythonSkills));
+</pre>
+  </div>
+
+  <h3>Bootstrap 代码注入</h3>
+  <p><code>buildRlmBootstrapCode()</code> 生成的 Python 代码在 Kernel 启动时执行：</p>
+  <div class="code-block">
+    <span class="lang-tag">Python (generated)</span>
+<pre>
+<span class="keyword">import</span> rlm <span class="keyword">as</span> _prime_agent_rlm_module
+rlm = _prime_agent_rlm_module.rlm       <span class="comment"># 暴露 rlm 全局对象</span>
+
+<span class="keyword">import</span> importlib, inspect, sys, types
+
+<span class="keyword">class</span> <span class="cls">_PrimeAgentCallableSkillModule</span>(types.ModuleType):
+    <span class="keyword">async def</span> <span class="func">__call__</span>(self, *args, **kwargs):
+        result = self.<span class="func">run</span>(*args, **kwargs)
+        <span class="keyword">if</span> inspect.<span class="func">isawaitable</span>(result):
+            <span class="keyword">return await</span> result
+        <span class="keyword">return</span> result
+
+<span class="comment"># 导入所有 Python Skills，包装为可调用模块</span>
+<span class="keyword">for</span> _name <span class="keyword">in</span> [<span class="string">"websearch"</span>, <span class="string">"compact"</span>, <span class="string">"goal"</span>, ...]:
+    <span class="keyword">try</span>:
+        globals()[_name] = <span class="func">_prime_agent_wrap_skill_module</span>(
+            importlib.<span class="func">import_module</span>(_name)
+        )
+    <span class="keyword">except</span> Exception:
+        globals()[_name] = <span class="cls">_PrimeAgentUnavailableSkill</span>(_name, ...)
+</pre>
+  </div>
+  <div class="highlight-box">
+    <span class="material-icons">info</span>
+    导入失败时注入 <code>_PrimeAgentUnavailableSkill</code> 占位对象，Skill 不可用但不会 crash Kernel。
+  </div>
+</div>
+
+<!-- Execution -->
+<div class="card" id="execution">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#2E7D32"><span class="material-icons">play_arrow</span></div>
+    <h2>Skill 执行流程</h2>
+  </div>
+
+  <h3>核心路径：模型通过 ipython 工具调用 Skill</h3>
+  <div class="code-block">
+    <span class="lang-tag">调用链</span>
+<pre>
+<span class="comment">// 模型输出 (唯一可用的 Python 工具)</span>
+tool_call: <span class="func">ipython</span>(code=<span class="string">"print(await websearch('Prime Agent'))"</span>)
+
+    ↓ TypeScript
+
+<span class="comment">// ipython.ts: executeWithBusyKernelChoice()</span>
+<span class="keyword">const</span> provisioner = <span class="keyword">new</span> <span class="cls">IpythonKernelProvisioner</span>(cwd, options);
+<span class="keyword">const</span> m = <span class="keyword">await</span> provisioner.<span class="func">ensure</span>();
+<span class="keyword">const</span> result = <span class="keyword">await</span> m.<span class="func">execute</span>(code);  <span class="comment">// ZMQ → Kernel</span>
+
+    ↓ ZMQ
+
+<span class="comment">// IPython Kernel 中执行</span>
+websearch(<span class="string">"Prime Agent"</span>)   <span class="comment"># websearch 是全局变量，已预加载</span>
+  → websearch.<span class="func">run</span>(<span class="string">"Prime Agent"</span>)   <span class="comment"># 调用 Skill 的 run()</span>
+    → httpx → Serper API → 返回结果
+
+    ↓ ZMQ
+
+<span class="comment">// TypeScript 收到结果</span>
+{ stdout, result, stderr, status, durationMs, diffs, attachments }
+
+    ↓
+
+<span class="comment">// 格式化为 tool_result 返回给模型</span>
+</pre>
+  </div>
+
+  <div class="highlight-box warn">
+    <span class="material-icons">warning</span>
+    <strong>没有沙箱隔离</strong> — 模型生成的代码直接在 Kernel 中执行。Skill 的 <code>run()</code> 拥有完整的 Python 环境权限。
+  </div>
+
+  <h3>执行模式</h3>
+  <table class="md-table">
+    <thead>
+      <tr><th>属性</th><th>值</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>executionMode</code></td><td><code>"sequential"</code></td><td>Kernel 单线程，不支持并行 ipython 调用</td></tr>
+      <tr><td><code>name</code></td><td><code>"ipython"</code></td><td>模型唯一可用的 Python 执行工具</td></tr>
+      <tr><td>通信协议</td><td>ZMQ</td><td>TypeScript ↔ Kernel 进程间通信</td></tr>
+      <tr><td>状态持久化</td><td>dill 快照</td><td>Session 恢复时尽可能还原 namespace</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Skill Spec -->
+<div class="card" id="skill-spec">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#00897B"><span class="material-icons">description</span></div>
+    <h2>Skill 模块规范</h2>
+  </div>
+
+  <h3>目录结构</h3>
+  <div class="code-block">
+    <span class="lang-tag">File Tree</span>
+<pre>
+skills/
+└── websearch/                    <span class="comment"># Skill 目录名 = Skill 名</span>
+    ├── SKILL.md                  <span class="comment"># frontmatter: name + description</span>
+    ├── pyproject.toml            <span class="comment"># 包名、依赖、console_scripts</span>
+    └── src/
+        └── websearch/            <span class="comment"># import name (dash → underscore)</span>
+            ├── __init__.py       <span class="comment"># 必须导出 run 函数</span>
+            └── websearch.py      <span class="comment"># 实现</span>
+</pre>
+  </div>
+
+  <h3>关键文件内容</h3>
+  <div class="grid-2">
+    <div class="mini-card">
+      <h4><span class="tag tag-file">SKILL.md</span></h4>
+      <div class="code-block" style="margin:8px 0 0">
+<pre style="font-size:12px">
+---
+name: websearch
+description: Search Google via Serper API...
+---
+# Web Search
+...
+</pre>
+      </div>
+    </div>
+    <div class="mini-card">
+      <h4><span class="tag tag-file">pyproject.toml</span></h4>
+      <div class="code-block" style="margin:8px 0 0">
+<pre style="font-size:12px">
+[project]
+name = "prime-agent-skill-websearch"
+dependencies = ["httpx", "prime-agent-runtime"]
+
+[project.scripts]
+websearch = "rlm.skill:cli"
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>run() 函数规范</h3>
+  <table class="md-table">
+    <thead>
+      <tr><th>要求</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>必须是 <code>async</code></td><td>Kernel 使用 <code>nest_asyncio</code>，<code>await</code> 触发执行</td></tr>
+      <tr><td>返回值可选</td><td>返回值被打印（<code>print(await skill(...))</code>），<code>None</code> 不输出</td></tr>
+      <tr><td>参数即 CLI 参数</td><td><code>tyro.cli(run)</code> 自动将函数签名映射为命令行参数</td></tr>
+      <tr><td>入口在 <code>__init__.py</code></td><td><code>from .websearch import run</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>CLI 独立执行</h3>
+  <p><code>pyproject.toml</code> 中的 <code>[project.scripts]</code> 让 Skill 也能作为命令行工具运行：</p>
+  <div class="code-block">
+    <span class="lang-tag">prime-agent-runtime/src/rlm/skill.py</span>
+<pre>
+<span class="keyword">def</span> <span class="func">cli</span>():
+    prog = Path(sys.argv[<span class="string">0</span>]).stem         <span class="comment"># "websearch"</span>
+    module = __import__(prog)              <span class="comment"># import websearch</span>
+    run = <span class="func">getattr</span>(module, <span class="string">"run"</span>)           <span class="comment"># websearch.run</span>
+    asyncio.<span class="func">run</span>(<span class="func">run_cli</span>(run, prog=prog))  <span class="comment"># tyro 解析参数 → 执行</span>
+</pre>
+  </div>
+</div>
+
+<!-- Host Bridge -->
+<div class="card" id="host-bridge">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#E65100"><span class="material-icons">swap_horiz</span></div>
+    <h2>Kernel ↔ Host 通信</h2>
+  </div>
+  <p><span class="tag tag-file">prime-agent-runtime/src/rlm/__init__.py</span></p>
+
+  <p>Kernel 中的 Python 代码可以通过 <code>host_request()</code> 反向调用 TypeScript Host：</p>
+
+  <div class="code-block">
+    <span class="lang-tag">Python</span>
+<pre>
+<span class="comment"># Kernel 中调用 Host 的通用通道</span>
+<span class="keyword">async def</span> <span class="func">host_request</span>(request_type: <span class="cls">str</span>, payload: <span class="cls">dict</span> | <span class="cls">None</span> = <span class="cls">None</span>):
+    comm = <span class="cls">Comm</span>(target_name=<span class="string">"host.request"</span>, primary=<span class="cls">False</span>)
+    comm.<span class="func">open</span>(data={**(payload or {}), <span class="string">"type"</span>: request_type})
+    <span class="keyword">return await</span> future  <span class="comment"># 等待 Host 回复</span>
+
+<span class="comment"># 具体的高层 API</span>
+<span class="keyword">await</span> rlm.<span class="func">run</span>(<span class="string">"子任务 prompt"</span>)          <span class="comment"># spawn 子 agent</span>
+<span class="keyword">await</span> rlm.<span class="func">find_models</span>(<span class="string">"gpt"</span>)           <span class="comment"># 搜索可用模型</span>
+<span class="keyword">await</span> rlm.<span class="func">list_subagents</span>()             <span class="comment"># 列出子 agent</span>
+</pre>
+  </div>
+
+  <h3>通信机制</h3>
+  <div class="arch-diagram">
+<pre>
+Kernel (Python)                         Host (TypeScript)
+─────────────                           ─────────────────
+host_request("rlm.run", {...})
+    │                                       │
+    │  Jupyter Comm (ZMQ)                   │
+    │  target: "host.request"               │
+    ├──────────────────────────────────────▶│
+    │                                       │ HostRequestHandlers
+    │                                       │ dispatch on type
+    │                                       │
+    │◀──────────────────────────────────────┤
+    │  reply: { status: "ok", ... }         │
+    ▼
+RLMSpawnHandle { rlm_child_id, name, session_dir, model }
+</pre>
+  </div>
+
+  <h3>Host 处理的请求类型</h3>
+  <table class="md-table">
+    <thead>
+      <tr><th>type</th><th>功能</th><th>返回</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>rlm.run</code></td><td>Spawn 子 agent</td><td><code>RLMSpawnHandle</code></td></tr>
+      <tr><td><code>rlm.find_models</code></td><td>搜索可用模型</td><td><code>RLMModel[]</code></td></tr>
+      <tr><td><code>rlm.list_subagents</code></td><td>列出子 agent</td><td><code>RLMSubagent[]</code></td></tr>
+      <tr><td><code>rlm.delete_subagent</code></td><td>删除子 agent</td><td><code>RLMSubagent</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- State Management -->
+<div class="card" id="state">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#5D4037"><span class="material-icons">storage</span></div>
+    <h2>Harness 状态管理</h2>
+  </div>
+  <p><span class="tag tag-file">harness.py</span></p>
+  <p>Kernel 内的持久化状态存储，支持四种类型条目和两种作用域：</p>
+
+  <div class="grid-2">
+    <div>
+      <h3>条目类型</h3>
+      <table class="md-table">
+        <thead><tr><th>Kind</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>prompt</code></td><td>Prompt 注入笔记</td></tr>
+          <tr><td><code>memory</code></td><td>跨 session 记忆</td></tr>
+          <tr><td><code>skill</code></td><td>动态注册的 Skill</td></tr>
+          <tr><td><code>subagent</code></td><td>子 agent 规格</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>作用域</h3>
+      <table class="md-table">
+        <thead><tr><th>Scope</th><th>存储位置</th></tr></thead>
+        <tbody>
+          <tr><td><code>local</code></td><td><code>$RLM_SESSION_DIR/harness/</code></td></tr>
+          <tr><td><code>global</code></td><td><code>~/.prime/agent/harness/</code></td></tr>
+        </tbody>
+      </table>
+      <div class="highlight-box" style="margin-top:12px">
+        <span class="material-icons">info</span>
+        通过 <code>_HarnessProxy</code> 惰性解析，Kernel 启动时不绑定路径，每次访问时从环境变量重新解析。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Key Files -->
+<div class="card" id="key-files">
+  <div class="card-header">
+    <div class="icon-badge" style="background:#455A64"><span class="material-icons">folder_open</span></div>
+    <h2>关键文件索引</h2>
+  </div>
+
+  <table class="md-table">
+    <thead>
+      <tr><th>文件</th><th>层</th><th>职责</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>src/core/skills.ts</code></td>
+        <td><span class="tag tag-ts">TS</span></td>
+        <td>Skill 发现、验证、加载，<code>formatSkillsForPrompt()</code></td>
+      </tr>
+      <tr>
+        <td><code>src/core/tools/ipython.ts</code></td>
+        <td><span class="tag tag-ts">TS</span></td>
+        <td>IPython 工具定义，<code>IpythonKernelProvisioner</code>，<code>buildRlmBootstrapCode()</code></td>
+      </tr>
+      <tr>
+        <td><code>src/core/kernel/bootstrap.ts</code></td>
+        <td><span class="tag tag-ts">TS</span></td>
+        <td>venv 创建、依赖安装、Skill 包安装、版本管理</td>
+      </tr>
+      <tr>
+        <td><code>src/core/agent-session.ts</code></td>
+        <td><span class="tag tag-ts">TS</span></td>
+        <td>会话管理、工具注册、Kernel provisioner 生命周期</td>
+      </tr>
+      <tr>
+        <td><code>prime-agent-runtime/src/rlm/__init__.py</code></td>
+        <td><span class="tag tag-py">Py</span></td>
+        <td>Kernel shim：<code>rlm</code> 对象、<code>host_request()</code>、<code>run()</code></td>
+      </tr>
+      <tr>
+        <td><code>prime-agent-runtime/src/rlm/harness.py</code></td>
+        <td><span class="tag tag-py">Py</span></td>
+        <td><code>HarnessState</code> CRUD、JSON 持久化、local/global 作用域</td>
+      </tr>
+      <tr>
+        <td><code>prime-agent-runtime/src/rlm/skill.py</code></td>
+        <td><span class="tag tag-py">Py</span></td>
+        <td>CLI 入口：<code>cli()</code> → <code>tyro.cli(run)</code></td>
+      </tr>
+      <tr>
+        <td><code>skills/&lt;name&gt;/SKILL.md</code></td>
+        <td><span class="tag tag-file">MD</span></td>
+        <td>Frontmatter 定义 name + description，正文为使用说明</td>
+      </tr>
+      <tr>
+        <td><code>skills/&lt;name&gt;/pyproject.toml</code></td>
+        <td><span class="tag tag-file">TOML</span></td>
+        <td>包元数据、依赖声明、console_scripts 入口</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div><!-- /content-column -->
+</div><!-- /page-layout -->
+</div><!-- /container -->
+</main>
+
+<script>
+// Smooth scroll for TOC
+document.querySelectorAll('.toc a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Highlight active TOC item on scroll
+const sections = document.querySelectorAll('section[id], .hero[id], .card[id]');
+const tocLinks = document.querySelectorAll('.toc a');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(l => l.style.borderLeftColor = 'transparent');
+      const active = document.querySelector(`.toc a[href="#${entry.target.id}"]`);
+      if (active) {
+        active.style.borderLeftColor = '#1565C0';
+        active.style.color = '#1565C0';
+      }
+    }
+  });
+}, { rootMargin: '-80px 0px -70% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
