@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Next.js 深度解析 — 架构 · Segment Cache · 版本演进</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #000000;
+    --md-on-primary: #fff;
+    --md-primary-container: #E8E0F0;
+    --md-on-primary-container: #1D1B20;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-accent: #5B21B6;
+    --md-accent-light: #7C3AED;
+    --md-accent-container: #EDE9FE;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F5F3FF;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-accent); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #1C1B1F 0%, #2D1B69 50%, #5B21B6 100%);
+    color: #fff;
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 600px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-accent); background: rgba(91,33,182,.06); }
+  .tab-btn.active { color: var(--md-accent); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-accent);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.purple { background: var(--md-accent-container); color: var(--md-accent); }
+  .card-icon.pink   { background: var(--md-tertiary-container); color: #4A2532; }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.green  { background: #D1FAE5; color: #065F46; }
+  .card-icon.orange { background: #FEF3C7; color: #92400E; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.tertiary {
+    background: var(--md-tertiary-container);
+    color: #4A2532;
+  }
+  .chip.primary {
+    background: var(--md-accent-container);
+    color: var(--md-accent);
+  }
+  .chip.green {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-accent);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .tag { color: #F07178; }
+  .attr { color: #C792EA; }
+  .punct { color: #89DDFF; }
+
+  /* ── Diagram (ASCII-art style) ── */
+  .diagram {
+    background: #F5F0FF;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Accent Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-accent-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  .banner.warn {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .banner.success {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+
+  /* ── Comparison Table ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-accent);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+    margin: 16px 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--md-outline-variant);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -28px; top: 6px;
+    width: 12px; height: 12px;
+    background: var(--md-accent);
+    border-radius: 50%;
+    border: 2px solid var(--md-surface);
+    box-shadow: 0 0 0 2px var(--md-accent);
+  }
+  .timeline-item h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">N</div>
+  <h1>Next.js <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>架构 · Segment Cache · 版本演进</h2>
+  <p>深入理解 App Router 架构、缓存分层原理，以及从 v15 到最新版本的重大改进</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="arch">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">architecture</span>
+    核心架构
+  </button>
+  <button class="tab-btn" data-tab="cache">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">cached</span>
+    缓存体系
+  </button>
+  <button class="tab-btn" data-tab="render">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">speed</span>
+    渲染策略
+  </button>
+  <button class="tab-btn" data-tab="evolution">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">upgrade</span>
+    版本演进
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== 核心架构 ==================== -->
+  <div id="arch" class="section active">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">account_tree</span></div>
+        <h3>App Router 架构总览</h3>
+      </div>
+      <p>Next.js 13+ 引入的 <strong>App Router</strong> 基于 React Server Components (RSC) 构建，采用<span class="inline-code">app/</span>目录约定式路由，实现了服务端与客户端组件的混合渲染。</p>
+
+      <div class="diagram">┌─────────────────────────────────────────────────────────┐
+│                     Client (Browser)                    │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Router Cache (客户端路由缓存)                      │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐             │  │
+│  │  │ /       │ │ /about  │ │ /blog   │  ...        │  │
+│  │  │ (RSC    │ │ (RSC    │ │ (RSC    │             │  │
+│  │  │ payload)│ │ payload)│ │ payload)│             │  │
+│  │  └─────────┘ └─────────┘ └─────────┘             │  │
+│  └───────────────────────────────────────────────────┘  │
+│           │  React Flight 协议 (RSC Payload)            │
+│           ▼                                             │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Client Components (交互层)                         │  │
+│  │  'use client' → 运行在浏览器, 有 state/effects    │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+           │  Server Actions / fetch
+           ▼
+┌─────────────────────────────────────────────────────────┐
+│                     Server (Node.js / Edge)              │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  React Server Components (RSC 渲染层)              │  │
+│  │  - 默认组件全部是 Server Component                 │  │
+│  │  - 可直接访问 DB / 文件系统 / 内部 API             │  │
+│  │  - 零 JS bundle 发送到客户端                       │  │
+│  └───────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  缓存层 (Data Cache / Full Route Cache)            │  │
+│  └───────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  编译层 (Turbopack / Webpack)                      │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">widgets</span></div>
+        <h3>Server Components vs Client Components</h3>
+      </div>
+      <p>App Router 的核心设计是 <strong>组件边界</strong> —— 通过 <span class="inline-code">'use client'</span> 指令划分运行环境。</p>
+
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:18px">dns</span> Server Components (默认)</h4>
+          <ul>
+            <li>在服务器上渲染，<strong>零客户端 JS</strong></li>
+            <li>可直接 <code>async/await</code> 访问数据库</li>
+            <li>不可使用 <code>useState</code> / <code>useEffect</code></li>
+            <li>可导入其他 Server 或 Client 组件</li>
+            <li>适合：数据获取、SEO 内容、敏感逻辑</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:18px">smartphone</span> Client Components</h4>
+          <ul>
+            <li>声明 <span class="inline-code">'use client'</span> 后在浏览器运行</li>
+            <li>可使用所有 React Hooks 和浏览器 API</li>
+            <li>仍可在服务端预渲染 (SSR)</li>
+            <li>不能直接导入 Server Component</li>
+            <li>适合：交互、事件监听、浏览器 API</li>
+          </ul>
+        </div>
+      </div>
+
+      <pre><span class="cm">// app/page.tsx — 默认是 Server Component</span>
+<span class="kw">import</span> { db } <span class="kw">from</span> <span class="str">'@/lib/db'</span>
+<span class="kw">import</span> ClientButton <span class="kw">from</span> <span class="str">'./ClientButton'</span>
+
+<span class="kw">export default async function</span> <span class="fn">Page</span>() {
+  <span class="kw">const</span> posts = <span class="kw">await</span> db.post.<span class="fn">findMany</span>()
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>
+      {posts.<span class="fn">map</span>(p <span class="punct">=&gt;</span> <span class="punct">&lt;</span><span class="tag">article</span> key={p.id}<span class="punct">&gt;</span>{p.title}<span class="punct">&lt;/</span><span class="tag">article</span><span class="punct">&gt;</span>)}
+      <span class="punct">&lt;</span><span class="typ">ClientButton</span> <span class="punct">/&gt;</span>  <span class="cm">{/* 交互部分 */}</span>
+    <span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+  )
+}</pre>
+
+      <pre><span class="cm">// app/ClientButton.tsx</span>
+<span class="str">'use client'</span>
+<span class="kw">import</span> { useState } <span class="kw">from</span> <span class="str">'react'</span>
+
+<span class="kw">export default function</span> <span class="fn">ClientButton</span>() {
+  <span class="kw">const</span> [count, setCount] = <span class="fn">useState</span>(<span class="num">0</span>)
+  <span class="kw">return</span> <span class="punct">&lt;</span><span class="tag">button</span> onClick={() <span class="punct">=&gt;</span> <span class="fn">setCount</span>(c <span class="punct">=&gt;</span> c + <span class="num">1</span>)}<span class="punct">&gt;</span>{count}<span class="punct">&lt;/</span><span class="tag">button</span><span class="punct">&gt;</span>
+}</pre>
+
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>关键原则</strong>：将 Client Component 尽量推到组件树的叶子节点，最大化 Server Component 的比例，从而减少客户端 JS 体积。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">folder_special</span></div>
+        <h3>文件系统约定</h3>
+      </div>
+      <p>App Router 使用特殊的文件名约定来定义路由行为：</p>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">description</span> page.tsx</h4>
+          <p>定义路由的<strong>可访问页面</strong>。没有 page.tsx 的目录不是路由。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">web_asset</span> layout.tsx</h4>
+          <p><strong>共享布局</strong>，在导航间保持状态，不重新挂载。支持嵌套。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">hourglass_top</span> loading.tsx</h4>
+          <p>自动 <strong>Suspense 边界</strong>，在子组件加载时显示即时 UI。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">error</span> error.tsx</h4>
+          <p><strong>错误边界</strong>（必须是 Client Component），捕获子级异常。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">find_replace</span> not-found.tsx</h4>
+          <p>处理 <code>notFound()</code> 抛出或 404 的 UI。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">template</span> template.tsx</h4>
+          <p>类似 layout，但每次导航<strong>重新挂载</strong>实例（适合动画/焦点）。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">settings</span> default.tsx</h4>
+          <p>Parallel Routes 的<strong>回退 UI</strong>，当插槽未匹配时渲染。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">api</span> route.ts</h4>
+          <p><strong>API 路由端点</strong>，定义 GET/POST/PUT 等处理器。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">call_split</span></div>
+        <h3>高级路由模式</h3>
+      </div>
+
+      <h4 style="margin:12px 0 8px;font-size:15px">Parallel Routes (平行路由)</h4>
+      <p>使用 <span class="inline-code">@slot</span> 命名的目录，在<strong>同一页面</strong>同时渲染多个独立页面段。适合 Dashboard 等多面板布局。</p>
+      <pre><span class="cm">// app/layout.tsx</span>
+<span class="kw">export default function</span> <span class="fn">Layout</span>({ children, analytics, team }) {
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>
+      {children}    <span class="cm">{/* app/page.tsx */}</span>
+      {analytics}   <span class="cm">{/* app/@analytics/page.tsx */}</span>
+      {team}        <span class="cm">{/* app/@team/page.tsx */}</span>
+    <span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+  )
+}</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">Intercepting Routes (拦截路由)</h4>
+      <p>通过 <span class="inline-code">(.)</span> / <span class="inline-code">(..)</span> / <span class="inline-code">(...)</span> 约定拦截同级 / 上级 / 根级路由，常用于<strong>模态框</strong>场景。</p>
+      <pre><span class="cm">// app/feed/(.)photo/[id]/page.tsx  → 拦截 /feed/photo/[id]</span>
+<span class="cm">// 在 /feed 页面内弹出模态框显示照片详情</span>
+<span class="cm">// 直接访问 /photo/123 则显示完整页面</span></pre>
+    </div>
+
+  </div>
+
+  <!-- ==================== 缓存体系 ==================== -->
+  <div id="cache" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">layers</span></div>
+        <h3>四层缓存架构</h3>
+      </div>
+      <p>Next.js 的缓存系统由<strong>四层</strong>组成，每层服务于不同的场景：</p>
+
+      <div class="diagram">┌─────────────────────────────────────────────────────────┐
+│  ④ Router Cache (客户端)                                │
+│  位置: 浏览器内存                                        │
+│  对象: RSC Payload (Flight 数据)                         │
+│  生命周期: Session → 5min(static) / 30min(dynamic)       │
+│  作用: 前进/后退 instant, prefetch 路由段                 │
+├─────────────────────────────────────────────────────────┤
+│  ③ Full Route Cache (服务端)                             │
+│  位置: CDN / 服务端持久化                                │
+│  对象: 整个路由段的渲染结果 (HTML + RSC Payload)          │
+│  生命周期: 直到重新部署或 revalidate                      │
+│  作用: 静态路由的零计算响应                               │
+│  ⚠️ Next.js 16: 被 Segment Cache 取代                   │
+├─────────────────────────────────────────────────────────┤
+│  ② Data Cache (服务端)                                   │
+│  位置: 服务端持久化存储                                   │
+│  对象: fetch() 响应 / 第三方库通过 unstable_cache         │
+│  生命周期: 跨请求、跨部署持久                             │
+│  作用: 避免重复数据请求                                   │
+├─────────────────────────────────────────────────────────┤
+│  ① Request Memoization (请求级)                          │
+│  位置: 单次请求的 React 渲染周期内                        │
+│  对象: 相同参数的 fetch() 调用                            │
+│  生命周期: 单次请求                                      │
+│  作用: 组件树多处 fetch 同一 URL 只发一次                 │
+└─────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">view_agenda</span></div>
+        <h3>Segment Cache 深度解析 (v15.2+)</h3>
+      </div>
+      <p><strong>Segment Cache</strong> 是 Next.js 对 Full Route Cache 的重新设计。核心思想：不再缓存整个路由的渲染结果，而是<strong>按路由段 (Segment) 粒度缓存</strong>。</p>
+
+      <div class="banner">
+        <span class="material-icons-outlined">info</span>
+        <div><strong>为什么需要 Segment Cache？</strong><br>
+        Full Route Cache 缓存的是完整路由 —— 当布局嵌套很深时，导航到子路由会重新请求整个页面。Segment Cache 让每个布局段独立缓存，导航时只需获取变化的部分。
+        </div>
+      </div>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">Segment 的概念</h4>
+      <p>每个路由段对应 URL 的一层。例如 <span class="inline-code">/dashboard/settings</span> 包含三个段：</p>
+      <pre><span class="cm">/                → Root Layout (layout.tsx)
+/dashboard       → Dashboard Layout (app/dashboard/layout.tsx)
+/dashboard/settings → Page (app/dashboard/settings/page.tsx)</span>
+
+<span class="cm">// 每个段独立缓存为一个 "Segment Entry"</span>
+<span class="cm">// 包含：RSC Payload + Headers + 生成时间戳</span></pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">Segment Entry 结构</h4>
+      <pre><span class="kw">interface</span> <span class="typ">SegmentEntry</span> {
+  <span class="cm">// 该段的 RSC Payload (React Flight 格式)</span>
+  rscPayload: <span class="typ">ReadableStream</span>
+  <span class="cm">// HTTP Headers (包括 revalidation 时间等)</span>
+  headers: <span class="typ">Headers</span>
+  <span class="cm">// 该段是否是动态的</span>
+  isDynamic: <span class="typ">boolean</span>
+  <span class="cm">// 缓存失效时间</span>
+  staleAt: <span class="typ">number</span>
+}</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">Segment Cache vs Full Route Cache</h4>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:18px">block</span> Full Route Cache (旧)</h4>
+          <ul>
+            <li>缓存<strong>整个路由</strong>的渲染结果</li>
+            <li>导航到子路由 → 重新请求所有父布局</li>
+            <li>嵌套布局越多，浪费越大</li>
+            <li>一个 <code>revalidate</code> 影响整条路由链</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:18px">done_all</span> Segment Cache (新)</h4>
+          <ul>
+            <li>按<strong>路由段</strong>独立缓存</li>
+            <li>导航时只获取<strong>变化的段</strong></li>
+            <li>父布局可独立于子页面缓存</li>
+            <li>精细控制每个段的 revalidation</li>
+          </ul>
+        </div>
+      </div>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">工作流程</h4>
+      <div class="diagram">用户点击 /dashboard/settings 链接:
+
+1. Client Router 检查 Router Cache (内存)
+   ├─ 命中 → 直接渲染 (instant back/forward)
+   └─ 未命中 ↓
+
+2. 发起请求到 Server
+   请求包含: 目标 URL + 当前已缓存的 Segment 列表
+
+3. Server 计算需要哪些 Segment
+   ├─ / layout        → 命中 Segment Cache ✓ (跳过)
+   ├─ /dashboard layout → 命中 Segment Cache ✓ (跳过)
+   └─ /dashboard/settings → 未命中 → 重新渲染 ✗
+
+4. Server 返回: 仅缺失的 Segment 的 RSC Payload
+
+5. Client 合并已有 Segment + 新 Segment → 完整页面</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">tune</span></div>
+        <h3>缓存控制 API</h3>
+      </div>
+
+      <h4 style="margin:8px 0;font-size:15px">Route Segment Config</h4>
+      <pre><span class="cm">// app/dashboard/page.tsx</span>
+
+<span class="cm">// 方式一：静态配置</span>
+<span class="kw">export const</span> revalidate = <span class="num">3600</span>   <span class="cm">// ISR: 每小时重新验证</span>
+<span class="kw">export const</span> dynamic = <span class="str">'force-static'</span>
+<span class="kw">export const</span> dynamicParams = <span class="kw">true</span>  <span class="cm">// 允许动态参数</span>
+
+<span class="cm">// 方式二：按需重新验证 (推荐)</span>
+<span class="kw">import</span> { revalidatePath, revalidateTag } <span class="kw">from</span> <span class="str">'next/cache'</span>
+
+<span class="kw">export async function</span> <span class="fn">action</span>() {
+  <span class="cm">// 重新验证整个路径</span>
+  <span class="fn">revalidatePath</span>(<span class="str">'/dashboard'</span>)
+
+  <span class="cm">// 或按 tag 精确失效</span>
+  <span class="fn">revalidateTag</span>(<span class="str">'posts'</span>)
+}
+
+<span class="cm">// 方式三：使用 cache: 'no-store' 完全动态</span>
+<span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'/api/data'</span>, {
+  cache: <span class="str">'no-store'</span>
+})</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">unstable_cache (手动缓存任意函数)</h4>
+      <pre><span class="kw">import</span> { unstable_cache } <span class="kw">from</span> <span class="str">'next/cache'</span>
+
+<span class="kw">const</span> getCachedPosts = <span class="fn">unstable_cache</span>(
+  <span class="kw">async</span> (userId: <span class="typ">string</span>) <span class="punct">=&gt;</span> {
+    <span class="kw">return</span> db.post.<span class="fn">findMany</span>({ where: { userId } })
+  },
+  [<span class="str">'posts-by-user'</span>],       <span class="cm">// cache key parts</span>
+  { tags: [<span class="str">'posts'</span>], revalidate: <span class="num">3600</span> }
+)</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon orange"><span class="material-icons-outlined">bolt</span></div>
+        <h3>Server Actions (服务端操作)</h3>
+      </div>
+      <p>Server Actions 是 Next.js 14+ 稳定的服务端函数，可直接在 Client 或 Server Component 中调用，无需手动创建 API 端点。</p>
+
+      <pre><span class="cm">// app/actions.ts</span>
+<span class="str">'use server'</span>
+
+<span class="kw">import</span> { revalidatePath } <span class="kw">from</span> <span class="str">'next/cache'</span>
+<span class="kw">import</span> { redirect } <span class="kw">from</span> <span class="str">'next/navigation'</span>
+
+<span class="kw">export async function</span> <span class="fn">createPost</span>(formData: <span class="typ">FormData</span>) {
+  <span class="kw">const</span> title = formData.<span class="fn">get</span>(<span class="str">'title'</span>) <span class="kw">as string</span>
+
+  <span class="cm">// 直接操作数据库</span>
+  <span class="kw">await</span> db.post.<span class="fn">create</span>({ data: { title } })
+
+  <span class="cm">// 重新验证缓存</span>
+  <span class="fn">revalidatePath</span>(<span class="str">'/posts'</span>)
+  <span class="fn">redirect</span>(<span class="str">'/posts'</span>)
+}
+
+<span class="cm">// app/new-post/page.tsx (Server Component 中使用)</span>
+<span class="kw">export default function</span> <span class="fn">NewPost</span>() {
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">form</span> action={createPost}<span class="punct">&gt;</span>
+      <span class="punct">&lt;</span><span class="tag">input</span> name=<span class="str">"title"</span> <span class="punct">/&gt;</span>
+      <span class="punct">&lt;</span><span class="tag">button</span> type=<span class="str">"submit"</span><span class="punct">&gt;</span>发布<span class="punct">&lt;/</span><span class="tag">button</span><span class="punct">&gt;</span>
+    <span class="punct">&lt;/</span><span class="tag">form</span><span class="punct">&gt;</span>
+  )
+}</pre>
+
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>安全注意</strong>：Server Actions 通过 POST 请求暴露为端点。务必在函数内部做<strong>鉴权和输入校验</strong>，不要依赖"隐藏"来保护敏感操作。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== 渲染策略 ==================== -->
+  <div id="render" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">speed</span></div>
+        <h3>渲染策略矩阵</h3>
+      </div>
+      <p>Next.js 支持多种渲染策略，可在路由级别灵活组合：</p>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">html</span> Static Rendering (SSG)</h4>
+          <p>构建时预渲染 HTML。<strong>最快响应</strong>，适合内容不频繁变化的页面。通过 <code>generateStaticParams</code> 预生成动态路由。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">update</span> ISR (增量静态再生)</h4>
+          <p>静态页面在后台按 <code>revalidate</code> 间隔重新生成。<strong>兼顾速度与新鲜度</strong>。Segment Cache 支持段级 revalidation。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">dns</span> Dynamic Rendering (SSR)</h4>
+          <p>每次请求在服务端渲染。使用 <code>cookies()</code> / <code>headers()</code> / <code>searchParams</code> 等动态 API 时自动触发。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">auto_awesome</span> PPR (部分预渲染)</h4>
+          <p>将页面分为<strong>静态壳 + 动态洞</strong>。静态部分预渲染并缓存在 CDN，动态部分在请求时流式填充。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">auto_awesome</span></div>
+        <h3>Partial Prerendering (PPR) 深度解析</h3>
+      </div>
+      <p>PPR 是 Next.js 最重要的渲染创新之一。它打破了"整页静态或整页动态"的二元选择：</p>
+
+      <div class="diagram">传统方式 (只能整页选一种):
+┌─────────────────────────────┐
+│  整页 Static (SSG)          │  ← 全部构建时渲染, 无法个性化
+│  或                          │
+│  整页 Dynamic (SSR)          │  ← 每次请求都要等全部渲染
+└─────────────────────────────┘
+
+PPR (同一页面混合):
+┌─────────────────────────────┐
+│  ┌───────────────────────┐  │
+│  │  Static Shell         │  │  ← 构建时预渲染, CDN 缓存
+│  │  (Header, Nav, Footer)│  │     立即返回给用户
+│  ├───────────────────────┤  │
+│  │  ┌─ Suspense ──────┐ │  │
+│  │  │  Dynamic Hole    │ │  │  ← 请求时流式填充
+│  │  │  (个性化内容)     │ │  │     用户看到 shell 先加载
+│  │  │  (购物车/推荐)    │ │  │
+│  │  └──────────────────┘ │  │
+│  └───────────────────────┘  │
+└─────────────────────────────┘</div>
+
+      <pre><span class="cm">// next.config.js — 启用 PPR</span>
+<span class="kw">const</span> nextConfig = {
+  experimental: {
+    ppr: <span class="str">'incremental'</span>  <span class="cm">// 逐路由启用</span>
+  }
+}
+
+<span class="cm">// app/dashboard/page.tsx — 选择性启用</span>
+<span class="kw">export const</span> experimental_ppr = <span class="kw">true</span>
+
+<span class="kw">import</span> { Suspense } <span class="kw">from</span> <span class="str">'react'</span>
+
+<span class="kw">export default function</span> <span class="fn">Dashboard</span>() {
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>
+      <span class="punct">&lt;</span><span class="tag">StaticHeader</span> <span class="punct">/&gt;</span>          <span class="cm">{/* 构建时渲染 */}</span>
+      <span class="punct">&lt;</span><span class="tag">Suspense</span> fallback={<span class="punct">&lt;</span><span class="tag">Skeleton</span> <span class="punct">/&gt;</span>}<span class="punct">&gt;</span>
+        <span class="punct">&lt;</span><span class="typ">UserRecommendations</span> <span class="punct">/&gt;</span>  <span class="cm">{/* 请求时渲染 */}</span>
+      <span class="punct">&lt;/</span><span class="tag">Suspense</span><span class="punct">&gt;</span>
+    <span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+  )
+}</pre>
+
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>PPR 的核心优势</strong>：用户几乎瞬间看到页面骨架（静态壳），动态内容在获取完成后流式注入。TTFB 接近静态页面，同时保留个性化能力。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">stream</span></div>
+        <h3>Streaming SSR</h3>
+      </div>
+      <p>Next.js 使用 React 18+ 的 <strong>Streaming SSR</strong>，将 HTML 分块传输：</p>
+
+      <pre><span class="cm">// 使用 Suspense 定义流式边界</span>
+<span class="kw">import</span> { Suspense } <span class="kw">from</span> <span class="str">'react'</span>
+
+<span class="kw">export default function</span> <span class="fn">Page</span>() {
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">main</span><span class="punct">&gt;</span>
+      <span class="cm">{/* 这部分立即发送 */}</span>
+      <span class="punct">&lt;</span><span class="tag">h1</span><span class="punct">&gt;</span>产品页面<span class="punct">&lt;/</span><span class="tag">h1</span><span class="punct">&gt;</span>
+
+      <span class="cm">{/* 这部分准备好后流式发送 */}</span>
+      <span class="punct">&lt;</span><span class="tag">Suspense</span> fallback={<span class="punct">&lt;</span><span class="typ">ProductSkeleton</span> <span class="punct">/&gt;</span>}<span class="punct">&gt;</span>
+        <span class="punct">&lt;</span><span class="typ">ProductDetails</span> <span class="punct">/&gt;</span>  <span class="cm">{/* async Server Component */}</span>
+      <span class="punct">&lt;/</span><span class="tag">Suspense</span><span class="punct">&gt;</span>
+
+      <span class="punct">&lt;</span><span class="tag">Suspense</span> fallback={<span class="punct">&lt;</span><span class="typ">ReviewsSkeleton</span> <span class="punct">/&gt;</span>}<span class="punct">&gt;</span>
+        <span class="punct">&lt;</span><span class="typ">ProductReviews</span> <span class="punct">/&gt;</span>  <span class="cm">{/* 可独立加载 */}</span>
+      <span class="punct">&lt;/</span><span class="tag">Suspense</span><span class="punct">&gt;</span>
+    <span class="punct">&lt;/</span><span class="tag">main</span><span class="punct">&gt;</span>
+  )
+}</pre>
+
+      <p>浏览器收到第一个 chunk 后就开始解析和渲染 shell，后续 chunk 到达时替换 Suspense fallback。这比传统 SSR 的"等全部渲染完再返回"要快得多。</p>
+    </div>
+
+  </div>
+
+  <!-- ==================== 版本演进 ==================== -->
+  <div id="evolution" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">timeline</span></div>
+        <h3>版本演进时间线</h3>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>Next.js 13 (2022.10)</h4>
+          <p>引入 <strong>App Router</strong> (beta)、React Server Components、<code>app/</code> 目录、Streaming SSR、内置 Font 优化</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Next.js 14 (2023.10)</h4>
+          <p>App Router <strong>稳定</strong>、Server Actions 稳定、Turbopack (dev) 稳定、部分预渲染 (PPR) 预览</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Next.js 15 (2024.10)</h4>
+          <p>React 19 支持、<strong>缓存策略大改</strong>、异步请求 API、Turbopack (build) 稳定、静态指示器</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Next.js 15.2 (2025.02)</h4>
+          <p><strong>Segment Cache</strong> 引入、改进的 DevTools 体验</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Next.js 16 (2025.10)</h4>
+          <p>Segment Cache 稳定、<strong>cacheComponents</strong> 实验、<strong>dynamicIO</strong> 实验、Node.js 中间件、<code>unstable_cache</code> → <code>cache()</code></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon orange"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Next.js 15 的重大变化</h3>
+      </div>
+
+      <h4 style="margin:8px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">1. 缓存策略反转 — 不再默认缓存一切</h4>
+      <p>这是 15 最具争议的改动。之前 <code>fetch()</code> 默认 <code>cache: 'force-cache'</code>，15 改为 <code>cache: 'no-store'</code> (默认不缓存)。</p>
+
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:18px">block</span> Next.js 14 及之前</h4>
+          <ul>
+            <li><code>fetch()</code> 默认 <strong>强制缓存</strong></li>
+            <li>GET Route Handlers 默认缓存</li>
+            <li>客户端 Router 默认缓存 30s</li>
+            <li>开发者经常遇到"为什么数据不更新？"的问题</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:18px">done_all</span> Next.js 15</h4>
+          <ul>
+            <li><code>fetch()</code> 默认 <strong>不缓存</strong></li>
+            <li>GET Route Handlers 默认不缓存</li>
+            <li>客户端 Router 默认不缓存</li>
+            <li>需要缓存时<strong>显式声明</strong></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">2. 异步请求 API</h4>
+      <p><code>cookies()</code>、<code>headers()</code>、<code>params</code>、<code>searchParams</code> 全部变为 <strong>async</strong>：</p>
+
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>❌ Next.js 14</h4>
+          <pre style="margin:8px 0;background:#2D1B1B;font-size:12px"><span class="kw">const</span> cookieStore = <span class="fn">cookies</span>()
+<span class="kw">const</span> token = cookieStore.<span class="fn">get</span>(<span class="str">'token'</span>)</pre>
+        </div>
+        <div class="compare-box new">
+          <h4>✅ Next.js 15</h4>
+          <pre style="margin:8px 0;background:#1B2D1B;font-size:12px"><span class="kw">const</span> cookieStore = <span class="kw">await</span> <span class="fn">cookies</span>()
+<span class="kw">const</span> token = cookieStore.<span class="fn">get</span>(<span class="str">'token'</span>)</pre>
+        </div>
+      </div>
+
+      <p>这使得 Next.js 可以在渲染开始前收集所有动态依赖，为 PPR 等优化铺路。</p>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">3. React 19 全面支持</h4>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">code</span> use() Hook</h4>
+          <p>在渲染时 resolve Promise，简化异步数据读取。可在条件语句和循环中使用。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">forward</span> ref as prop</h4>
+          <p><code>ref</code> 作为普通 prop 传递，不再需要 <code>forwardRef</code>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">dns</span> Actions (原 useFormState)</h4>
+          <p>表单的 <code>action</code> 属性原生支持，<code>useActionState</code> 替代 <code>useFormState</code>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">text_fields</span> Metadata API</h4>
+          <p>改进的 <code>Metadata</code> 类型，原生支持 <code>&lt;meta charset&gt;</code> 等。</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">4. Turbopack 成为默认构建器</h4>
+      <p>Turbopack (基于 Rust 的增量计算引擎) 在 15 中成为 <code>next dev</code> 和 <code>next build</code> 的默认选项：</p>
+      <ul style="padding-left:20px;margin:8px 0">
+        <li>冷启动快 <strong>76.7%</strong></li>
+        <li>HMR 快 <strong>96.3%</strong></li>
+        <li>大型应用编译快 <strong>45.8%</strong></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">new_releases</span></div>
+        <h3>Next.js 16 的重大改进</h3>
+      </div>
+
+      <h4 style="margin:8px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">1. Segment Cache 稳定化</h4>
+      <p>Segment Cache 从实验变为<strong>默认行为</strong>。Full Route Cache 被完全取代：</p>
+      <ul style="padding-left:20px;margin:8px 0">
+        <li>每个路由段独立缓存和失效</li>
+        <li>导航时只传输变化的段，而非整个页面</li>
+        <li>支持 Prefetch 策略：<span class="inline-code">'auto'</span> / <span class="inline-code">'full'</span> / <span class="inline-code">'viewport'</span></li>
+        <li>通过 <code>prefetch={false}</code> 禁用特定链接的预取</li>
+      </ul>
+
+      <pre><span class="cm">// 链接预取策略</span>
+<span class="kw">import</span> Link <span class="kw">from</span> <span class="str">'next/link'</span>
+
+<span class="cm">// 默认: 视口内自动预取静态段</span>
+<span class="punct">&lt;</span><span class="typ">Link</span> href=<span class="str">"/dashboard"</span><span class="punct">&gt;</span>Dashboard<span class="punct">&lt;/</span><span class="typ">Link</span><span class="punct">&gt;</span>
+
+<span class="cm">// 完整预取: 包括动态段</span>
+<span class="punct">&lt;</span><span class="typ">Link</span> href=<span class="str">"/dashboard"</span> prefetch=<span class="str">"full"</span><span class="punct">&gt;</span>Dashboard<span class="punct">&lt;/</span><span class="typ">Link</span><span class="punct">&gt;</span>
+
+<span class="cm">// 禁用预取</span>
+<span class="punct">&lt;</span><span class="typ">Link</span> href=<span class="str">"/heavy-page"</span> prefetch={false}<span class="punct">&gt;</span>Heavy<span class="punct">&lt;/</span><span class="typ">Link</span><span class="punct">&gt;</span></pre>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">2. cacheComponents (实验性)</h4>
+      <p>允许在<strong>组件级别</strong>控制缓存，而非路由段级别：</p>
+      <pre><span class="cm">// 启用实验性功能</span>
+<span class="cm">// next.config.js</span>
+<span class="kw">const</span> config = {
+  experimental: {
+    cacheComponents: <span class="kw">true</span>
+  }
+}
+
+<span class="cm">// 组件级缓存标记</span>
+<span class="str">'use cache'</span>  <span class="cm">// 指令级缓存控制 (实验性)</span>
+
+<span class="kw">export default async function</span> <span class="fn">ExpensiveComponent</span>() {
+  <span class="cm">// 此组件的渲染结果会被独立缓存</span>
+  <span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">fetchExpensiveData</span>()
+  <span class="kw">return</span> <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>{data}<span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+}</pre>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">3. dynamicIO (实验性)</h4>
+      <p>全新的动态渲染模型。使用 <span class="inline-code">'use cache'</span> 和 <span class="inline-code">cacheLife()</span> / <span class="inline-code">cacheTag()</span> 替代旧的 <code>revalidate</code> 数字配置：</p>
+      <pre><span class="kw">import</span> { cacheLife, cacheTag } <span class="kw">from</span> <span class="str">'next/cache'</span>
+
+<span class="str">'use cache'</span>
+
+<span class="kw">export default async function</span> <span class="fn">CachedPage</span>() {
+  <span class="cm">// 声明缓存生命周期</span>
+  <span class="fn">cacheLife</span>(<span class="str">'hours'</span>)    <span class="cm">// 预设: 'seconds' | 'minutes' | 'hours' | 'days'</span>
+
+  <span class="cm">// 声明缓存标签 (用于按需失效)</span>
+  <span class="fn">cacheTag</span>(<span class="str">'page-cached'</span>)
+
+  <span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">getData</span>()
+  <span class="kw">return</span> <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>{data}<span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+}
+
+<span class="cm">// 按需失效</span>
+<span class="kw">import</span> { revalidateTag } <span class="kw">from</span> <span class="str">'next/cache'</span>
+<span class="fn">revalidateTag</span>(<span class="str">'page-cached'</span>)</pre>
+
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>dynamicIO 的核心思想</strong>：不再让框架猜测哪些请求该缓存，而是让开发者通过 <code>'use cache'</code> 指令<strong>显式声明</strong>。没有标记的一律动态执行，消除了"默认缓存一切"的困惑。</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">4. Node.js 中间件</h4>
+      <p>16 之前中间件只能在 Edge Runtime 运行，16 支持 <strong>Node.js Runtime</strong>：</p>
+      <pre><span class="cm">// middleware.ts</span>
+<span class="kw">export const</span> runtime = <span class="str">'nodejs'</span>  <span class="cm">// 新增: 使用 Node.js 运行时</span>
+
+<span class="kw">export function</span> <span class="fn">middleware</span>(request: <span class="typ">NextRequest</span>) {
+  <span class="cm">// 现在可以使用 Node.js API</span>
+  <span class="cm">// 例如: crypto, fs, 数据库驱动等</span>
+  <span class="kw">const</span> session = <span class="fn">verifySession</span>(request.cookies)
+  <span class="kw">if</span> (!session) <span class="kw">return</span> <span class="fn">redirect</span>(<span class="str">'/login'</span>)
+}</pre>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 12px;font-size:16px;font-weight:500;color:var(--md-accent)">5. unstable_cache → cache()</h4>
+      <p>API 重命名和改进：</p>
+      <pre><span class="cm">// 旧: unstable_cache</span>
+<span class="kw">import</span> { unstable_cache } <span class="kw">from</span> <span class="str">'next/cache'</span>
+<span class="kw">const</span> fn = <span class="fn">unstable_cache</span>(handler, keys, options)
+
+<span class="cm">// 新: cache() (Next.js 16)</span>
+<span class="kw">import</span> { cache } <span class="kw">from</span> <span class="str">'next/cache'</span>
+<span class="kw">const</span> fn = <span class="fn">cache</span>(handler, keys, options)</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">table_chart</span></div>
+        <h3>v14 → v15 → v16 关键差异对比</h3>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
+          <thead>
+            <tr style="background:var(--md-accent-container)">
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">特性</th>
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">v14</th>
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">v15</th>
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">v16</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">默认缓存</td>
+              <td style="padding:10px">fetch 强制缓存</td>
+              <td style="padding:10px"><span class="chip">fetch 不缓存</span></td>
+              <td style="padding:10px">同 v15 + 'use cache'</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">路由缓存</td>
+              <td style="padding:10px">Full Route Cache</td>
+              <td style="padding:10px">Full Route Cache</td>
+              <td style="padding:10px"><span class="chip primary">Segment Cache</span></td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">cookies/headers</td>
+              <td style="padding:10px">同步 API</td>
+              <td style="padding:10px"><span class="chip">异步 API</span></td>
+              <td style="padding:10px">异步 API</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">PPR</td>
+              <td style="padding:10px">实验性</td>
+              <td style="padding:10px">增量启用</td>
+              <td style="padding:10px"><span class="chip green">稳定</span></td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">Turbopack</td>
+              <td style="padding:10px">Dev (稳定)</td>
+              <td style="padding:10px"><span class="chip">Dev + Build 默认</span></td>
+              <td style="padding:10px">默认，进一步优化</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">React 版本</td>
+              <td style="padding:10px">React 18</td>
+              <td style="padding:10px"><span class="chip">React 19</span></td>
+              <td style="padding:10px">React 19+</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">中间件运行时</td>
+              <td style="padding:10px">仅 Edge</td>
+              <td style="padding:10px">仅 Edge</td>
+              <td style="padding:10px"><span class="chip primary">Edge + Node.js</span></td>
+            </tr>
+            <tr>
+              <td style="padding:10px;font-weight:500">缓存 API</td>
+              <td style="padding:10px">unstable_cache</td>
+              <td style="padding:10px">unstable_cache</td>
+              <td style="padding:10px"><span class="chip primary">cache()</span> + 'use cache'</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">tips_and_updates</span></div>
+        <h3>迁移到 v16 的最佳实践</h3>
+      </div>
+
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>渐进式迁移</strong>：v16 的实验性功能（cacheComponents、dynamicIO）可通过 <code>next.config.js</code> 逐个开启，无需一次性全部迁移。</div>
+      </div>
+
+      <ol style="padding-left:20px;margin:12px 0">
+        <li><strong>先适应 v15 的缓存模型</strong>：确保所有需要缓存的 <code>fetch()</code> 都有显式的 <code>cache: 'force-cache'</code></li>
+        <li><strong>异步 API 迁移</strong>：将 <code>cookies()</code> / <code>headers()</code> 改为 <code>await</code> 形式</li>
+        <li><strong>启用 PPR</strong>：在适合的页面设置 <code>experimental_ppr = true</code></li>
+        <li><strong>尝试 Segment Cache</strong>：在 v15.2+ 中启用，观察缓存粒度变化</li>
+        <li><strong>评估 dynamicIO</strong>：在新项目中试验 <code>'use cache'</code> 指令</li>
+        <li><strong>利用 Node.js 中间件</strong>：将依赖 Node API 的中间件从 Edge 迁移</li>
+      </ol>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  Next.js 深度解析 · 基于 Next.js 15 / 16 文档 · 2025-2026
+</footer>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

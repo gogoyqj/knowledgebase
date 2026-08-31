@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prisma 深度解析 — ORM · Migration · PostgreSQL 实践</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #000000;
+    --md-on-primary: #fff;
+    --md-primary-container: #E8E0F0;
+    --md-on-primary-container: #1D1B20;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-accent: #2D6A4F;
+    --md-accent-light: #40916C;
+    --md-accent-container: #D8F3DC;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F0FFF4;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-accent); }
+
+  .hero {
+    background: linear-gradient(135deg, #1B4332 0%, #2D6A4F 50%, #40916C 100%);
+    color: #fff;
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 600px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-accent); background: rgba(45,106,79,.06); }
+  .tab-btn.active { color: var(--md-accent); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-accent);
+    border-radius: 3px 3px 0 0;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.green  { background: var(--md-accent-container); color: var(--md-accent); }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.purple { background: #EDE9FE; color: #5B21B6; }
+  .card-icon.orange { background: #FEF3C7; color: #92400E; }
+  .card-icon.pink   { background: var(--md-tertiary-container); color: #4A2532; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-accent-container);
+    color: var(--md-accent);
+  }
+  .chip.green {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+  .chip.orange {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-accent);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #C792EA; }
+  .fn  { color: #82AAFF; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .tag { color: #F07178; }
+  .attr { color: #C792EA; }
+  .punct { color: #89DDFF; }
+  .op { color: #89DDFF; }
+  .var { color: #EEFFFF; }
+
+  .diagram {
+    background: #F0FFF4;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-accent-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  .banner.warn {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .banner.success {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+  .banner.info {
+    background: #D3E4FF;
+    color: #001C3B;
+  }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-accent);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+    margin: 16px 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--md-outline-variant);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -28px; top: 6px;
+    width: 12px; height: 12px;
+    background: var(--md-accent);
+    border-radius: 50%;
+    border: 2px solid var(--md-surface);
+    box-shadow: 0 0 0 2px var(--md-accent);
+  }
+  .timeline-item h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">P</div>
+  <h1>Prisma <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>ORM · Migration · PostgreSQL 实践</h2>
+  <p>深入理解 Prisma 的核心优势、Migration 工作流，以及在 PostgreSQL 上的最佳实践</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="advantage">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">star</span>
+    核心优势
+  </button>
+  <button class="tab-btn" data-tab="migration">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">swap_horiz</span>
+    Migration 机制
+  </button>
+  <button class="tab-btn" data-tab="schema">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">schema</span>
+    Schema & 查询
+  </button>
+  <button class="tab-btn" data-tab="practice">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">engineering</span>
+    最佳实践
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== 核心优势 ==================== -->
+  <div id="advantage" class="section active">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">auto_awesome</span></div>
+        <h3>为什么选择 Prisma？</h3>
+      </div>
+      <p>Prisma 是一个<strong>下一代 Node.js / TypeScript ORM</strong>，专注于简化数据库操作、提供类型安全、以及自动化数据库迁移。它由三部分组成：</p>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">data_object</span> Prisma Schema</h4>
+          <p>声明式 Schema 语言，定义数据模型、关系和数据库连接。一份 <code>schema.prisma</code> 是<strong>单一事实来源</strong>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">terminal</span> Prisma Migrate</h4>
+          <p>自动对比 Schema 变更，生成 SQL Migration 文件。<strong>版本化管理</strong>数据库结构演进。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">code</span> Prisma Client</h4>
+          <p>自动生成的、<strong>完全类型安全</strong>的数据库客户端。告别手写 SQL 拼接和类型断言。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">explore</span> Prisma Studio</h4>
+          <p>可视化数据库浏览和编辑工具。无需离开浏览器即可查看和修改数据。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Prisma vs 其他 ORM</h3>
+      </div>
+      <p>与传统 ORM 相比，Prisma 在多个维度上有显著差异：</p>
+
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
+          <thead>
+            <tr style="background:var(--md-accent-container)">
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">维度</th>
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">Prisma</th>
+              <th style="text-align:left;padding:12px;border-bottom:2px solid var(--md-outline-variant)">TypeORM / Sequelize</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">类型安全</td>
+              <td style="padding:10px"><span class="chip primary">自动生成</span> 编译时检查</td>
+              <td style="padding:10px">手动定义接口，易遗漏</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">Schema 定义</td>
+              <td style="padding:10px">专用 <code>.prisma</code> DSL，简洁直观</td>
+              <td style="padding:10px">装饰器 / 类定义，较冗长</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">Migration</td>
+              <td style="padding:10px"><span class="chip green">自动生成</span> SQL diff</td>
+              <td style="padding:10px">手写 Migration 或有限自动生成</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">查询构建</td>
+              <td style="padding:10px">链式 API + 自动补全</td>
+              <td style="padding:10px">QueryBuilder / Raw SQL</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">关系查询</td>
+              <td style="padding:10px"><span class="chip primary">嵌套读写</span> 一步到位</td>
+              <td style="padding:10px">需手动 join 或多次查询</td>
+            </tr>
+            <tr>
+              <td style="padding:10px;font-weight:500">数据库支持</td>
+              <td style="padding:10px">PostgreSQL, MySQL, SQLite, SQL Server, MongoDB, CockroachDB</td>
+              <td style="padding:10px">类似，但适配层质量参差</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">bolt</span></div>
+        <h3>核心优势详解</h3>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">verified</span> 端到端类型安全</h4>
+          <p>从 Schema 到查询结果，TypeScript 类型<strong>全程贯穿</strong>。修改 Schema 后重新生成 Client，编译器会指出所有需要更新的代码。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">swap_horiz</span> 自动 Migration</h4>
+          <p>修改 Schema → 运行 <code>prisma migrate dev</code> → 自动生成 SQL 脚本。<strong>无需手写 DDL</strong>，支持多人协作和冲突检测。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">account_tree</span> 直观的关系建模</h4>
+          <p>用 <code>@relation</code> 声明一对一、一对多、多对多，Prisma 自动处理外键和中间表。<strong>嵌套创建/查询</strong>一步到位。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">query_stats</span> 智能查询优化</h4>
+          <p>Prisma Client 自动将嵌套查询优化为<strong>少量 SQL 语句</strong>，避免 N+1 问题。<code>include</code> 和 <code>select</code> 精确控制返回字段。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">grass</span> Prisma Seed & 模拟数据</h4>
+          <p>内置 <code>prisma db seed</code> 命令，配合 <strong>模拟数据工厂</strong> 轻松填充开发/测试数据库。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">integration_instructions</span> 与 PostgreSQL 深度集成</h4>
+          <p>原生支持 PostgreSQL 特有类型：<code>Enum</code>、<code>Json/JsonB</code>、<code>Array</code>、<code>UUID</code>、全文搜索等。</p>
+        </div>
+      </div>
+
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>一句话总结</strong>：Prisma 让你用<strong>写 TypeScript 的方式操作数据库</strong> —— 类型安全、自动补全、自动迁移，大幅减少样板代码和人为错误。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Migration 机制 ==================== -->
+  <div id="migration" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">swap_horiz</span></div>
+        <h3>Migration 工作流总览</h3>
+      </div>
+      <p>Prisma Migrate 是 Prisma 的<strong>数据库 Schema 迁移工具</strong>。它的核心能力是：对比你修改后的 <span class="inline-code">schema.prisma</span> 与当前数据库状态，自动生成对应的 SQL 变更脚本。</p>
+
+      <div class="diagram">┌─────────────────────────────────────────────────────────┐
+│              Prisma Migration 工作流程                    │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ① 开发者修改 schema.prisma                             │
+│     例: 新增字段、添加模型、修改关系                      │
+│              │                                          │
+│              ▼                                          │
+│  ② 运行 prisma migrate dev --name xxx                   │
+│              │                                          │
+│              ▼                                          │
+│  ③ Prisma 引擎自动计算 diff                             │
+│     ├─ 对比 schema.prisma (期望状态)                    │
+│     └─ 对比数据库当前状态 (通过 shadow DB)               │
+│              │                                          │
+│              ▼                                          │
+│  ④ 生成 SQL Migration 文件                              │
+│     prisma/migrations/20240831_xxx/migration.sql        │
+│     (纯 SQL, 可人工审查/修改)                            │
+│              │                                          │
+│              ▼                                          │
+│  ⑤ 执行 Migration → 更新数据库                          │
+│              │                                          │
+│              ▼                                          │
+│  ⑥ 重新生成 Prisma Client (自动)                        │
+│     → 类型定义立刻反映新 Schema                          │
+│                                                         │
+└─────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">terminal</span></div>
+        <h3>核心命令详解</h3>
+      </div>
+
+      <h4 style="margin:8px 0;font-size:15px">开发阶段：<span class="inline-code">prisma migrate dev</span></h4>
+      <p>在本地开发时使用。执行以下步骤：</p>
+      <ol style="padding-left:20px;margin:8px 0">
+        <li>检测 schema.prisma 的变更</li>
+        <li>在 <strong>shadow database</strong>（临时数据库）上模拟执行，验证 SQL 正确性</li>
+        <li>生成 Migration SQL 文件到 <span class="inline-code">prisma/migrations/</span></li>
+        <li>将 Migration 应用到开发数据库</li>
+        <li>自动运行 <span class="inline-code">prisma generate</span> 更新 Client</li>
+      </ol>
+
+      <pre><span class="cm"># 基本用法</span>
+npx prisma migrate dev --name add_user_avatar
+
+<span class="cm"># 输出示例：</span>
+<span class="cm"># Prisma schema loaded from prisma/schema.prisma</span>
+<span class="cm"># The following migration(s) have been created and applied from new schema changes:</span>
+<span class="cm">#</span>
+<span class="cm"># prisma/migrations/20240831120000_add_user_avatar/</span>
+<span class="cm">#   └── migration.sql</span>
+<span class="cm">#</span>
+<span class="cm"># Your database is now in sync with your schema.</span></pre>
+
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>Shadow Database 是什么？</strong><br>
+        Prisma 会自动创建一个临时数据库，把所有历史 Migration + 当前变更重新执行一遍，来验证生成的 SQL 是否正确。验证通过后才应用到你的开发数据库。PostgreSQL 的 shadow DB 由 Prisma 自动管理，无需手动配置。
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">生产部署：<span class="inline-code">prisma migrate deploy</span></h4>
+      <p>在 CI/CD 或生产环境使用。<strong>不会生成新 Migration</strong>，只执行已有的待迁移文件：</p>
+
+      <pre><span class="cm"># 生产部署脚本</span>
+npx prisma migrate deploy
+npx prisma generate
+node dist/server.js
+
+<span class="cm"># 输出示例：</span>
+<span class="cm"># 2 migrations found in prisma/migrations</span>
+<span class="cm"># 1 migration already applied</span>
+<span class="cm"># Applying migration `20240831120000_add_user_avatar`</span>
+<span class="cm"># Done in 230ms</span></pre>
+
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>重要区别</strong>：<code>migrate dev</code> = 生成 + 执行（开发用），<code>migrate deploy</code> = 仅执行（生产用）。生产环境<strong>绝不</strong>使用 <code>migrate dev</code>，因为它需要 shadow database 并可能重置数据。</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">其他实用命令</h4>
+      <pre><span class="cm"># 查看 Migration 状态</span>
+npx prisma migrate status
+
+<span class="cm"># 重置数据库 (开发环境! 会清空数据)</span>
+npx prisma migrate reset
+
+<span class="cm"># 从已有数据库生成初始 Migration (遗留项目)</span>
+npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > init.sql</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">description</span></div>
+        <h3>自动生成的 Migration 文件</h3>
+      </div>
+      <p>每次运行 <span class="inline-code">migrate dev</span>，Prisma 会在 <span class="inline-code">prisma/migrations/</span> 下创建带时间戳的目录，里面是<strong>纯 SQL 文件</strong>：</p>
+
+      <pre><span class="cm">prisma/</span>
+<span class="cm">├── schema.prisma</span>
+<span class="cm">└── migrations/</span>
+<span class="cm">    ├── 20240801100000_init/</span>
+<span class="cm">    │   └── migration.sql</span>
+<span class="cm">    ├── 20240815140000_add_posts/</span>
+<span class="cm">    │   └── migration.sql</span>
+<span class="cm">    └── 20240831120000_add_user_avatar/</span>
+<span class="cm">        └── migration.sql</span>
+
+<span class="cm">── migration_lock.toml   (锁定数据库供应商)</span></pre>
+
+      <p>一个典型的自动生成的 Migration SQL 示例：</p>
+      <pre><span class="cm">-- prisma/migrations/20240831120000_add_user_avatar/migration.sql</span>
+
+<span class="cm">-- AlterTable: 给 User 表添加 avatar 字段</span>
+<span class="kw">ALTER TABLE</span> <span class="str">"User"</span> <span class="kw">ADD COLUMN</span> <span class="str">"avatar"</span> <span class="typ">TEXT</span>;
+
+<span class="cm">-- CreateIndex: 为 email 创建唯一索引</span>
+<span class="kw">CREATE UNIQUE INDEX</span> <span class="str">"User_email_key"</span> <span class="kw">ON</span> <span class="str">"User"</span>(<span class="str">"email"</span>);</pre>
+
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>关键点</strong>：生成的是<strong>纯 SQL 文件</strong>，你可以：
+          <ul style="margin:4px 0 0 16px">
+            <li><strong>人工审查</strong> — 确认生成的 SQL 符合预期</li>
+            <li><strong>手动修改</strong> — 添加自定义 SQL（如数据迁移、索引优化）</li>
+            <li><strong>版本控制</strong> — 提交到 Git，团队共享 Migration 历史</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon orange"><span class="material-icons-outlined">call_merge</span></div>
+        <h3>Migration 的典型场景</h3>
+      </div>
+
+      <h4 style="margin:8px 0;font-size:15px">场景 1：添加新字段</h4>
+      <pre><span class="cm">// schema.prisma — 新增 bio 字段</span>
+<span class="kw">model</span> <span class="typ">User</span> {
+  id    <span class="typ">Int</span>     <span class="attr">@id</span> <span class="attr">@default</span>(<span class="fn">autoincrement</span>())
+  email <span class="typ">String</span>  <span class="attr">@unique</span>
+  name  <span class="typ">String</span>
+  bio   <span class="typ">String</span>?  <span class="cm">// 新增: 可选字段</span>
+  posts <span class="typ">Post</span>[]
+}</pre>
+
+      <pre><span class="cm">-- 自动生成的 migration.sql</span>
+<span class="kw">ALTER TABLE</span> <span class="str">"User"</span> <span class="kw">ADD COLUMN</span> <span class="str">"bio"</span> <span class="typ">TEXT</span>;</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">场景 2：添加关系</h4>
+      <pre><span class="cm">// schema.prisma — User 和 Post 的一对多关系</span>
+<span class="kw">model</span> <span class="typ">User</span> {
+  id    <span class="typ">Int</span>     <span class="attr">@id</span> <span class="attr">@default</span>(<span class="fn">autoincrement</span>())
+  posts <span class="typ">Post</span>[]  <span class="cm">// 一对多</span>
+}
+
+<span class="kw">model</span> <span class="typ">Post</span> {
+  id       <span class="typ">Int</span>     <span class="attr">@id</span> <span class="attr">@default</span>(<span class="fn">autoincrement</span>())
+  title    <span class="typ">String</span>
+  author   <span class="typ">User</span>   <span class="attr">@relation</span>(fields: [authorId], references: [id])
+  authorId <span class="typ">Int</span>
+}</pre>
+
+      <pre><span class="cm">-- 自动生成的 migration.sql</span>
+<span class="kw">ALTER TABLE</span> <span class="str">"Post"</span> <span class="kw">ADD COLUMN</span> <span class="str">"authorId"</span> <span class="typ">INTEGER</span> <span class="kw">NOT NULL</span>;
+<span class="kw">ALTER TABLE</span> <span class="str">"Post"</span> <span class="kw">ADD CONSTRAINT</span> <span class="str">"Post_authorId_fkey"</span>
+  <span class="kw">FOREIGN KEY</span> (<span class="str">"authorId"</span>) <span class="kw">REFERENCES</span> <span class="str">"User"</span>(<span class="str">"id"</span>) <span class="kw">ON DELETE RESTRICT ON UPDATE CASCADE</span>;</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">场景 3：数据迁移（自定义 SQL）</h4>
+      <p>当 Migration 不仅涉及结构变更，还需要<strong>迁移现有数据</strong>时，可以在生成的 SQL 中手动添加：</p>
+
+      <pre><span class="cm">-- 自动生成的结构变更</span>
+<span class="kw">ALTER TABLE</span> <span class="str">"User"</span> <span class="kw">ADD COLUMN</span> <span class="str">"fullName"</span> <span class="typ">TEXT</span>;
+
+<span class="cm">-- ↓ 手动添加: 将旧的 name 数据复制到 fullName</span>
+<span class="kw">UPDATE</span> <span class="str">"User"</span> <span class="kw">SET</span> <span class="str">"fullName"</span> = <span class="str">"name"</span>;
+
+<span class="cm">-- 然后再删除旧字段</span>
+<span class="kw">ALTER TABLE</span> <span class="str">"User"</span> <span class="kw">DROP COLUMN</span> <span class="str">"name"</span>;</pre>
+
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>这就是你记忆中的"自动生成数据升级脚本"</strong>：Prisma 自动生成 DDL（结构变更），你可以在同一个 Migration 文件中补充 DML（数据变更），实现<strong>结构 + 数据的一体化迁移</strong>。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== Schema & 查询 ==================== -->
+  <div id="schema" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">schema</span></div>
+        <h3>Prisma Schema 基础</h3>
+      </div>
+      <p>Schema 是 Prisma 的<strong>单一事实来源</strong>，定义了数据模型、数据库连接和生成器：</p>
+
+      <pre><span class="cm">// prisma/schema.prisma</span>
+
+<span class="cm">// 1. 数据源配置 — 指向 PostgreSQL</span>
+<span class="kw">datasource</span> db {
+  provider = <span class="str">"postgresql"</span>
+  url      = <span class="fn">env</span>(<span class="str">"DATABASE_URL"</span>)
+}
+
+<span class="cm">// 2. 生成器 — 生成 Prisma Client</span>
+<span class="kw">generator</span> client {
+  provider = <span class="str">"prisma-client-js"</span>
+}
+
+<span class="cm">// 3. 数据模型</span>
+<span class="kw">model</span> <span class="typ">User</span> {
+  id        <span class="typ">Int</span>      <span class="attr">@id</span> <span class="attr">@default</span>(<span class="fn">autoincrement</span>())
+  email     <span class="typ">String</span>   <span class="attr">@unique</span>
+  name      <span class="typ">String</span>
+  role      <span class="typ">Role</span>     <span class="attr">@default</span>(<span class="typ">USER</span>)
+  posts     <span class="typ">Post</span>[]
+  profile   <span class="typ">Profile</span>?
+  createdAt <span class="typ">DateTime</span> <span class="attr">@default</span>(<span class="fn">now</span>())
+  updatedAt <span class="typ">DateTime</span> <span class="attr">@updatedAt</span>
+
+  <span class="attr">@@map</span>(<span class="str">"users"</span>)  <span class="cm">// 映射到数据库表名</span>
+}
+
+<span class="kw">enum</span> <span class="typ">Role</span> {
+  <span class="typ">USER</span>
+  <span class="typ">ADMIN</span>
+  <span class="typ">MODERATOR</span>
+}</pre>
+
+      <div class="banner info">
+        <span class="material-icons-outlined">info</span>
+        <div><strong>PostgreSQL 特有支持</strong>：Prisma 原生支持 PostgreSQL 的 <code>enum</code>、<code>Json</code>、<code>Bytes</code>、<code>Decimal</code>、<code>BigInt</code> 等类型，以及 <code>@db.Uuid</code>、<code>@db.Text</code> 等数据库特定属性。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">code</span></div>
+        <h3>类型安全的查询</h3>
+      </div>
+      <p>Prisma Client 根据 Schema 自动生成类型，所有查询都有完整的 TypeScript 支持：</p>
+
+      <pre><span class="kw">import</span> { PrismaClient } <span class="kw">from</span> <span class="str">'@prisma/client'</span>
+<span class="kw">const</span> prisma = <span class="kw">new</span> <span class="typ">PrismaClient</span>()
+
+<span class="cm">// ✅ 创建 — 自动补全字段名和类型</span>
+<span class="kw">const</span> user = <span class="kw">await</span> prisma.user.<span class="fn">create</span>({
+  data: {
+    email: <span class="str">'alice@example.com'</span>,
+    name: <span class="str">'Alice'</span>,
+    <span class="cm">// 嵌套创建 — 一步创建 User + Profile</span>
+    profile: {
+      create: { bio: <span class="str">'Hello!'</span> }
+    }
+  },
+  <span class="cm">// include: 返回时包含关联数据</span>
+  include: { profile: <span class="kw">true</span> }
+})
+
+<span class="cm">// ✅ 查询 — 类型安全的过滤条件</span>
+<span class="kw">const</span> posts = <span class="kw">await</span> prisma.post.<span class="fn">findMany</span>({
+  where: {
+    author: { email: <span class="str">'alice@example.com'</span> },
+    published: <span class="kw">true</span>,
+  },
+  include: {
+    author: {
+      select: { name: <span class="kw">true</span>, email: <span class="kw">true</span> }  <span class="cm">// 精确选择字段</span>
+    }
+  },
+  orderBy: { createdAt: <span class="str">'desc'</span> },
+  take: <span class="num">10</span>,  <span class="cm">// 分页</span>
+})
+
+<span class="cm">// ✅ 更新 — 支持原子操作</span>
+<span class="kw">const</span> updated = <span class="kw">await</span> prisma.user.<span class="fn">update</span>({
+  where: { id: <span class="num">1</span> },
+  data: {
+    name: <span class="str">'Alice Updated'</span>,
+    role: <span class="typ">ADMIN</span>,
+  }
+})
+
+<span class="cm">// ✅ 事务 — 多个操作原子执行</span>
+<span class="kw">const</span> [user, post] = <span class="kw">await</span> prisma.<span class="fn">$transaction</span>([
+  prisma.user.<span class="fn">create</span>({ data: { email: <span class="str">'bob@test.com'</span>, name: <span class="str">'Bob'</span> } }),
+  prisma.post.<span class="fn">create</span>({ data: { title: <span class="str">'First Post'</span>, authorId: <span class="num">1</span> } }),
+])</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">functions</span></div>
+        <h3>高级查询能力</h3>
+      </div>
+
+      <h4 style="margin:8px 0;font-size:15px">聚合与分组</h4>
+      <pre><span class="cm">// 聚合</span>
+<span class="kw">const</span> stats = <span class="kw">await</span> prisma.post.<span class="fn">aggregate</span>({
+  where: { published: <span class="kw">true</span> },
+  _count: <span class="kw">true</span>,
+  _avg: { views: <span class="kw">true</span> },
+  _max: { views: <span class="kw">true</span> },
+})
+
+<span class="cm">// 分组</span>
+<span class="kw">const</span> grouped = <span class="kw">await</span> prisma.post.<span class="fn">groupBy</span>({
+  by: [<span class="str">'authorId'</span>],
+  _count: <span class="kw">true</span>,
+  having: {
+    views: { _avg: { gt: <span class="num">100</span> } }  <span class="cm">// HAVING 子句</span>
+  }
+})</pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">原始 SQL (当 ORM 不够用时)</h4>
+      <pre><span class="cm">// 使用 $queryRaw 执行原始 SQL</span>
+<span class="kw">const</span> result = <span class="kw">await</span> prisma.<span class="fn">$queryRaw</span><span class="str">`
+  SELECT u.name, COUNT(p.id) as post_count
+  FROM users u
+  LEFT JOIN posts p ON p."authorId" = u.id
+  GROUP BY u.name
+  ORDER BY post_count DESC
+  LIMIT 10
+`</span>
+
+<span class="cm">// 使用 $executeRaw 执行写操作</span>
+<span class="kw">await</span> prisma.<span class="fn">$executeRaw</span><span class="str">`
+  UPDATE users SET role = 'ADMIN' WHERE id = ${userId}
+`</span></pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">JSON 字段查询 (PostgreSQL JsonB)</h4>
+      <pre><span class="cm">// Schema</span>
+<span class="kw">model</span> <span class="typ">Product</span> {
+  id   <span class="typ">Int</span>                  <span class="attr">@id</span> <span class="attr">@default</span>(<span class="fn">autoincrement</span>())
+  name <span class="typ">String</span>
+  meta <span class="typ">Json</span>                 <span class="cm">// PostgreSQL 中存储为 jsonb</span>
+}
+
+<span class="cm">// 查询 JSON 内部字段</span>
+<span class="kw">const</span> products = <span class="kw">await</span> prisma.product.<span class="fn">findMany</span>({
+  where: {
+    meta: {
+      path: [<span class="str">'color'</span>],       <span class="cm">// 访问 meta.color</span>
+      equals: <span class="str">'red'</span>
+    }
+  }
+})</pre>
+    </div>
+
+  </div>
+
+  <!-- ==================== 最佳实践 ==================== -->
+  <div id="practice" class="section">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">folder_special</span></div>
+        <h3>项目结构推荐</h3>
+      </div>
+      <pre><span class="cm">project/</span>
+<span class="cm">├── prisma/</span>
+<span class="cm">│   ├── schema.prisma          # 数据模型定义</span>
+<span class="cm">│   ├── seed.ts                # 种子数据脚本</span>
+<span class="cm">│   └── migrations/            # 版本化 Migration (提交到 Git)</span>
+<span class="cm">│       ├── 20240801_init/</span>
+<span class="cm">│       │   └── migration.sql</span>
+<span class="cm">│       └── migration_lock.toml</span>
+<span class="cm">├── src/</span>
+<span class="cm">│   ├── lib/</span>
+<span class="cm">│   │   └── prisma.ts          # Prisma Client 单例</span>
+<span class="cm">│   ├── services/</span>
+<span class="cm">│   │   └── user.service.ts    # 业务逻辑层</span>
+<span class="cm">│   └── server.ts</span>
+<span class="cm">├── .env                       # DATABASE_URL</span>
+<span class="cm">└── package.json</span></pre>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">Prisma Client 单例（避免连接池耗尽）</h4>
+      <pre><span class="cm">// src/lib/prisma.ts</span>
+<span class="kw">import</span> { PrismaClient } <span class="kw">from</span> <span class="str">'@prisma/client'</span>
+
+<span class="kw">const</span> globalForPrisma = globalThis <span class="kw">as unknown as</span> {
+  prisma: PrismaClient | <span class="typ">undefined</span>
+}
+
+<span class="kw">export const</span> prisma =
+  globalForPrisma.prisma ??
+  <span class="kw">new</span> <span class="typ">PrismaClient</span>({
+    log: process.env.NODE_ENV === <span class="str">'development'</span>
+      ? [<span class="str">'query'</span>, <span class="str">'error'</span>, <span class="str">'warn'</span>]
+      : [<span class="str">'error'</span>],
+  })
+
+<span class="kw">if</span> (process.env.NODE_ENV !== <span class="str">'production'</span>) {
+  globalForPrisma.prisma = prisma
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">engineering</span></div>
+        <h3>Migration 最佳实践</h3>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">check</span> 始终审查生成的 SQL</h4>
+          <p>自动生成的 SQL 通常是正确的，但<strong>复杂变更</strong>（如列类型转换、大规模数据迁移）需要人工审查。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">check</span> Migration 命名要语义化</h4>
+          <p><code>--name add_user_avatar</code> 而非 <code>--name update</code>。清晰的命名让 Git history 一目了然。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">check</span> 不要修改已部署的 Migration</h4>
+          <p>已推送到生产的 Migration 文件<strong>不要修改</strong>。需要新变更就创建新 Migration。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">check</span> 使用 <code>migrate deploy</code> 部署</h4>
+          <p>生产环境只用 <code>migrate deploy</code>，它安全地按顺序执行待迁移文件。</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h4 style="margin:16px 0 8px;font-size:15px">CI/CD 中的 Migration 流程</h4>
+      <pre><span class="cm"># Dockerfile 或 CI 脚本</span>
+
+<span class="cm"># 1. 安装依赖</span>
+npm ci
+
+<span class="cm"># 2. 生成 Prisma Client</span>
+npx prisma generate
+
+<span class="cm"># 3. 执行 Migration (只运行待执行的)</span>
+npx prisma migrate deploy
+
+<span class="cm"># 4. 启动应用</span>
+node dist/server.js</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon orange"><span class="material-icons-outlined">tips_and_updates</span></div>
+        <h3>性能优化技巧</h3>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">speed</span> 使用 select 精确查询</h4>
+          <p>只查需要的字段，减少网络传输和内存占用。比 <code>include</code> 更高效。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">batch_prediction</span> 批量操作</h4>
+          <p>用 <code>createMany</code>、<code>updateMany</code>、<code>deleteMany</code> 替代循环单条操作。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">database</span> 连接池配置</h4>
+          <p>PostgreSQL 连接字符串添加 <code>?connection_limit=10</code> 控制连接数。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px">analytics</span> 查询日志分析</h4>
+          <p>开发环境开启 <code>log: ['query']</code>，观察生成的 SQL，发现 N+1 问题。</p>
+        </div>
+      </div>
+
+      <pre><span class="cm">// ❌ N+1 问题</span>
+<span class="kw">const</span> users = <span class="kw">await</span> prisma.user.<span class="fn">findMany</span>()
+<span class="kw">for</span> (<span class="kw">const</span> user <span class="kw">of</span> users) {
+  <span class="kw">const</span> posts = <span class="kw">await</span> prisma.post.<span class="fn">findMany</span>({
+    where: { authorId: user.id }  <span class="cm">// 每个用户一次查询!</span>
+  })
+}
+
+<span class="cm">// ✅ 使用 include 一次查完</span>
+<span class="kw">const</span> users = <span class="kw">await</span> prisma.user.<span class="fn">findMany</span>({
+  include: { posts: <span class="kw">true</span> }  <span class="cm">// 一条 SQL 搞定</span>
+})</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">integration_instructions</span></div>
+        <h3>与 Next.js 集成</h3>
+      </div>
+      <p>Prisma 与 Next.js 的 Server Components / Server Actions 天然契合：</p>
+
+      <pre><span class="cm">// app/posts/page.tsx — Server Component 中直接查询</span>
+<span class="kw">import</span> { prisma } <span class="kw">from</span> <span class="str">'@/lib/prisma'</span>
+
+<span class="kw">export default async function</span> <span class="fn">PostsPage</span>() {
+  <span class="kw">const</span> posts = <span class="kw">await</span> prisma.post.<span class="fn">findMany</span>({
+    include: { author: { select: { name: <span class="kw">true</span> } } },
+    orderBy: { createdAt: <span class="str">'desc'</span> },
+  })
+
+  <span class="kw">return</span> (
+    <span class="punct">&lt;</span><span class="tag">div</span><span class="punct">&gt;</span>
+      {posts.<span class="fn">map</span>(post <span class="punct">=&gt;</span> (
+        <span class="punct">&lt;</span><span class="tag">article</span> key={post.id}<span class="punct">&gt;</span>
+          <span class="punct">&lt;</span><span class="tag">h2</span><span class="punct">&gt;</span>{post.title}<span class="punct">&lt;/</span><span class="tag">h2</span><span class="punct">&gt;</span>
+          <span class="punct">&lt;</span><span class="tag">p</span><span class="punct">&gt;</span>by {post.author.name}<span class="punct">&lt;/</span><span class="tag">p</span><span class="punct">&gt;</span>
+        <span class="punct">&lt;/</span><span class="tag">article</span><span class="punct">&gt;</span>
+      ))}
+    <span class="punct">&lt;/</span><span class="tag">div</span><span class="punct">&gt;</span>
+  )
+}
+
+<span class="cm">// app/actions.ts — Server Action 中操作数据库</span>
+<span class="str">'use server'</span>
+<span class="kw">import</span> { prisma } <span class="kw">from</span> <span class="str">'@/lib/prisma'</span>
+<span class="kw">import</span> { revalidatePath } <span class="kw">from</span> <span class="str">'next/cache'</span>
+
+<span class="kw">export async function</span> <span class="fn">createPost</span>(formData: <span class="typ">FormData</span>) {
+  <span class="kw">await</span> prisma.post.<span class="fn">create</span>({
+    data: {
+      title: formData.<span class="fn">get</span>(<span class="str">'title'</span>) <span class="kw">as string</span>,
+      authorId: <span class="num">1</span>,
+    }
+  })
+  <span class="fn">revalidatePath</span>(<span class="str">'/posts'</span>)
+}</pre>
+
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>最佳搭配</strong>：Next.js Server Components 可以直接 <code>await</code> Prisma 查询，无需 API 层。Server Actions 处理写操作。整个数据层<strong>零客户端 JS</strong>。</div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  Prisma 深度解析 · 基于 Prisma 5.x / 6.x 文档 · 2024-2026
+</footer>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
