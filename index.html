@@ -212,11 +212,22 @@ const content = document.getElementById('content');
 const search  = document.getElementById('search');
 let items = [];
 let activeEl = null;
+let skipPush = false;
 
 // Load list.json with no-cache
 fetch('list.json', { cache: 'no-store' })
   .then(r => r.json())
-  .then(data => { items = data; render(items); })
+  .then(data => {
+    items = data;
+    render(items);
+    // Restore page from URL query on first load
+    const params = new URLSearchParams(location.search);
+    const file = params.get('file');
+    if (file) {
+      const match = listEl.querySelector(`[data-src="${CSS.escape(file)}"]`);
+      if (match) { skipPush = true; match.click(); }
+    }
+  })
   .catch(() => { listEl.innerHTML = '<div class="empty">Failed to load list.json</div>'; });
 
 function render(list) {
@@ -259,6 +270,25 @@ listEl.addEventListener('click', e => {
   }
   bar.innerHTML = `<span class="material-icons">description</span><span>${name} — ${src}</span>`;
   frame.src = src;
+
+  // Sync page info into URL query
+  if (!skipPush) {
+    const params = new URLSearchParams();
+    params.set('name', name);
+    params.set('file', src);
+    history.pushState(null, '', '?' + params.toString());
+  }
+  skipPush = false;
+});
+
+// Browser back/forward
+window.addEventListener('popstate', () => {
+  const params = new URLSearchParams(location.search);
+  const file = params.get('file');
+  if (file) {
+    const match = listEl.querySelector(`[data-src="${CSS.escape(file)}"]`);
+    if (match) { skipPush = true; match.click(); }
+  }
 });
 
 // Search filter
