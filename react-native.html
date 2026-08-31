@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Write a React Native C++ Plugin</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--green); }
+  p, li { margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    background: var(--surface);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+  }
+  th { background: var(--surface); color: var(--accent); }
+  tr:hover { background: var(--surface); }
+  .highlight { color: var(--yellow); font-weight: 600; }
+  .file { color: var(--purple); font-family: monospace; }
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    font-family: monospace;
+    white-space: pre;
+    line-height: 1.4;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .note {
+    background: var(--surface);
+    border-left: 4px solid var(--yellow);
+    padding: 0.8rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .tip {
+    background: var(--surface);
+    border-left: 4px solid var(--green);
+    padding: 0.8rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .tag {
+    display: inline-block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0.1em 0.6em;
+    border-radius: 12px;
+    font-size: 0.8em;
+    margin-right: 0.3em;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+    font-family: monospace;
+    font-size: 0.9rem;
+  }
+  .flow .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+  }
+  .flow .arrow { color: var(--muted); }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>How to Write a React Native C++ Plugin</h1>
+<p>从零构建一个使用 C++ 实现核心逻辑的 React Native 原生模块。</p>
+
+<!-- ==================== 架构 ==================== -->
+<h2>1. 架构概览</h2>
+
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────┐
+│                        JavaScript Layer                         │
+│  src/NativeCirclePlugin.ts  ← TurboModule Spec                 │
+│  src/index.tsx              ← React Component                   │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │  Bridge / JSI
+            ┌──────────────┴──────────────┐
+            ▼                              ▼
+┌───────────────────────┐    ┌────────────────────────────────────┐
+│      iOS (ObjC++)     │    │       Android (Java + JNI)         │
+│  CirclePlugin.mm      │    │  CirclePluginModule.java           │
+│  直接调用 C++          │    │    ↓ native                        │
+│                       │    │  CirclePluginJNI.cpp               │
+│                       │    │  Java_包名_类名_方法名               │
+└───────────┬───────────┘    └──────────────┬─────────────────────┘
+            │                               │
+            └───────────────┬───────────────┘
+                            ▼
+              ┌──────────────────────────┐
+              │    C++ (跨平台核心)       │
+              │  cpp/CircleDrawer.h      │
+              │  cpp/CircleDrawer.cpp    │
+              └──────────────────────────┘
+</div>
+
+<!-- ==================== 目录结构 ==================== -->
+<h2>2. 目录结构</h2>
+
+<pre><code>react-native-plugin/
+├── cpp/
+│   ├── CircleDrawer.h          <span style="color:var(--muted)">← C++ 接口声明</span>
+│   └── CircleDrawer.cpp        <span style="color:var(--muted)">← C++ 实现</span>
+├── src/
+│   ├── NativeCirclePlugin.ts   <span style="color:var(--muted)">← TurboModule Spec</span>
+│   └── index.tsx               <span style="color:var(--muted)">← RN 组件</span>
+├── ios/
+│   ├── CirclePlugin.h          <span style="color:var(--muted)">← ObjC++ 头文件</span>
+│   ├── CirclePlugin.mm         <span style="color:var(--muted)">← ObjC++ 实现（直接调 C++）</span>
+│   └── ReactNativePlugin.podspec
+├── android/
+│   ├── build.gradle
+│   └── src/main/
+│       ├── java/com/circleplugin/
+│       │   ├── CirclePluginModule.java    <span style="color:var(--muted)">← Java 模块</span>
+│       │   └── CirclePluginPackage.java   <span style="color:var(--muted)">← ReactPackage 注册</span>
+│       └── cpp/
+│           ├── CirclePluginJNI.cpp        <span style="color:var(--muted)">← JNI 桥接</span>
+│           └── CMakeLists.txt
+├── package.json
+└── tsconfig.json</code></pre>
+
+<!-- ==================== C++ 层 ==================== -->
+<h2>3. C++ 层 — 纯 C++，无依赖</h2>
+
+<p>核心规则：<code>.h</code> 只放声明，<code>.cpp</code> 放实现。</p>
+
+<h3>CircleDrawer.h — 声明</h3>
+<pre><code>#pragma once
+#include &lt;cstdint&gt;
+#include &lt;vector&gt;
+
+namespace circleplugin {
+
+struct CircleResult {
+  std::vector&lt;uint8_t&gt; pixels;  <span style="color:var(--muted)">// RGBA buffer</span>
+  int width;
+  int height;
+};
+
+<span style="color:var(--muted)">/**</span>
+<span style="color:var(--muted)"> * @param radius  圆的半径（像素）</span>
+<span style="color:var(--muted)"> * @param color   填充色，格式 0xRRGGBBAA</span>
+<span style="color:var(--muted)"> * @return        RGBA 像素数据，尺寸 = 2*radius × 2*radius</span>
+<span style="color:var(--muted)"> */</span>
+CircleResult drawCircle(int radius, uint32_t color);
+
+}</code></pre>
+
+<h3>CircleDrawer.cpp — 实现</h3>
+<pre><code>#include "CircleDrawer.h"
+#include &lt;cmath&gt;
+
+namespace circleplugin {
+
+CircleResult drawCircle(int radius, uint32_t color) {
+  int size = radius * 2;
+  CircleResult result;
+  result.width = size;
+  result.height = size;
+  result.pixels.resize(size * size * 4, 0);  <span style="color:var(--muted)">// RGBA, 4 bytes per pixel</span>
+
+  uint8_t r = (color &gt;&gt; 24) &amp; 0xFF;
+  uint8_t g = (color &gt;&gt; 16) &amp; 0xFF;
+  uint8_t b = (color &gt;&gt; 8)  &amp; 0xFF;
+  uint8_t a =  color        &amp; 0xFF;
+
+  float cx = radius - 0.5f;
+  float cy = radius - 0.5f;
+  float r2 = static_cast&lt;float&gt;(radius) * radius;
+
+  for (int y = 0; y &lt; size; y++) {
+    for (int x = 0; x &lt; size; x++) {
+      float dx = x - cx;
+      float dy = y - cy;
+      if (dx * dx + dy * dy &lt;= r2) {
+        int idx = (y * size + x) * 4;
+        result.pixels[idx + 0] = r;
+        result.pixels[idx + 1] = g;
+        result.pixels[idx + 2] = b;
+        result.pixels[idx + 3] = a;
+      }
+    }
+  }
+
+  return result;
+}
+
+}</code></pre>
+
+<!-- ==================== iOS ==================== -->
+<h2>4. iOS 层 — ObjC++ 直调 C++</h2>
+
+<p>iOS 最简单，ObjC++ (<code>.mm</code>) 天然兼容 C++，直接 <code>#include</code> 就能调。</p>
+
+<div class="flow">
+  <span class="step">JS call</span>
+  <span class="arrow">→</span>
+  <span class="step">RCT_EXPORT_METHOD</span>
+  <span class="arrow">→</span>
+  <span class="step">C++ drawCircle()</span>
+  <span class="arrow">→</span>
+  <span class="step">Promise resolve</span>
+</div>
+
+<pre><code><span style="color:var(--muted)">// CirclePlugin.mm</span>
+#import "CirclePlugin.h"
+#import &lt;React/RCTLog.h&gt;
+#include "../cpp/CircleDrawer.h"  <span style="color:var(--muted)">// 直接 include C++ 头文件</span>
+
+@implementation CirclePlugin
+
+RCT_EXPORT_MODULE();
+
+RCT_EXPORT_METHOD(drawCircle:(double)radius
+                  color:(double)color
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+{
+  @try {
+    auto result = circleplugin::drawCircle((int)radius, (uint32_t)color);
+
+    NSData *data = [NSData dataWithBytes:result.pixels.data()
+                                  length:result.pixels.size()];
+    NSString *base64 = [data base64EncodedStringWithOptions:0];
+
+    resolve(@{
+      @"width": @(result.width),
+      @"height": @(result.height),
+      @"data": base64,
+    });
+  } @catch (NSException *exception) {
+    reject(@"CIRCLE_ERROR", exception.reason, nil);
+  }
+}
+
+@end</code></pre>
+
+<div class="tip">
+  <strong>为什么 iOS 简单？</strong> ObjC++ 文件（<code>.mm</code>）同时理解 Objective-C 和 C++ 语法，可以直接调用 C++ 函数、使用 C++ 类型。不需要额外的胶水层。
+</div>
+
+<!-- ==================== Android ==================== -->
+<h2>5. Android 层 — Java + JNI</h2>
+
+<p>Android 不能直接调 C++，必须经过 JNI（Java Native Interface）桥接。所以需要<strong>两层</strong>：</p>
+
+<div class="flow">
+  <span class="step">JS call</span>
+  <span class="arrow">→</span>
+  <span class="step">Java @ReactMethod</span>
+  <span class="arrow">→</span>
+  <span class="step">native method</span>
+  <span class="arrow">→</span>
+  <span class="step">JNI C++ 函数</span>
+  <span class="arrow">→</span>
+  <span class="step">C++ drawCircle()</span>
+</div>
+
+<h3>5.1 Java 模块 — CirclePluginModule.java</h3>
+<pre><code>public class CirclePluginModule extends ReactContextBaseJavaModule {
+
+    <span style="color:var(--muted)">// 加载 CMake 编译出的 libcircleplugin.so</span>
+    static {
+        System.loadLibrary("circleplugin");
+    }
+
+    <span style="color:var(--muted)">// 声明 native 方法，C++ 侧实现</span>
+    private static native byte[] nativeDrawCircle(int radius, int color);
+
+    @Override
+    public String getName() {
+        return "CirclePlugin";  <span style="color:var(--muted)">// JS 侧模块名</span>
+    }
+
+    @ReactMethod
+    public void drawCircle(double radius, double color, Promise promise) {
+        byte[] pixels = nativeDrawCircle((int)radius, (int)color);
+        String base64 = Base64.encodeToString(pixels, Base64.NO_WRAP);
+        <span style="color:var(--muted)">// ... resolve promise</span>
+    }
+}</code></pre>
+
+<h3>5.2 JNI 桥接 — CirclePluginJNI.cpp</h3>
+<pre><code>#include &lt;jni.h&gt;
+#include "../../../../cpp/CircleDrawer.h"
+
+extern "C" {
+
+<span style="color:var(--highlight)">命名规则: Java_包名_类名_方法名</span>
+
+JNIEXPORT jbyteArray JNICALL
+<span style="color:var(--green)">Java_com_circleplugin_CirclePluginModule_nativeDrawCircle</span>(
+    JNIEnv *env, jclass clazz, jint radius, jint color) {
+
+    auto result = circleplugin::drawCircle(radius, (uint32_t)color);
+
+    jbyteArray jPixels = env-&gt;NewByteArray(result.pixels.size());
+    env-&gt;SetByteArrayRegion(jPixels, 0, result.pixels.size(),
+                            (const jbyte *)result.pixels.data());
+    return jPixels;
+}
+
+}</code></pre>
+
+<h3>5.3 ReactPackage 注册 — CirclePluginPackage.java</h3>
+<pre><code>public class CirclePluginPackage implements ReactPackage {
+    @Override
+    public List&lt;NativeModule&gt; createNativeModules(ReactApplicationContext ctx) {
+        List&lt;NativeModule&gt; modules = new ArrayList&lt;&gt;();
+        modules.add(new CirclePluginModule(ctx));
+        return modules;
+    }
+
+    @Override
+    public List&lt;ViewManager&gt; createViewManagers(ReactApplicationContext ctx) {
+        return Collections.emptyList();
+    }
+}</code></pre>
+
+<h3>5.4 CMakeLists.txt — 编译 C++</h3>
+<pre><code>cmake_minimum_required(VERSION 3.10)
+project(circleplugin)
+set(CMAKE_CXX_STANDARD 17)
+
+add_library(circleplugin SHARED
+    CirclePluginJNI.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../cpp/CircleDrawer.cpp
+)
+
+target_include_directories(circleplugin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../cpp
+)
+
+find_library(log-lib log)
+target_link_libraries(circleplugin ${log-lib})</code></pre>
+
+<!-- ==================== JNI 命名规则 ==================== -->
+<h2>6. JNI 命名规则详解</h2>
+
+<p>JNI 靠<strong>函数名</strong>自动绑定 Java <code>native</code> 方法到 C++ 实现：</p>
+
+<pre><code>Java_包名_类名_方法名
+
+包名中的 . → _
+
+com.circleplugin.CirclePluginModule.nativeDrawCircle
+     ↓             ↓                   ↓
+com_circleplugin  CirclePluginModule  nativeDrawCircle</code></pre>
+
+<h3>C++ 函数签名</h3>
+<pre><code>Java_com_circleplugin_CirclePluginModule_nativeDrawCircle(
+    JNIEnv *env,    <span style="color:var(--muted)">// JNI 环境指针，操作 Java 对象用</span>
+    jclass clazz,   <span style="color:var(--muted)">// 调用者类（static 方法用 jclass，实例方法用 jobject）</span>
+    jint radius,    <span style="color:var(--muted)">// 对应 Java 的 int</span>
+    jint color      <span style="color:var(--muted)">// 对应 Java 的 int</span>
+)</code></pre>
+
+<h3>JNI 类型映射</h3>
+<table>
+  <tr><th>Java</th><th>JNI C++ 类型</th><th>签名字符</th></tr>
+  <tr><td><code>int</code></td><td><code>jint</code></td><td><code>I</code></td></tr>
+  <tr><td><code>double</code></td><td><code>jdouble</code></td><td><code>D</code></td></tr>
+  <tr><td><code>boolean</code></td><td><code>jboolean</code></td><td><code>Z</code></td></tr>
+  <tr><td><code>byte</code></td><td><code>jbyte</code></td><td><code>B</code></td></tr>
+  <tr><td><code>float</code></td><td><code>jfloat</code></td><td><code>F</code></td></tr>
+  <tr><td><code>long</code></td><td><code>jlong</code></td><td><code>J</code></td></tr>
+  <tr><td><code>short</code></td><td><code>jshort</code></td><td><code>S</code></td></tr>
+  <tr><td><code>char</code></td><td><code>jchar</code></td><td><code>C</code></td></tr>
+  <tr><td><code>byte[]</code></td><td><code>jbyteArray</code></td><td><code>[B</code></td></tr>
+  <tr><td><code>int[]</code></td><td><code>jintArray</code></td><td><code>[I</code></td></tr>
+  <tr><td><code>String</code></td><td><code>jstring</code></td><td><code>Ljava/lang/String;</code></td></tr>
+  <tr><td><code>void</code></td><td>—</td><td><code>V</code></td></tr>
+</table>
+
+<!-- ==================== RegisterNatives ==================== -->
+<h2>7. 替代方案：RegisterNatives</h2>
+
+<p>不想用命名规则？可以用 <code>RegisterNatives</code> 手动绑定，函数名随便取：</p>
+
+<pre><code><span style="color:var(--muted)">// C++ 函数名自由定义</span>
+jbyteArray drawCircleImpl(JNIEnv *env, jclass clazz, jint radius, jint color) {
+    <span style="color:var(--muted)">// 实现...</span>
+}
+
+<span style="color:var(--muted">// JNI 类型签名: (参数类型)返回类型</span>
+static JNINativeMethod methods[] = {
+    {"nativeDrawCircle", "<span style="color:var(--yellow)">(II)[B</span>", (void *)drawCircleImpl}
+};
+
+<span style="color:var(--muted)">// 在 JNI_OnLoad 中注册</span>
+jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    JNIEnv *env;
+    vm-&gt;GetEnv((void **)&amp;env, JNI_VERSION_1_6);
+
+    jclass clazz = env-&gt;FindClass("com/circleplugin/CirclePluginModule");
+    env-&gt;RegisterNatives(clazz, methods, sizeof(methods) / sizeof(methods[0]));
+
+    return JNI_VERSION_1_6;
+}</code></pre>
+
+<h3>JNI 签名 DSL 速查</h3>
+<pre><code>(II)[B                    → (int, int) → byte[]
+(D)V                      → (double) → void
+(Ljava/lang/String;I)Z    → (String, int) → boolean
+(IID)Ljava/lang/String;   → (int, int, double) → String</code></pre>
+
+<div class="note">
+  <strong>生成签名</strong>：不用手写，用 <code>javap -s</code> 自动生成：<br>
+  <code>javap -s com.circleplugin.CirclePluginModule</code>
+</div>
+
+<!-- ==================== 对比 ==================== -->
+<h2>8. iOS vs Android 对比</h2>
+
+<table>
+  <tr><th></th><th>iOS</th><th>Android</th></tr>
+  <tr><td>桥接语言</td><td>ObjC++ (<code>.mm</code>)</td><td>Java + JNI</td></tr>
+  <tr><td>调 C++</td><td>直接 <code>#include</code></td><td>通过 <code>native</code> 方法</td></tr>
+  <tr><td>胶水代码</td><td>无</td><td>JNI 函数 + Java 声明</td></tr>
+  <tr><td>编译</td><td>Podspec 自动</td><td>CMakeLists.txt</td></tr>
+  <tr><td>注册</td><td><code>RCT_EXPORT_MODULE</code></td><td>ReactPackage</td></tr>
+  <tr><td>复杂度</td><td>低</td><td>高（多一层 JNI）</td></tr>
+</table>
+
+<div class="tip">
+  <strong>为什么 Android 需要 Java？</strong> React Native Android 的模块系统是 Java 写的（<code>ReactPackage</code>、<code>ReactModule</code>），C++ 不是一等公民，必须通过 JNI 胶水层。iOS 的 ObjC++ 天然兼容 C++，不需要额外层。
+</div>
+
+<!-- ==================== 何时用 C++ ==================== -->
+<h2>9. 什么时候该用 C++？</h2>
+
+<table>
+  <tr><th>场景</th><th>建议</th></tr>
+  <tr><td>简单逻辑（画个圆、字符串处理）</td><td>Java / Swift 直接写，不需要 C++</td></tr>
+  <tr><td>已有 C++ 库（OpenCV、FFmpeg）</td><td>用 C++，避免重写</td></tr>
+  <tr><td>跨平台共享代码（iOS + Android + 桌面）</td><td>用 C++，一份代码多端复用</td></tr>
+  <tr><td>性能密集型（音视频、物理模拟）</td><td>用 C++，性能优势明显</td></tr>
+  <tr><td>想绕开 JNI 复杂度</td><td>考虑 JSI / Expo Modules</td></tr>
+</table>
+
+<!-- ==================== 现代替代 ==================== -->
+<h2>10. 现代替代方案</h2>
+
+<h3>JSI（JavaScript Interface）</h3>
+<p>绕过 Bridge，C++ 直接暴露给 JS，同步调用，零序列化：</p>
+<pre><code>JS → JSI → C++ HostObject → C++ 实现</code></pre>
+
+<h3>Expo Modules</h3>
+<p>定义模块用 Swift/Kotlin，自动生成桥接代码：</p>
+<pre><code><span style="color:var(--muted)">// 不需要手写 JNI / ObjC++ 桥接</span>
+ExpoModule {
+  Name("CirclePlugin")
+
+  AsyncFunction("drawCircle") { radius: Int, color: Int ->
+    // 直接写 Kotlin，Expo 自动生成 JS 桥接
+  }
+}</code></pre>
+
+<h3>Nitro Modules</h3>
+<p>类似 JSI 但更高层，自动生成类型绑定：</p>
+<pre><code><span style="color:var(--muted)">// nitrogen 生成 C++ / Swift / Kotlin 绑定</span>
+interface CircleSpec extends HybridObject {
+  drawCircle(radius: number, color: number): ArrayBuffer;
+}</code></pre>
+
+<!-- ==================== 完整调用链 ==================== -->
+<h2>11. 完整调用链路</h2>
+
+<h3>JS 调用 → C++ 执行 → 返回结果</h3>
+
+<pre><code><span style="color:var(--accent)">JS 层</span>
+  const result = await CirclePlugin.drawCircle(100, 0xFF0000FF)
+       │
+       ▼
+<span style="color:var(--green)">TurboModule Registry</span>
+  找到模块 "CirclePlugin"
+       │
+       ▼
+<span style="color:var(--yellow)">iOS: ObjC++ 直调</span>           <span style="color:var(--yellow)">Android: Java + JNI</span>
+  RCT_EXPORT_METHOD()         @ReactMethod drawCircle()
+       │                           │
+       │                           ▼
+       │                     nativeDrawCircle()
+       │                           │
+       │                           ▼
+       │                     JNI: Java_com_..._nativeDrawCircle()
+       │                           │
+       └───────────┬───────────────┘
+                   ▼
+<span style="color:var(--purple)">C++ 核心</span>
+  circleplugin::drawCircle(radius, color)
+       │
+       ▼
+  返回 { pixels: Uint8Array, width, height }
+       │
+       ▼
+  base64 编码 → Promise resolve → JS 拿到结果</code></pre>
+
+<!-- ==================== Checklist ==================== -->
+<h2>12. 新建 C++ Plugin Checklist</h2>
+
+<table>
+  <tr><th>#</th><th>步骤</th><th>文件</th></tr>
+  <tr><td>1</td><td>写 C++ 实现</td><td><code>cpp/Xxx.h</code> + <code>cpp/Xxx.cpp</code></td></tr>
+  <tr><td>2</td><td>写 TurboModule Spec</td><td><code>src/NativeXxx.ts</code></td></tr>
+  <tr><td>3</td><td>iOS: ObjC++ 桥接</td><td><code>ios/Xxx.mm</code></td></tr>
+  <tr><td>4</td><td>iOS: Podspec 声明源文件</td><td><code>ios/*.podspec</code></td></tr>
+  <tr><td>5</td><td>Android: Java 模块</td><td><code>android/.../XxxModule.java</code></td></tr>
+  <tr><td>6</td><td>Android: ReactPackage</td><td><code>android/.../XxxPackage.java</code></td></tr>
+  <tr><td>7</td><td>Android: JNI 桥接</td><td><code>android/.../cpp/XxxJNI.cpp</code></td></tr>
+  <tr><td>8</td><td>Android: CMakeLists</td><td><code>android/.../cpp/CMakeLists.txt</code></td></tr>
+  <tr><td>9</td><td>Android: build.gradle</td><td><code>android/build.gradle</code></td></tr>
+  <tr><td>10</td><td>React 组件</td><td><code>src/index.tsx</code></td></tr>
+</table>
+
+<footer>
+  <p>React Native C++ Plugin Guide — 基于 react-native-circle-plugin 实践总结</p>
+</footer>
+
+</body>
+</html>
