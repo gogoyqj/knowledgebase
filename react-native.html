@@ -250,8 +250,360 @@
   <strong>关键区别</strong>：旧架构中 JS 和 Native 通过异步 Bridge（JSON 队列）通信，每帧最多传递一次消息。新架构通过 JSI 让 JS 直接调用 C++ 对象，实现同步、零拷贝通信，这是性能飞跃的关键。
 </div>
 
+<!-- ==================== 启动过程 ==================== -->
+<h2>2. React Native 启动过程</h2>
+
+<p>从用户点击 App 图标到第一个像素渲染到屏幕上，React Native 经历以下阶段：</p>
+
+<h3>总览</h3>
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    React Native Startup Sequence                       │
+│                                                                        │
+│  ① Native 启动        ② JS 引擎初始化       ③ JS Bundle 加载执行      │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────┐    │
+│  │ Application  │────▶│ Hermes/JSC   │────▶│ require('AppRegistry')│   │
+│  │ onCreate     │     │ Runtime 创建  │     │ AppRegistry           │   │
+│  │              │     │              │     │  .registerComponent() │   │
+│  └──────────────┘     └──────────────┘     └──────────┬───────────┘    │
+│                                                       │                │
+│  ⑤ 首帧渲染           ④ React 渲染                   │                │
+│  ┌──────────────┐     ┌──────────────┐               │                │
+│  │ 原生 View     │◀────│ Shadow Tree  │◀──────────────┘                │
+│  │ 显示到屏幕    │     │ 布局计算      │    AppRegistry                 │
+│  │              │     │              │     .runApplication()           │
+│  └──────────────┘     └──────────────┘                                │
+└─────────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>阶段 1：Native 容器启动</h3>
+<p>平台原生代码首先启动，创建承载 React Native 的容器。</p>
+
+<pre><code><span style="color:var(--muted)">// iOS — AppDelegate.swift</span>
+func application(_ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+
+    let bridge = RCTBridge(delegate: self, launchOptions: launchOptions)
+    let rootView = RCTRootView(bridge: bridge, moduleName: "MyApp", initialProperties: nil)
+    <span style="color:var(--muted)">// rootView 就是 RN 在原生侧的入口 View</span>
+}</code></pre>
+
+<pre><code><span style="color:var(--muted)">// Android — MainApplication.kt</span>
+class MainApplication : Application(), ReactApplication {
+    override val reactHost: ReactHost
+        get() = ReactHost(this, reactNativeHost)
+
+    override val reactNativeHost = object : ReactNativeHost(this) {
+        override fun getPackages() = listOf(MainReactPackage())
+        override fun getJSMainModuleName() = "index"
+        override fun getBundleAssetName() = "index.android.bundle"
+    }
+}</code></pre>
+
+<p>这个阶段完成的事情：</p>
+<ul>
+  <li>创建 <code>RCTBridge</code>（iOS）/ <code>ReactInstanceManager</code>（Android），它是 JS 与 Native 的核心协调器</li>
+  <li>注册所有 Native Modules（原生模块）和 View Managers（原生组件）</li>
+  <li>创建 <code>RCTRootView</code>，它是 React 组件树挂载的原生根视图</li>
+</ul>
+
+<h3>阶段 2：JS 引擎初始化</h3>
+<p>Native 容器就绪后，创建 JavaScript 运行时：</p>
+
+<ul>
+  <li><strong>Hermes</strong>（默认）：Facebook 专为 React Native 打造的 JS 引擎，支持字节码预编译，启动更快、内存占用更低</li>
+  <li><strong>JavaScriptCore（JSC）</strong>：Apple 的 WebKit JS 引擎，旧版本 RN 的默认引擎</li>
+  <li><strong>V8</strong>：Chrome 的 JS 引擎，部分场景可选</li>
+</ul>
+
+<div class="tip">
+  <strong>Hermes 优势</strong>：将 JS 源码预编译为 Hermes 字节码（.hbc），跳过解析和编译阶段，启动时间减少约 30-40%。
+</div>
+
+<h3>阶段 3：JS Bundle 加载与执行</h3>
+<p>引擎初始化完成后，加载并执行 JavaScript 代码：</p>
+
+<div class="flow">
+  <span class="step">定位 Bundle</span>
+  <span class="arrow">→</span>
+  <span class="step">加载到内存</span>
+  <span class="arrow">→</span>
+  <span class="step">执行入口文件</span>
+  <span class="arrow">→</span>
+  <span class="step">注册 Root Component</span>
+</div>
+
+<pre><code><span style="color:var(--muted)">// index.js — JS 入口文件</span>
+import { AppRegistry } from 'react-native';
+import App from './App';
+
+<span style="color:var(--muted)">// 注册根组件，名称必须与 Native 侧的 moduleName 一致</span>
+AppRegistry.registerComponent('MyApp', () => App);</code></pre>
+
+<table>
+  <tr><th>Bundle 来源</th><th>场景</th><th>说明</th></tr>
+  <tr>
+    <td>Assets（打包内置）</td>
+    <td>Release 构建</td>
+    <td>Bundle 打包进 App，从 assets 目录读取</td>
+  </tr>
+  <tr>
+    <td>Dev Server</td>
+    <td>Debug 构建</td>
+    <td>从 Metro Bundler（localhost:8081）热加载</td>
+  </tr>
+  <tr>
+    <td>CodePush / OTA</td>
+    <td>热更新</td>
+    <td>运行时从远端下载新 Bundle</td>
+  </tr>
+</table>
+
+<h3>阶段 4：React 渲染与布局</h3>
+<p>JS Bundle 执行后，React 开始工作：</p>
+
+<pre><code><span style="color:var(--muted)">// AppRegistry.runApplication() 内部流程：</span>
+
+1. 调用 AppRegistry.runApplication('MyApp', { rootTag })
+     ↓
+2. React 渲染根组件 &lt;App /&gt;
+     ↓
+3. 生成 Fiber Tree（Virtual DOM）
+     ↓
+4. Yoga 引擎计算 Flexbox 布局 → Shadow Tree
+     ↓
+5. Fabric（新）/ 旧渲染器 将 Shadow Tree 映射为原生 View 指令
+     ↓
+6. Native 侧创建真正的 UIView / ViewGroup</code></pre>
+
+<h3>阶段 5：首帧上屏</h3>
+<p>原生 View 创建并布局完成后，系统 GPU 合成渲染，第一个画面显示到屏幕上。从这里开始，App 进入正常的事件循环：</p>
+
+<div class="flow">
+  <span class="step">用户触摸</span>
+  <span class="arrow">→</span>
+  <span class="step modern">Native 捕获事件</span>
+  <span class="arrow">→</span>
+  <span class="step modern">JS 回调处理</span>
+  <span class="arrow">→</span>
+  <span class="step modern">setState 触发重渲染</span>
+  <span class="arrow">→</span>
+  <span class="step">UI 更新</span>
+</div>
+
+<h3>启动性能关键指标</h3>
+<table>
+  <tr><th>指标</th><th>含义</th><th>优化手段</th></tr>
+  <tr>
+    <td><strong>TTI</strong>（Time To Interactive）</td>
+    <td>从点击图标到 App 可交互</td>
+    <td>Hermes 字节码、Bundle 拆分、懒加载</td>
+  </tr>
+  <tr>
+    <td><strong>Bundle Size</strong></td>
+    <td>JS Bundle 大小</td>
+    <td>Tree Shaking、Hermes 优化、移除未使用依赖</td>
+  </tr>
+  <tr>
+    <td><strong>Native Init</strong></td>
+    <td>原生容器初始化耗时</td>
+    <td>减少 Native Modules 数量、延迟注册</td>
+  </tr>
+  <tr>
+    <td><strong>JS Init</strong></td>
+    <td>JS 引擎 + Bundle 执行耗时</td>
+    <td>Inline Requires、RAM Bundles</td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>新架构启动优化</strong>：TurboModules 支持<strong>懒加载</strong>——旧架构在启动时就初始化所有 Native Modules，新架构只在首次 require 时才初始化，显著减少启动时间。Fabric 渲染器也支持并发渲染，避免阻塞主线程。
+</div>
+
+<!-- ==================== 线程安全 ==================== -->
+<h2>3. 线程安全：多线程如何协作</h2>
+
+<p>React Native 有 JS、Shadow、Native（UI）三个线程，但<strong>几乎不使用锁</strong>。它的安全策略是：通过架构设计，让每个线程只操作自己"拥有"的数据，尽量避免共享可变状态。</p>
+
+<h3>各线程的"领地"</h3>
+<table>
+  <tr><th>线程</th><th>读</th><th>写</th><th>同步机制</th></tr>
+  <tr>
+    <td><strong>JS Thread</strong></td>
+    <td>JS 堆、JSI HostObjects</td>
+    <td>JS 堆、Virtual DOM</td>
+    <td>单线程，天然串行</td>
+  </tr>
+  <tr>
+    <td><strong>Shadow Thread</strong></td>
+    <td>WIP Shadow Tree</td>
+    <td>WIP Shadow Tree（Yoga 布局）</td>
+    <td>与 UI 线程通过 commit 隔离</td>
+  </tr>
+  <tr>
+    <td><strong>UI Thread</strong></td>
+    <td>Committed Shadow Tree（只读）</td>
+    <td>原生 View 树</td>
+    <td>MainQueue 串行</td>
+  </tr>
+</table>
+
+<h3>策略 1：JS 单线程 — 天然无竞争</h3>
+<p>Hermes / JavaScriptCore 运行在<strong>一个专用线程</strong>上，所有 JS 代码串行执行。不存在两个 JS 任务同时修改同一个变量的情况。</p>
+
+<pre><code><span style="color:var(--muted)">// 以下代码在 JS 线程上天然安全，无需任何同步</span>
+let count = 0;
+function increment() {
+  count++;        <span style="color:var(--muted)">// 永远不会有并发竞争</span>
+  console.log(count);
+}</code></pre>
+
+<div class="tip">
+  <strong>但 JSI HostFunction 是在哪个线程执行的？</strong> 当 JS 通过 JSI 调用 C++ 函数时，C++ 代码运行在 <strong>JS 线程</strong>上。所以你的 <code>drawCircle()</code> 是在 JS 线程同步执行的，不会与其他 JS 代码并发。
+</div>
+
+<h3>策略 2：消息拷贝 — 不共享可变数据</h3>
+<p>线程间传递的数据是<strong>拷贝</strong>，不是共享引用：</p>
+
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│                  Data Transfer Between Threads                      │
+│                                                                     │
+│  Old Architecture (Bridge):                                         │
+│  ┌─────────┐   JSON 拷贝    ┌──────────┐   JSON 拷贝   ┌────────┐ │
+│  │   JS    │ ─────────────▶ │  Queue   │ ────────────▶ │ Native │ │
+│  │ Thread  │                │ (Buffer) │               │ Thread │ │
+│  └─────────┘                └──────────┘               └────────┘ │
+│    原始对象留在 JS 堆，序列化后副本传给 Native                       │
+│                                                                     │
+│  New Architecture (JSI + Fabric):                                   │
+│  ┌─────────┐   共享不可变引用   ┌──────────┐                       │
+│  │   JS    │ ─────────────────▶ │  UI      │                       │
+│  │ Thread  │   Shadow Tree     │  Thread  │                       │
+│  └─────────┘   commit 后只读   └──────────┘                       │
+│    无锁：写操作在 Shadow 线程完成，UI 线程只读已提交的快照           │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>策略 3：Fabric 双缓冲 — 核心安全机制</h3>
+<p>新架构的 Fabric 渲染器使用<strong>双缓冲</strong>（Double Buffering）来协调 Shadow 线程和 UI 线程：</p>
+
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Fabric Double Buffering                           │
+│                                                                     │
+│   Shadow Thread (写)           UI Thread (读)                       │
+│   ┌─────────────────┐         ┌─────────────────┐                  │
+│   │ Work-In-Progress│         │    Committed    │                  │
+│   │   Shadow Tree   │         │   Shadow Tree   │                  │
+│   │   (可读可写)     │         │    (只读快照)    │                  │
+│   └────────┬────────┘         └────────┬────────┘                  │
+│            │                           │                            │
+│            │     ┌─────────────┐       │                            │
+│            └────▶│   Commit    │◀──────┘                            │
+│                  │ (原子交换)   │                                    │
+│                  └─────────────┘                                    │
+│                                                                     │
+│   时序：                                                             │
+│   1. Shadow 线程在 WIP 树上计算布局（UI 线程不碰这棵树）             │
+│   2. 布局完成后，commit：WIP ↔ Committed 原子交换                   │
+│   3. UI 线程读取新的 Committed 树，更新原生 View                    │
+│   4. 旧的 Committed 树（现在是 WIP）被回收或复用                    │
+│                                                                     │
+│   关键：两个线程从不同时写同一棵树                                   │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<p>为什么不需要锁？</p>
+<ul>
+  <li><strong>写写不冲突</strong>：同一时刻只有一个线程在写（Shadow 线程写 WIP，UI 线程写原生 View）</li>
+  <li><strong>读写不冲突</strong>：UI 线程读的是已提交的不可变快照，Shadow 线程写的是另一棵树</li>
+  <li><strong>Commit 是原子操作</strong>：交换指针（或版本号），瞬间完成，无需锁</li>
+</ul>
+
+<h3>策略 4：UI 操作串行化 — 天然队列</h3>
+<p>所有原生 UI 操作都 dispatch 到主线程的串行队列：</p>
+
+<pre><code><span style="color:var(--muted)">// iOS — 所有 UI 操作 dispatch 到 MainQueue</span>
+dispatch_async(dispatch_get_main_queue(), ^{
+    <span style="color:var(--muted)">// 创建/更新 UIView，在主线程串行执行</span>
+    view.frame = CGRectMake(x, y, width, height);
+});
+
+<span style="color:var(--muted)">// Android — 所有 UI 操作 post 到主线程</span>
+UiThreadUtil.runOnUiThread(() -> {
+    view.layout(x, y, x + width, y + height);
+});</code></pre>
+
+<p>MainQueue / MainLooper 本身就是串行的，不存在并发访问原生 View 的情况。</p>
+
+<h3>策略 5：TurboModules — 同步直调但仍在 JS 线程</h3>
+<p>TurboModules 虽然通过 JSI 实现了同步调用，但调用仍然发生在 <strong>JS 线程</strong>：</p>
+
+<pre><code><span style="color:var(--muted)">// JS 调用 TurboModule</span>
+const result = TurboModule.getData();  <span style="color:var(--muted)">// 同步，在 JS 线程执行</span>
+
+<span style="color:var(--muted)">// TurboModule 内部的 C++ 代码</span>
+<span style="color:var(--muted)">// → 也运行在 JS 线程</span>
+<span style="color:var(--muted)">// → 不需要与 JS 竞争</span>
+<span style="color:var(--muted)">// → 但如果访问 Native UI，需要 dispatch 到主线程</span></code></pre>
+
+<div class="warn">
+  <strong>注意</strong>：如果 TurboModule 的 C++ 代码需要访问 UI 线程的数据（比如读取 View 状态），你<strong>必须自己保证线程安全</strong>。框架不会帮你做这件事。常见做法是 dispatch_async 到主线程，或使用线程安全的数据结构。
+</div>
+
+<h3>哪里真的用到了锁？</h3>
+<p>虽然架构层面尽量避免锁，但仍有少量必要场景：</p>
+
+<table>
+  <tr><th>锁</th><th>用途</th><th>保护什么</th></tr>
+  <tr>
+    <td><code>jsi::Runtime</code> 安装锁</td>
+    <td>安装 JSI 绑定时</td>
+    <td>防止多个 Native Module 同时注册全局函数</td>
+  </tr>
+  <tr>
+    <td><code>JavaScriptContextHolder</code></td>
+    <td>Android 传递 Runtime 指针时</td>
+    <td>确保 Runtime 已初始化后才可访问</td>
+  </tr>
+  <tr>
+    <td>EventEmitter 锁</td>
+    <td>Native → JS 事件派发</td>
+    <td>保护事件队列的并发写入</td>
+  </tr>
+  <tr>
+    <td>Shadow Tree commit 锁</td>
+    <td>Fabric 提交布局结果时</td>
+    <td>保护指针交换的原子性（通常是 spinlock）</td>
+  </tr>
+</table>
+
+<h3>总结：为什么不用传统锁</h3>
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Thread Safety Strategy Summary                    │
+│                                                                     │
+│  传统多线程：  多线程共享可变数据  →  需要锁  →  死锁/性能下降       │
+│                                                                     │
+│  React Native：                                                     │
+│                                                                     │
+│  ✓ JS 单线程          → 消除 JS 层并发                               │
+│  ✓ 消息拷贝           → 消除跨线程共享可变数据                       │
+│  ✓ 双缓冲快照         → 读写分离，无锁                               │
+│  ✓ UI 队列串行化      → 消除原生 View 并发访问                       │
+│  ✓ 少量自旋锁         → 仅用于 commit 和初始化等边界场景             │
+│                                                                     │
+│  哲学：不靠锁保护共享状态，靠架构设计消灭共享状态                     │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<div class="note">
+  <strong>代价</strong>：这种设计的代价是<strong>数据新鲜度</strong>——UI 线程看到的 Shadow Tree 永远是上一帧的快照，不是实时的。这就是为什么 React Native 的 UI 更新天然有<strong>一帧延迟</strong>。对于动画等场景，需要用 <code>requestAnimationFrame</code> 或原生驱动的动画（<code>useAnimatedStyle</code>）来绕过这个限制。
+</div>
+
 <!-- ==================== 方案对比 ==================== -->
-<h2>2. 四种方案对比</h2>
+<h2>4. 四种方案对比</h2>
 
 <table>
   <tr>
@@ -292,7 +644,7 @@
 </table>
 
 <!-- ==================== 架构演进 ==================== -->
-<h2>3. 架构演进：Bridge → JSI</h2>
+<h2>5. 架构演进：Bridge → JSI</h2>
 
 <h3>旧架构：Bridge（已废弃）</h3>
 <div class="flow">
@@ -328,7 +680,7 @@
 </div>
 
 <!-- ==================== 本项目实现 ==================== -->
-<h2>4. 本项目实现：JSI 版 Circle Plugin</h2>
+<h2>6. 本项目实现：JSI 版 Circle Plugin</h2>
 
 <div class="arch-diagram">
 ┌─────────────────────────────────────────────────────────────────┐
@@ -382,7 +734,7 @@
 └── package.json</code></pre>
 
 <!-- ==================== C++ 核心 ==================== -->
-<h2>5. C++ 核心实现</h2>
+<h2>7. C++ 核心实现</h2>
 
 <h3>CircleDrawer.h — 接口声明</h3>
 <pre><code>#pragma once
@@ -472,7 +824,7 @@ void installCircleJSI(jsi::Runtime &runtime) {
 </div>
 
 <!-- ==================== JS 侧 ==================== -->
-<h2>6. JS 侧调用</h2>
+<h2>8. JS 侧调用</h2>
 
 <h3>类型声明</h3>
 <pre><code><span style="color:var(--muted)">// NativeCirclePlugin.ts</span>
@@ -511,7 +863,7 @@ function CircleView({ radius, color }) {
 }</code></pre>
 
 <!-- ==================== 平台注册 ==================== -->
-<h2>7. 平台注册</h2>
+<h2>9. 平台注册</h2>
 
 <h3>iOS — ObjC++ 获取 Runtime</h3>
 <pre><code><span style="color:var(--muted)">// CirclePlugin.mm</span>
@@ -556,7 +908,7 @@ public class CirclePluginPackage implements ReactPackage, JSIModulePackage {
 }</code></pre>
 
 <!-- ==================== Bridge vs JSI ==================== -->
-<h2>8. Bridge vs JSI 代码对比</h2>
+<h2>10. Bridge vs JSI 代码对比</h2>
 
 <table>
   <tr><th></th><th>Bridge (旧)</th><th>JSI (新)</th></tr>
@@ -588,7 +940,7 @@ public class CirclePluginPackage implements ReactPackage, JSIModulePackage {
 </table>
 
 <!-- ==================== Expo Modules ==================== -->
-<h2>9. Expo Modules <span class="badge recommended">推荐</span></h2>
+<h2>11. Expo Modules <span class="badge recommended">推荐</span></h2>
 
 <p>Expo Modules 是目前<strong>最省事</strong>的方案：用 Swift/Kotlin 写模块，自动生成 JSI 绑定。</p>
 
@@ -649,7 +1001,7 @@ const result = await CirclePlugin.drawCircle(100, 0xFF0000FF)</code></pre>
 </div>
 
 <!-- ==================== Nitro Modules ==================== -->
-<h2>10. Nitro Modules <span class="badge experimental">Experimental</span></h2>
+<h2>12. Nitro Modules <span class="badge experimental">Experimental</span></h2>
 
 <p>Nitro 是 Marc Rousavy（react-native-maps 作者）开发的下一代模块框架，基于 JSI + Codegen。</p>
 
@@ -703,7 +1055,7 @@ const buffer = circle.drawCircle(100, 0xFF0000FF)</code></pre>
 </div>
 
 <!-- ==================== 何时用 C++ ==================== -->
-<h2>11. 什么时候该用 C++？</h2>
+<h2>13. 什么时候该用 C++？</h2>
 
 <table>
   <tr><th>场景</th><th>建议</th></tr>

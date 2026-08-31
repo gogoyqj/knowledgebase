@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSR 深度解析 — 原理 · 流程 · 最佳实践</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #006A6A;
+    --md-on-primary: #fff;
+    --md-primary-container: #6FF7F7;
+    --md-on-primary-container: #002020;
+    --md-secondary: #4A6363;
+    --md-secondary-container: #CCE8E8;
+    --md-tertiary: #4A607B;
+    --md-tertiary-container: #D3E4FF;
+    --md-surface: #FAFDFC;
+    --md-surface-variant: #DAE5E4;
+    --md-on-surface: #191C1C;
+    --md-on-surface-variant: #3F4948;
+    --md-outline: #6F7978;
+    --md-outline-variant: #BFC9C8;
+    --md-error: #BA1A1A;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F0F5F4;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, var(--md-primary) 0%, #008A8A 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 560px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(0,106,106,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.teal  { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.blue  { background: var(--md-tertiary-container); color: #001C3B; }
+  .card-icon.green { background: #C8F7D0; color: #002204; }
+  .card-icon.amber { background: #FFE0B2; color: #4E2600; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .chip.amber {
+    background: #FFE0B2;
+    color: #4E2600;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #80CBC4; }
+  .fn  { color: #FFAB91; }
+  .str { color: #C5E1A5; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #80DEEA; }
+  .typ { color: #FFD54F; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #E8F5F5;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  .banner.warning {
+    background: #FFF3E0;
+    color: #4E2600;
+  }
+
+  /* ── Compare Grid ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.7;
+  }
+
+  /* ── Flow Steps ── */
+  .flow-steps {
+    display: flex; flex-direction: column; gap: 0;
+    margin: 16px 0;
+  }
+  .flow-step {
+    display: flex; gap: 16px;
+    position: relative;
+  }
+  .flow-step .step-marker {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0;
+  }
+  .flow-step .step-num {
+    width: 36px; height: 36px;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 14px; font-weight: 700;
+  }
+  .flow-step .step-line {
+    width: 2px;
+    flex: 1;
+    background: var(--md-outline-variant);
+    min-height: 20px;
+  }
+  .flow-step:last-child .step-line { display: none; }
+  .flow-step .step-content {
+    padding-bottom: 20px;
+  }
+  .flow-step .step-content h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 4px;
+  }
+  .flow-step .step-content p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 13px;
+    color: var(--md-outline);
+  }
+</style>
+</head>
+<body>
+
+<!-- Top App Bar -->
+<header class="top-bar">
+  <div class="logo">S</div>
+  <h1><span>SSR</span> 深度解析</h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>Server-Side Rendering</h2>
+  <p>服务端渲染原理、完整流程、与 SSG/ISR/CSP 的对比，以及生产环境最佳实践</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="concept">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">school</span>
+    基础概念
+  </button>
+  <button class="tab-btn" data-tab="flow">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">timeline</span>
+    核心流程
+  </button>
+  <button class="tab-btn" data-tab="practice">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">star</span>
+    最佳实践
+  </button>
+  <button class="tab-btn" data-tab="compare">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">compare</span>
+    模式对比
+  </button>
+</nav>
+
+<!-- Main Content -->
+<main class="container">
+
+  <!-- ═══════════════════ Tab 1: 基础概念 ═══════════════════ -->
+  <section class="section active" id="concept">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">dns</span></div>
+        <h3>什么是 SSR？</h3>
+      </div>
+      <p><strong>Server-Side Rendering（服务端渲染）</strong>是指在服务器上将 React/Vue 等组件渲染为完整的 HTML 字符串，然后发送给浏览器，浏览器拿到 HTML 后即可立即展示页面内容，再由前端 JS 接管交互（<strong>Hydration</strong>）。</p>
+      <div class="divider"></div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>核心价值：<strong>首屏性能</strong>（FCP/LCP）+ <strong>SEO 友好</strong>。搜索引擎爬虫和用户都能第一时间拿到完整内容，而不是一个空白的 <span class="inline-code">&lt;div id="root"&gt;</span>。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">difference</span></div>
+        <h3>SSR vs CSR 关键区别</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🖥️ CSR（客户端渲染）</h4>
+          <ul>
+            <li>服务器返回<strong>空 HTML + JS bundle</strong></li>
+            <li>浏览器下载、解析、执行 JS</li>
+            <li>JS 执行后才渲染 UI → <strong>白屏时间长</strong></li>
+            <li>SEO 不友好（爬虫看到空壳）</li>
+            <li>TTFB 快，但 FCP/TTI 慢</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>🌐 SSR（服务端渲染）</h4>
+          <ul>
+            <li>服务器返回<strong>完整 HTML</strong></li>
+            <li>浏览器立即可见内容 → <strong>FCP 快</strong></li>
+            <li>Hydration 后可交互 → TTI 稍有延迟</li>
+            <li>SEO 友好（爬虫拿到完整内容）</li>
+            <li>TTFB 可能稍慢，但总体体验更优</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">category</span></div>
+        <h3>Hydration（注水）机制</h3>
+      </div>
+      <p>SSR 返回的 HTML 是<strong>静态的</strong>——没有事件监听、没有状态管理。Hydration 就是让客户端 JS 在已有的 DOM 上"附着"事件和状态，使其变得可交互。</p>
+      <pre><span class="kw">import</span> { hydrateRoot } <span class="kw">from</span> <span class="str">'react-dom/client'</span>;
+
+<span class="cm">// 不是 createRoot，而是 hydrateRoot</span>
+<span class="fn">hydrateRoot</span>(
+  <span class="typ">document</span>.<span class="fn">getElementById</span>(<span class="str">'root'</span>),
+  <span class="kw">&lt;</span><span class="typ">App</span> <span class="kw">/&gt;</span>
+);</pre>
+      <div class="banner warning">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>Hydration Mismatch</strong>：服务端和客户端渲染结果不一致时，React 会报错并尝试修复。常见原因：访问 <span class="inline-code">window</span>/<span class="inline-code">document</span>、随机值、时间格式化。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">architecture</span></div>
+        <h3>SSR 涉及的关键模块</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">html</span> renderToString</h4>
+          <p>同步将 React 组件树渲染为 HTML 字符串。简单但不能流式输出。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">water_drop</span> renderToPipeableStream</h4>
+          <p>React 18+ 流式 API，支持 <strong>Suspense</strong> 降级，逐步发送 HTML，TTFB 更快。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">data_object</span> serialize</h4>
+          <p>将服务端获取的数据序列化注入 HTML，客户端通过 <span class="inline-code">__NEXT_DATA__</span> 等机制读取，避免重复请求。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">security</span> CSP / Trusted Types</h4>
+          <p>内容安全策略防止 XSS。SSR 场景需要特别处理 inline script 的信任类型。</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════ Tab 2: 核心流程 ═══════════════════ -->
+  <section class="section" id="flow">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">route</span></div>
+        <h3>SSR 完整请求生命周期</h3>
+      </div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">1</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>浏览器发起请求</h4>
+            <p>用户访问 <span class="inline-code">https://example.com/about</span>，浏览器发送 HTTP GET 请求到 Node.js 服务器。</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">2</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>服务端路由匹配 & 数据获取</h4>
+            <p>服务器匹配路由，执行 <span class="inline-code">getServerSideProps</span>（Next.js）或 loader（Remix），从数据库 / API 获取页面所需数据。</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">3</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>渲染组件为 HTML</h4>
+            <p>用 <span class="inline-code">renderToString</span> 或 <span class="inline-code">renderToPipeableStream</span> 将 React 组件树 + 数据渲染为 HTML。</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">4</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>拼装完整 HTML 文档</h4>
+            <p>将渲染好的 HTML、序列化的数据（JSON）、JS bundle 的 <span class="inline-code">&lt;script&gt;</span> 标签拼装成完整文档返回。</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">5</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>浏览器解析 & 绘制</h4>
+            <p>浏览器解析 HTML → 构建 DOM → 首次绘制（<strong>FCP</strong>）。用户此时已可见页面内容。</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="step-marker"><div class="step-num">6</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <h4>JS 下载 & Hydration</h4>
+            <p>浏览器下载 JS bundle，执行 <span class="inline-code">hydrateRoot()</span>，在已有 DOM 上绑定事件、恢复状态 → 页面变为<strong>可交互</strong>（<strong>TTI</strong>）。</p>
+          </div>
+        </div>
+      </div>
+      <div class="diagram">浏览器                    Node.js 服务器
+  │                              │
+  │── GET /about ───────────────▶│
+  │                              │── 路由匹配
+  │                              │── getServerSideProps() → 数据
+  │                              │── renderToString(<App />)
+  │                              │── 拼装 HTML + JSON + script
+  │◀── 200 HTML ────────────────│
+  │                              │
+  │── 解析 HTML → FCP ──────────│
+  │── 下载 JS bundle ───────────│
+  │── hydrateRoot() → TTI ─────│
+  │                              │
+  │◀══ 用户可交互 ════════════▶│</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">stream</span></div>
+        <h3>React 18 流式 SSR（Streaming SSR）</h3>
+      </div>
+      <p>传统 SSR 必须等<strong>所有数据</strong>都拿到后才能开始发送 HTML。React 18 的 <span class="inline-code">renderToPipeableStream</span> 配合 <span class="inline-code">&lt;Suspense&gt;</span> 实现了<strong>渐进式发送</strong>：</p>
+      <pre><span class="kw">import</span> { renderToPipeableStream } <span class="kw">from</span> <span class="str">'react-dom/server'</span>;
+
+app.<span class="fn">get</span>(<span class="str">'/*'</span>, (req, res) => {
+  <span class="kw">const</span> { pipe } = <span class="fn">renderToPipeableStream</span>(
+    <span class="kw">&lt;</span><span class="typ">App</span> url={req.url} <span class="kw">/&gt;</span>,
+    {
+      <span class="fn">onShellReady</span>() {
+        <span class="cm">// Shell（非 Suspense 区域）就绪，立即开始流式输出</span>
+        res.<span class="fn">setHeader</span>(<span class="str">'content-type'</span>, <span class="str">'text/html'</span>);
+        <span class="fn">pipe</span>(res);
+      },
+      <span class="fn">onShellError</span>(err) {
+        <span class="cm">// Shell 渲染失败，降级为 CSR</span>
+        res.<span class="fn">status</span>(<span class="num">500</span>).<span class="fn">send</span>(<span class="str">'&lt;div id="root"&gt;&lt;/div&gt;'</span>);
+      },
+      <span class="fn">onError</span>(err) {
+        console.<span class="fn">error</span>(err); <span class="cm">// 流中某块出错，不中断整个流</span>
+      },
+    }
+  );
+});</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>Suspense 边界</strong>内的慢数据会延迟渲染，外层 Shell 先到达浏览器。用户先看到骨架，数据到了再"弹出"内容 → <strong>TTFB 大幅降低</strong>。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">bug_report</span></div>
+        <h3>Hydration 常见陷阱</h3>
+      </div>
+      <ul>
+        <li><strong>访问浏览器 API</strong>：<span class="inline-code">window.innerWidth</span>、<span class="inline-code">localStorage</span> 等在服务端不存在，需用 <span class="inline-code">useEffect</span> 或 <span class="inline-code">typeof window</span> 守卫</li>
+        <li><strong>随机数 / 时间</strong>：<span class="inline-code">Math.random()</span>、<span class="inline-code">Date.now()</span> 服务端和客户端结果不同 → 用固定 seed 或延迟到客户端</li>
+        <li><strong>浏览器扩展注入 DOM</strong>：Grammarly 等扩展修改了 DOM 结构，导致 React 比对失败</li>
+        <li><strong>嵌套 &lt;html&gt; / &lt;body&gt;</strong>：React SSR 要求组件树不包含这些标签（框架处理）</li>
+        <li><strong>CSS-in-JS 顺序</strong>：服务端和客户端样式注入顺序不一致会导致闪烁</li>
+      </ul>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════ Tab 3: 最佳实践 ═══════════════════ -->
+  <section class="section" id="practice">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">speed</span></div>
+        <h3>1. 数据获取优化</h3>
+      </div>
+      <ul>
+        <li><strong>并行请求</strong>：多个 <span class="inline-code">getServerSideProps</span> 依赖的数据用 <span class="inline-code">Promise.all</span> 并行获取，不要串行 await</li>
+        <li><strong>只传必要数据</strong>：不要把整个数据库对象传给客户端，只序列化页面需要的字段</li>
+        <li><strong>Edge Runtime</strong>：将数据获取逻辑部署到边缘节点，减少服务器到数据源的延迟</li>
+        <li><strong>请求去重</strong>：React 18 自动去重同一 render 中的重复 <span class="inline-code">fetch</span>，但自定义 client 要手动实现</li>
+      </ul>
+      <pre><span class="cm">// ✅ 并行获取</span>
+<span class="kw">export async function</span> <span class="fn">getServerSideProps</span>(ctx) {
+  <span class="kw">const</span> [user, posts] = <span class="kw">await</span> Promise.<span class="fn">all</span>([
+    <span class="fn">fetchUser</span>(ctx.params.id),
+    <span class="fn">fetchPosts</span>(ctx.params.id),
+  ]);
+  <span class="kw">return</span> { props: { user, posts } };
+}
+
+<span class="cm">// ❌ 串行（浪费 ~2x 时间）</span>
+<span class="kw">const</span> user  = <span class="kw">await</span> <span class="fn">fetchUser</span>(id);
+<span class="kw">const</span> posts = <span class="kw">await</span> <span class="fn">fetchPosts</span>(id);</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">cached</span></div>
+        <h3>2. 缓存策略</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>HTTP 缓存</h4>
+          <p>设置 <span class="inline-code">Cache-Control</span> 头。静态页面用 <span class="inline-code">s-maxage=31536000</span> + CDN；动态页面用 <span class="inline-code">s-maxage=60, stale-while-revalidate</span>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>Full Route Cache</h4>
+          <p>Next.js App Router 自动缓存静态 RSC payload。动态路由用 <span class="inline-code">unstable_cache()</span> 包裹数据库查询。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>数据缓存</h4>
+          <p>React <span class="inline-code">fetch</span> 自动缓存同请求。自定义数据源用 Redis / Memcached 做应用层缓存。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>stale-while-revalidate</h4>
+          <p>先返回缓存，后台异步更新。用户永远不等，数据最终一致。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">security</span></div>
+        <h3>3. 安全实践</h3>
+      </div>
+      <ul>
+        <li><strong>防止 XSS</strong>：React 默认转义 HTML，但 <span class="inline-code">dangerouslySetInnerHTML</span> 必须配合 DOMPurify</li>
+        <li><strong>CSP 配置</strong>：SSR 会产生 inline script（序列化数据），需用 <span class="inline-code">nonce</span> 或 <span class="inline-code">hash</span> 白名单</li>
+        <li><strong>环境变量隔离</strong>：只有 <span class="inline-code">NEXT_PUBLIC_</span> 前缀的变量会暴露给客户端</li>
+        <li><strong>SSRF 防护</strong>：服务端 fetch 用户可控 URL 时，必须校验目标域名白名单</li>
+      </ul>
+      <pre><span class="cm">// CSP nonce 示例（Express + React 18）</span>
+app.<span class="fn">use</span>((req, res, next) => {
+  <span class="kw">const</span> nonce = crypto.<span class="fn">randomUUID</span>();
+  res.<span class="fn">setHeader</span>(<span class="str">'Content-Security-Policy'</span>,
+    <span class="str">`script-src 'self' 'nonce-${nonce}'`</span>
+  );
+  res.locals.nonce = nonce;
+  <span class="fn">next</span>();
+});</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">monitoring</span></div>
+        <h3>4. 性能监控 & 度量</h3>
+      </div>
+      <ul>
+        <li><strong>TTFB</strong>（Time to First Byte）：服务端处理时间，目标 <span class="inline-code">&lt; 200ms</span></li>
+        <li><strong>FCP</strong>（First Contentful Paint）：用户首次看到内容，SSR 的核心优势</li>
+        <li><strong>LCP</strong>（Largest Contentful Paint）：最大内容绘制，目标 <span class="inline-code">&lt; 2.5s</span></li>
+        <li><strong>TTI</strong>（Time to Interactive）：Hydration 完成时间，SSR 可能比 CSR 更晚</li>
+        <li><strong>INP</strong>（Interaction to Next Paint）：交互响应速度，关注 Hydration 阶段的长任务</li>
+      </ul>
+      <div class="banner warning">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>注意</strong>：SSR 改善 FCP/LCP 但可能<strong>恶化 TTI</strong>——因为 Hydration 需要下载并执行更多 JS。使用 <strong>Selective Hydration</strong>（React 18 Suspense）可以优先 hydrate 交互区域。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">deploy</span></div>
+        <h3>5. 部署架构</h3>
+      </div>
+      <ul>
+        <li><strong>容器化部署</strong>：Node.js SSR 服务打包为 Docker 镜像，K8s 编排，支持水平扩展</li>
+        <li><strong>Serverless</strong>：Vercel / AWS Lambda，按请求计费，冷启动问题需注意（<span class="inline-code">&lt; 250ms</span>）</li>
+        <li><strong>Edge Functions</strong>：Cloudflare Workers / Vercel Edge，全球分布，延迟最低，但 API 受限（无 Node.js 原生模块）</li>
+        <li><strong>CDN + SSR 混合</strong>：静态资源走 CDN，动态页面走 SSR，用 <span class="inline-code">stale-while-revalidate</span> 缓存 SSR 输出</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">checklist</span></div>
+        <h3>6. 面试回答 Checklist</h3>
+      </div>
+      <p>当被问到"你了解 SSR 么？有什么最佳实践？"时，按以下框架回答：</p>
+      <ol>
+        <li><strong>定义 + 动机</strong>：服务端渲染是什么，为什么需要（首屏性能 + SEO）</li>
+        <li><strong>核心流程</strong>：请求 → 数据获取 → 渲染 HTML → 返回 → Hydration</li>
+        <li><strong>关键技术</strong>：renderToString / renderToPipeableStream / Suspense 流式</li>
+        <li><strong>最佳实践</strong>（挑 3-4 个展开）：
+          <ul>
+            <li>数据并行获取、只传必要数据</li>
+            <li>多级缓存（HTTP / Route / Data / SWR）</li>
+            <li>Hydration 陷阱规避</li>
+            <li>Selective Hydration 优化 TTI</li>
+          </ul>
+        </li>
+        <li><strong>模式对比</strong>：SSR vs SSG vs ISR vs RSC，什么场景用什么</li>
+        <li><strong>实战经验</strong>：结合项目说踩过的坑（如 hydration mismatch、TTFB 优化）</li>
+      </ol>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════ Tab 4: 模式对比 ═══════════════════ -->
+  <section class="section" id="compare">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>渲染模式全景对比</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🔴 SSR</h4>
+          <p><strong>每次请求</strong>都在服务端渲染。数据实时，但服务器压力大。适合：仪表盘、个性化页面。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🟢 SSG</h4>
+          <p><strong>构建时</strong>生成静态 HTML。速度最快，但数据是构建时快照。适合：博客、文档、营销页。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🟡 ISR</h4>
+          <p>静态页面<strong>按需重新生成</strong>。兼顾 SSG 性能和数据新鲜度。适合：电商商品页、新闻列表。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔵 RSC</h4>
+          <p><strong>React Server Components</strong>，组件级服务端渲染，零客户端 JS。与 SSR 互补，不是替代。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">table_chart</span></div>
+        <h3>详细维度对比</h3>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:12px">
+          <thead>
+            <tr style="background:var(--md-primary-container);color:var(--md-on-primary-container)">
+              <th style="padding:12px;text-align:left;border-radius:8px 0 0 0">维度</th>
+              <th style="padding:12px;text-align:center">SSR</th>
+              <th style="padding:12px;text-align:center">SSG</th>
+              <th style="padding:12px;text-align:center">ISR</th>
+              <th style="padding:12px;text-align:center;border-radius:0 8px 0 0">RSC</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">渲染时机</td>
+              <td style="padding:10px;text-align:center">每次请求</td>
+              <td style="padding:10px;text-align:center">构建时</td>
+              <td style="padding:10px;text-align:center">首次构建 + 按需</td>
+              <td style="padding:10px;text-align:center">请求时（组件级）</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant);background:#F8F8F8">
+              <td style="padding:10px;font-weight:500">数据新鲜度</td>
+              <td style="padding:10px;text-align:center">⚡ 实时</td>
+              <td style="padding:10px;text-align:center">📦 构建快照</td>
+              <td style="padding:10px;text-align:center">🔄 可配置</td>
+              <td style="padding:10px;text-align:center">⚡ 实时</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">服务器压力</td>
+              <td style="padding:10px;text-align:center">🔴 高</td>
+              <td style="padding:10px;text-align:center">🟢 无</td>
+              <td style="padding:10px;text-align:center">🟡 低</td>
+              <td style="padding:10px;text-align:center">🟡 中</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant);background:#F8F8F8">
+              <td style="padding:10px;font-weight:500">客户端 JS</td>
+              <td style="padding:10px;text-align:center">完整 bundle</td>
+              <td style="padding:10px;text-align:center">完整 bundle</td>
+              <td style="padding:10px;text-align:center">完整 bundle</td>
+              <td style="padding:10px;text-align:center">🟢 极少/零</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--md-outline-variant)">
+              <td style="padding:10px;font-weight:500">SEO</td>
+              <td style="padding:10px;text-align:center">✅ 优</td>
+              <td style="padding:10px;text-align:center">✅ 优</td>
+              <td style="padding:10px;text-align:center">✅ 优</td>
+              <td style="padding:10px;text-align:center">✅ 优</td>
+            </tr>
+            <tr>
+              <td style="padding:10px;font-weight:500">适用场景</td>
+              <td style="padding:10px;text-align:center;font-size:13px">仪表盘<br>个性化页</td>
+              <td style="padding:10px;text-align:center;font-size:13px">博客<br>文档</td>
+              <td style="padding:10px;text-align:center;font-size:13px">电商<br>新闻</td>
+              <td style="padding:10px;text-align:center;font-size:13px">复杂交互<br>数据密集</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">hub</span></div>
+        <h3>框架选型指南</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>Next.js</h4>
+          <p>React 生态首选。App Router（RSC + SSR）、Pages Router（经典 SSR/SSG/ISR）。Vercel 部署最优。</p>
+          <div style="margin-top:8px">
+            <span class="chip primary">React</span>
+            <span class="chip">SSR/SSG/ISR/RSC</span>
+          </div>
+        </div>
+        <div class="feature-tile">
+          <h4>Nuxt 3</h4>
+          <p>Vue 生态首选。Nitro 引擎支持多种部署目标，自动导入、文件路由。</p>
+          <div style="margin-top:8px">
+            <span class="chip primary">Vue</span>
+            <span class="chip">SSR/SSG/ISR</span>
+          </div>
+        </div>
+        <div class="feature-tile">
+          <h4>Remix</h4>
+          <p>Web 标准优先（Request/Response）。嵌套路由 + 并行数据获取。嵌入 React Router v7。</p>
+          <div style="margin-top:8px">
+            <span class="chip primary">React</span>
+            <span class="chip">SSR Only</span>
+          </div>
+        </div>
+        <div class="feature-tile">
+          <h4>Analog / SvelteKit</h4>
+          <p>Angular / Svelte 生态的全栈框架。文件路由、SSR/SSG、Server Functions。</p>
+          <div style="margin-top:8px">
+            <span class="chip amber">多框架</span>
+            <span class="chip">SSR/SSG</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">psychology</span></div>
+        <h3>如何选择？决策树</h3>
+      </div>
+      <div class="diagram">页面需要 SEO？
+  ├── 否 → CSR（SPA）足够
+  └── 是 → 数据是否频繁变化？
+        ├── 否 → SSG（构建时生成，CDN 分发最快）
+        └── 是 → 变化频率？
+              ├── 极高（毫秒级） → SSR（每次请求实时渲染）
+              └── 中等（分钟级） → ISR（按需重生成，兼顾性能）
+                    │
+                    └── 页面交互复杂？
+                          ├── 是 → RSC（服务端组件减少 JS bundle）
+                          └── 否 → SSR + 常规组件即可</div>
+    </div>
+
+  </section>
+
+</main>
+
+<footer class="footer">
+  SSR 深度解析 — 面试准备手册 · Material Design 3
+</footer>
+
+<!-- Tab Switching -->
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>

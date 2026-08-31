@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MongoDB 数据上报存储方案 — 分片与索引策略</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #006A6A;
+    --md-on-primary: #ffffff;
+    --md-primary-container: #6FF7F6;
+    --md-on-primary-container: #002020;
+    --md-secondary: #4A6363;
+    --md-secondary-container: #CCE8E7;
+    --md-tertiary: #4B607C;
+    --md-tertiary-container: #D3E4FF;
+    --md-surface: #F5FAF9;
+    --md-surface-1: #E0F0EF;
+    --md-surface-2: #C9E9E8;
+    --md-surface-3: #A3E3E2;
+    --md-surface-variant: #DAE5E4;
+    --md-on-surface: #171D1D;
+    --md-on-surface-variant: #3F4948;
+    --md-outline: #6F7978;
+    --md-outline-variant: #BEC9C8;
+    --md-error: #BA1A1A;
+    --md-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 8px rgba(0,0,0,.04);
+    --md-radius: 12px;
+    --md-radius-lg: 16px;
+    --md-radius-xl: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--md-primary) 0%, #004D4D 60%, #003737 100%);
+    color: var(--md-on-primary);
+    padding: 80px 0 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -40%; right: -10%;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(111,247,246,.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -30%; left: -5%;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(111,247,246,.1) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,.15);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .hero h1 {
+    font-size: 2.6rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1.25;
+    margin-bottom: 16px;
+  }
+  .hero p {
+    font-size: 1.1rem;
+    opacity: .88;
+    max-width: 640px;
+    line-height: 1.8;
+  }
+
+  /* Layout */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Section */
+  .section {
+    margin: 48px 0;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .section-icon {
+    width: 44px; height: 44px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--md-on-surface);
+  }
+
+  /* Cards */
+  .card {
+    background: #fff;
+    border-radius: var(--md-radius-lg);
+    box-shadow: var(--md-shadow);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    border: 1px solid var(--md-outline-variant);
+    transition: box-shadow .2s;
+  }
+  .card:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,.1), 0 8px 24px rgba(0,0,0,.06);
+  }
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .material-icons-outlined {
+    font-size: 20px;
+  }
+
+  /* Grid */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  /* Schema Table */
+  .schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  .schema-table th {
+    background: var(--md-surface-1);
+    color: var(--md-on-surface-variant);
+    font-weight: 500;
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 2px solid var(--md-outline-variant);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .schema-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--md-surface-variant);
+    vertical-align: top;
+  }
+  .schema-table tr:last-child td { border-bottom: none; }
+  .schema-table tr:hover td { background: var(--md-surface); }
+  .schema-table code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: var(--md-surface-1);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--md-primary);
+  }
+
+  /* Code block */
+  .code-block {
+    background: #1E293B;
+    color: #E2E8F0;
+    border-radius: var(--md-radius);
+    padding: 24px 28px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    margin: 16px 0;
+    position: relative;
+  }
+  .code-block .comment { color: #64748B; }
+  .code-block .keyword { color: #C084FC; }
+  .code-block .string { color: #86EFAC; }
+  .code-block .number { color: #FDA4AF; }
+  .code-block .method { color: #67E8F9; }
+  .code-block .type { color: #FDE68A; }
+  .code-label {
+    position: absolute;
+    top: 10px; right: 14px;
+    font-size: 11px;
+    color: #64748B;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge-recommend {
+    background: #DCFCE7;
+    color: #166534;
+  }
+  .badge-caution {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .badge-avoid {
+    background: #FEE2E2;
+    color: #991B1B;
+  }
+
+  /* Comparison */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  .compare-table th {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    font-weight: 500;
+    text-align: left;
+    padding: 12px 16px;
+  }
+  .compare-table th:first-child { border-radius: 8px 0 0 0; }
+  .compare-table th:last-child { border-radius: 0 8px 0 0; }
+  .compare-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--md-surface-variant);
+    background: #fff;
+  }
+  .compare-table tr:nth-child(even) td { background: var(--md-surface); }
+  .compare-table tr:last-child td:first-child { border-radius: 0 0 0 8px; }
+  .compare-table tr:last-child td:last-child { border-radius: 0 0 8px 0; }
+
+  /* Highlight box */
+  .highlight-box {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .highlight-box .material-icons-outlined {
+    font-size: 22px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .highlight-box.warn {
+    background: #FEF3C7;
+    color: #78350F;
+  }
+  .highlight-box.error {
+    background: #FEE2E2;
+    color: #7F1D1D;
+  }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 24px 0;
+  }
+  .flow-step {
+    background: #fff;
+    border: 2px solid var(--md-primary);
+    border-radius: var(--md-radius);
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 130px;
+    position: relative;
+  }
+  .flow-step .step-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--md-primary);
+    margin-bottom: 4px;
+  }
+  .flow-step .step-desc {
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+  }
+  .flow-arrow {
+    color: var(--md-outline);
+    font-size: 24px;
+    padding: 0 8px;
+  }
+
+  /* Index strategy cards */
+  .strategy-card {
+    background: #fff;
+    border-radius: var(--md-radius-lg);
+    box-shadow: var(--md-shadow);
+    padding: 28px 32px;
+    border: 1px solid var(--md-outline-variant);
+    position: relative;
+    overflow: hidden;
+  }
+  .strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px;
+    height: 100%;
+  }
+  .strategy-card.best::before { background: #16A34A; }
+  .strategy-card.good::before { background: #CA8A04; }
+  .strategy-card.bad::before { background: #DC2626; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0;
+    border-bottom: 2px solid var(--md-outline-variant);
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all .2s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .tab:hover { color: var(--md-primary); background: var(--md-surface); }
+  .tab.active {
+    color: var(--md-primary);
+    border-bottom-color: var(--md-primary);
+  }
+  .tab-panel { display: none; padding-top: 20px; }
+  .tab-panel.active { display: block; }
+
+  /* Pros/Cons */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .pros, .cons {
+    padding: 16px 20px;
+    border-radius: var(--md-radius);
+  }
+  .pros { background: #F0FDF4; border: 1px solid #BBF7D0; }
+  .cons { background: #FFF1F2; border: 1px solid #FECDD3; }
+  .pros h4 { color: #166534; margin-bottom: 8px; font-size: 14px; }
+  .cons h4 { color: #9F1239; margin-bottom: 8px; font-size: 14px; }
+  .pros li, .cons li {
+    font-size: 13.5px;
+    margin-bottom: 4px;
+    list-style: none;
+    padding-left: 20px;
+    position: relative;
+  }
+  .pros li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #16A34A;
+    font-weight: 700;
+  }
+  .cons li::before {
+    content: '✗';
+    position: absolute;
+    left: 0;
+    color: #DC2626;
+    font-weight: 700;
+  }
+
+  /* Summary banner */
+  .summary-banner {
+    background: linear-gradient(135deg, var(--md-primary), #004D4D);
+    color: #fff;
+    border-radius: var(--md-radius-xl);
+    padding: 40px 44px;
+    margin: 40px 0;
+  }
+  .summary-banner h3 {
+    font-size: 1.4rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .summary-banner ul {
+    list-style: none;
+    padding: 0;
+  }
+  .summary-banner li {
+    padding: 6px 0;
+    padding-left: 28px;
+    position: relative;
+    font-size: 15px;
+    opacity: .92;
+  }
+  .summary-banner li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    font-weight: 700;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--md-on-surface-variant);
+    font-size: 13px;
+    border-top: 1px solid var(--md-outline-variant);
+    margin-top: 60px;
+  }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.8rem; }
+    .card { padding: 20px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .pros-cons { grid-template-columns: 1fr; }
+    .flow { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-chip">
+      <span class="material-icons-outlined" style="font-size:16px">storage</span>
+      MongoDB · 埋点存储
+    </div>
+    <h1>PV/UV/点击上报<br>MongoDB 分片与索引策略</h1>
+    <p>海量埋点数据写入场景下，如何设计 Collection Schema、选择 Shard Key、构建索引，实现高吞吐写入与高效聚合查询的平衡。</p>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- 1. 数据特征分析 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">analytics</span></div>
+      <h2 class="section-title">1. 数据特征分析</h2>
+    </div>
+
+    <div class="card">
+      <p>埋点数据有几个显著特征，直接决定了存储和分片策略：</p>
+      <table class="schema-table">
+        <thead>
+          <tr><th>特征</th><th>描述</th><th>影响</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>写入密集</strong></td>
+            <td>QPS 可达 10w+，以 insert 为主</td>
+            <td>Shard Key 必须分散写入热点</td>
+          </tr>
+          <tr>
+            <td><strong>时序性强</strong></td>
+            <td>每条记录携带时间戳，按时间递增</td>
+            <td>单调递增 key 会导致热点 shard</td>
+          </tr>
+          <tr>
+            <td><strong>文档结构统一</strong></td>
+            <td>事件类型固定，字段可预测</td>
+            <td>适合 schema validation + 固定索引</td>
+          </tr>
+          <tr>
+            <td><strong>查询以聚合为主</strong></td>
+            <td>PV/UV 统计、漏斗分析、时间趋势</td>
+            <td>索引需覆盖 $match + $group 路径</td>
+          </tr>
+          <tr>
+            <td><strong>数据可过期</strong></td>
+            <td>通常保留 90 天 ~ 1 年</td>
+            <td>可用 TTL Index 自动清理</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 2. Collection Schema 设计 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">schema</span></div>
+      <h2 class="section-title">2. Collection Schema 设计</h2>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons-outlined">code</span> events 集合文档结构</div>
+      <div class="code-block">
+<span class="code-label">BSON</span>
+{
+  <span class="string">"_id"</span>: ObjectId(<span class="string">"..."</span>),
+  <span class="string">"event_type"</span>: <span class="string">"click"</span>,           <span class="comment">// "pv" | "uv" | "click" | "expose" | "custom"</span>
+  <span class="string">"page"</span>: <span class="string">"/home"</span>,                <span class="comment">// 页面路径</span>
+  <span class="string">"element_id"</span>: <span class="string">"btn_submit"</span>,      <span class="comment">// 点击元素标识（click 事件用）</span>
+  <span class="string">"user_id"</span>: <span class="string">"u_abc123"</span>,          <span class="comment">// 登录用户 ID（可选）</span>
+  <span class="string">"anonymous_id"</span>: <span class="string">"did_xyz789"</span>,   <span class="comment">// 设备指纹 / cookie ID</span>
+  <span class="string">"session_id"</span>: <span class="string">"sess_001"</span>,       <span class="comment">// 会话 ID</span>
+  <span class="string">"ts"</span>: ISODate(<span class="string">"2026-08-31T10:30:00Z"</span>),  <span class="comment">// 事件时间戳</span>
+  <span class="string">"date"</span>: <span class="string">"2026-08-31"</span>,            <span class="comment">// 日期分区键（字符串，按天）</span>
+  <span class="string">"platform"</span>: <span class="string">"web"</span>,              <span class="comment">// "web" | "ios" | "android" | "miniapp"</span>
+  <span class="string">"channel"</span>: <span class="string">"organic"</span>,           <span class="comment">// 渠道来源</span>
+  <span class="string">"extra"</span>: {                        <span class="comment">// 业务自定义字段</span>
+    <span class="string">"ab_group"</span>: <span class="string">"B"</span>,
+    <span class="string">"duration"</span>: <span class="number">12500</span>
+  }
+}
+      </div>
+
+      <div class="highlight-box">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>
+          <strong>为什么加 <code>date</code> 字段？</strong><br>
+          MongoDB 的日期类型不适合直接做 Shard Key（精度太高导致 chunk 过多）。用 <code>"2026-08-31"</code> 字符串作为日期分区键，既可以作为复合 Shard Key 的一部分，也方便按天查询时精确匹配。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Shard Key 选择 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">vpn_key</span></div>
+      <h2 class="section-title">3. Shard Key 选择（核心决策）</h2>
+    </div>
+
+    <div class="card">
+      <p>Shard Key 一旦选定<strong>不可更改</strong>，它决定了数据如何分布在各 shard 上。选错 key 会导致写热点或查询低效。</p>
+    </div>
+
+    <!-- 对比表 -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons-outlined">compare</span> 候选方案对比</div>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>方案</th>
+            <th>Shard Key</th>
+            <th>写入分布</th>
+            <th>查询效率</th>
+            <th>推荐度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>A. _id</strong></td>
+            <td><code>{ _id: "hashed" }</code></td>
+            <td>✅ 均匀（ObjectId 已含随机性）</td>
+            <td>❌ 无法按时间/页面路由</td>
+            <td><span class="badge badge-caution">⚠ 谨慎</span></td>
+          </tr>
+          <tr>
+            <td><strong>B. 纯时间戳</strong></td>
+            <td><code>{ ts: 1 }</code></td>
+            <td>❌ 严重热点（单调递增）</td>
+            <td>✅ 范围查询快</td>
+            <td><span class="badge badge-avoid">✗ 不推荐</span></td>
+          </tr>
+          <tr>
+            <td><strong>C. hashed(event_type)</strong></td>
+            <td><code>{ event_type: "hashed" }</code></td>
+            <td>❌ 基数太低（仅几种事件）</td>
+            <td>❌ 无法按时间路由</td>
+            <td><span class="badge badge-avoid">✗ 不推荐</span></td>
+          </tr>
+          <tr>
+            <td><strong>D. date + event_type</strong></td>
+            <td><code>{ date: 1, event_type: 1 }</code></td>
+            <td>⚠ 按天分散，单天内集中</td>
+            <td>✅ 按天查询极快</td>
+            <td><span class="badge badge-caution">⚠ 可用</span></td>
+          </tr>
+          <tr>
+            <td><strong>E. hashed(anonymous_id)</strong></td>
+            <td><code>{ anonymous_id: "hashed" }</code></td>
+            <td>✅ 高基数，均匀分散</td>
+            <td>⚠ 按时间查询需 scatter-gather</td>
+            <td><span class="badge badge-recommend">★ 推荐</span></td>
+          </tr>
+          <tr>
+            <td><strong>F. { date, hashed(anonymous_id) }</strong></td>
+            <td><code>{ date: 1, anonymous_id: "hashed" }</code></td>
+            <td>✅ 按天 + 用户双重分散</td>
+            <td>✅ 按天路由 + 用户聚合</td>
+            <td><span class="badge badge-recommend">★ 最佳</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 最佳方案详解 -->
+    <div class="grid-2">
+      <div class="strategy-card best">
+        <div class="card-title"><span class="material-icons-outlined">star</span> 推荐方案：复合 Shard Key</div>
+        <div class="code-block" style="font-size:13px">
+<span class="code-label">Shard Key</span>
+{ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+        </div>
+        <p style="font-size:14px; margin-top:12px;">
+          <strong>第一维度 <code>date</code></strong>：保证同一天的数据落在相邻 chunk，按天查询时只需命中对应 shard，避免 scatter-gather。<br><br>
+          <strong>第二维度 <code>anonymous_id: hashed</code></strong>：同一天内，不同用户的事件被哈希分散到多个 chunk，消除写入热点。
+        </p>
+      </div>
+
+      <div class="strategy-card good">
+        <div class="card-title"><span class="material-icons-outlined">star_half</span> 备选方案：纯 hashed</div>
+        <div class="code-block" style="font-size:13px">
+<span class="code-label">Shard Key</span>
+{ <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+        </div>
+        <p style="font-size:14px; margin-top:12px;">
+          如果查询场景不按天分区（比如全量聚合），可以只用 <code>anonymous_id</code> 的哈希值。写入均匀，但跨天查询会命中所有 shard。
+        </p>
+      </div>
+    </div>
+
+    <div class="highlight-box warn">
+      <span class="material-icons-outlined">warning</span>
+      <div>
+        <strong>为什么不用 <code>event_type</code> 作为 Shard Key？</strong><br>
+        埋点事件类型通常只有 5~10 种（pv、uv、click、expose…），基数太低。MongoDB 要求 Shard Key 的 cardinality 足够高，否则会导致 jumbo chunk（单个 chunk 数据量过大，无法迁移）。
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 索引策略 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">index</span></div>
+      <h2 class="section-title">4. 索引策略</h2>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons-outlined">rule</span> 核心原则</div>
+      <p>埋点场景以<strong>写入为主</strong>，索引不宜过多（每个索引都会拖慢 insert）。只建查询真正用到的索引。</p>
+    </div>
+
+    <div class="code-block">
+<span class="code-label">Index Definitions</span>
+<span class="comment">// 1. TTL 索引 — 自动过期清理（保留 180 天）</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"ts"</span>: <span class="number">1</span> },
+  { <span class="keyword">expireAfterSeconds</span>: <span class="number">15552000</span> }   <span class="comment">// 180 * 24 * 3600</span>
+)
+
+<span class="comment">// 2. 按天 + 事件类型查询（最常用聚合路径）</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
+)
+
+<span class="comment">// 3. 按页面维度统计</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
+)
+
+<span class="comment">// 4. 按用户维度查行为序列（漏斗分析）</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
+)
+
+<span class="comment">// 5. UV 去重查询（按天 + 用户）</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
+)
+    </div>
+
+    <div class="grid-3" style="margin-top:20px">
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">query_stats</span> PV 查询</div>
+        <div class="code-block" style="font-size:12.5px">
+db.events.<span class="method">aggregate</span>([
+  { <span class="keyword">$match</span>: {
+    <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
+    <span class="string">event_type</span>: <span class="string">"pv"</span>
+  }},
+  { <span class="keyword">$group</span>: {
+    <span class="string">_id</span>: <span class="string">"$page"</span>,
+    <span class="string">pv</span>: { <span class="keyword">$sum</span>: <span class="number">1</span> }
+  }}
+])
+<span class="comment">// 命中索引 #2</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">person</span> UV 查询</div>
+        <div class="code-block" style="font-size:12.5px">
+db.events.<span class="method">aggregate</span>([
+  { <span class="keyword">$match</span>: {
+    <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
+    <span class="string">event_type</span>: <span class="string">"pv"</span>
+  }},
+  { <span class="keyword">$group</span>: {
+    <span class="string">_id</span>: <span class="string">"$page"</span>,
+    <span class="string">uv</span>: { <span class="keyword">$addToSet</span>: <span class="string">"$anonymous_id"</span> }
+  }},
+  { <span class="keyword">$project</span>: {
+    <span class="string">uv</span>: { <span class="keyword">$size</span>: <span class="string">"$uv"</span> }
+  }}
+])
+<span class="comment">// 命中索引 #5</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">ads_click</span> 点击热力图</div>
+        <div class="code-block" style="font-size:12.5px">
+db.events.<span class="method">aggregate</span>([
+  { <span class="keyword">$match</span>: {
+    <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
+    <span class="string">event_type</span>: <span class="string">"click"</span>,
+    <span class="string">page</span>: <span class="string">"/home"</span>
+  }},
+  { <span class="keyword">$group</span>: {
+    <span class="string">_id</span>: <span class="string">"$element_id"</span>,
+    <span class="string">clicks</span>: { <span class="keyword">$sum</span>: <span class="number">1</span> }
+  }},
+  { <span class="keyword">$sort</span>: { <span class="string">clicks</span>: <span class="number">-1</span> }}
+])
+<span class="comment">// 命中索引 #3</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 分片部署 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">dns</span></div>
+      <h2 class="section-title">5. 分片集群部署架构</h2>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons-outlined">account_tree</span> 推荐拓扑</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="step-title">Client SDK</div>
+          <div class="step-desc">前端/客户端埋点</div>
+        </div>
+        <span class="flow-arrow material-icons-outlined">arrow_forward</span>
+        <div class="flow-step">
+          <div class="step-title">Kafka / Pulsar</div>
+          <div class="step-desc">消息队列削峰</div>
+        </div>
+        <span class="flow-arrow material-icons-outlined">arrow_forward</span>
+        <div class="flow-step">
+          <div class="step-title">Consumer</div>
+          <div class="step-desc">批量写入 MongoDB</div>
+        </div>
+        <span class="flow-arrow material-icons-outlined">arrow_forward</span>
+        <div class="flow-step" style="border-color: var(--md-tertiary);">
+          <div class="step-title">mongos × 3</div>
+          <div class="step-desc">路由层</div>
+        </div>
+        <span class="flow-arrow material-icons-outlined">arrow_forward</span>
+        <div class="flow-step" style="border-color: var(--md-tertiary);">
+          <div class="step-title">Shard × 3+</div>
+          <div class="step-desc">数据节点（RS）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">tune</span> Chunk Size 配置</div>
+        <div class="code-block" style="font-size:13px">
+<span class="comment">// 默认 128MB，埋点场景建议保持默认或适当增大</span>
+use config
+db.settings.<span class="method">updateOne</span>(
+  { <span class="string">_id</span>: <span class="string">"chunksize"</span> },
+  { <span class="keyword">$set</span>: { <span class="string">value</span>: <span class="number">128</span> } },
+  { <span class="keyword">upsert</span>: <span class="keyword">true</span> }
+)
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">speed</span> 写入优化</div>
+        <div class="code-block" style="font-size:13px">
+<span class="comment">// Consumer 端批量写入</span>
+db.events.<span class="method">bulkWrite</span>(
+  events,          <span class="comment">// 批量 1000~5000 条</span>
+  { <span class="keyword">ordered</span>: <span class="keyword">false</span> }  <span class="comment">// 无序写入，提升并发</span>
+)
+
+<span class="comment">// Write Concern：埋点允许少量丢失</span>
+{ <span class="keyword">w</span>: <span class="number">1</span>, <span class="keyword">j</span>: <span class="keyword">false</span> }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. 完整建表语句 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">terminal</span></div>
+      <h2 class="section-title">6. 完整部署脚本</h2>
+    </div>
+
+    <div class="card">
+      <div class="code-block">
+<span class="code-label">Shell</span>
+<span class="comment">// ========== 1. 启用分片 ==========</span>
+sh.<span class="method">enableSharding</span>(<span class="string">"analytics"</span>)
+
+<span class="comment">// ========== 2. 创建集合 & 分片键 ==========</span>
+use analytics
+db.<span class="method">createCollection</span>(<span class="string">"events"</span>)
+sh.<span class="method">shardCollection</span>(
+  <span class="string">"analytics.events"</span>,
+  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+)
+
+<span class="comment">// ========== 3. 创建索引 ==========</span>
+db.events.<span class="method">createIndex</span>(
+  { <span class="string">"ts"</span>: <span class="number">1</span> },
+  { <span class="keyword">expireAfterSeconds</span>: <span class="number">15552000</span> }
+)
+db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
+
+<span class="comment">// ========== 4. Schema Validation（可选）==========</span>
+db.<span class="method">runCommand</span>({
+  <span class="keyword">collMod</span>: <span class="string">"events"</span>,
+  <span class="keyword">validator</span>: {
+    <span class="keyword">$jsonSchema</span>: {
+      <span class="keyword">required</span>: [<span class="string">"event_type"</span>, <span class="string">"ts"</span>, <span class="string">"date"</span>, <span class="string">"anonymous_id"</span>],
+      <span class="keyword">properties</span>: {
+        <span class="string">event_type</span>: {
+          <span class="keyword">enum</span>: [<span class="string">"pv"</span>, <span class="string">"uv"</span>, <span class="string">"click"</span>, <span class="string">"expose"</span>, <span class="string">"custom"</span>]
+        },
+        <span class="string">date</span>: {
+          <span class="keyword">pattern</span>: <span class="string">"^\\d{4}-\\d{2}-\\d{2}$"</span>
+        }
+      }
+    }
+  }
+})
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. 进阶：UV 精确去重 -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon"><span class="material-icons-outlined">science</span></div>
+      <h2 class="section-title">7. 进阶：UV 精确去重方案</h2>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(event, 'tab-aggregate')">聚合管道</button>
+      <button class="tab" onclick="switchTab(event, 'tab-hyperloglog')">HyperLogLog</button>
+      <button class="tab" onclick="switchTab(event, 'tab-redis')">Redis 辅助</button>
+    </div>
+
+    <div id="tab-aggregate" class="tab-panel active">
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">memory</span> 方案 A：$addToSet 精确去重</div>
+        <div class="code-block">
+<span class="code-label">Aggregation</span>
+db.events.<span class="method">aggregate</span>([
+  { <span class="keyword">$match</span>: { <span class="string">date</span>: <span class="string">"2026-08-31"</span>, <span class="string">event_type</span>: <span class="string">"pv"</span> } },
+  { <span class="keyword">$group</span>: {
+    <span class="string">_id</span>: { <span class="string">page</span>: <span class="string">"$page"</span> },
+    <span class="string">pv</span>: { <span class="keyword">$sum</span>: <span class="number">1</span> },
+    <span class="string">unique_users</span>: { <span class="keyword">$addToSet</span>: <span class="string">"$anonymous_id"</span> }
+  }},
+  { <span class="keyword">$project</span>: {
+    <span class="string">page</span>: <span class="string">"$_id.page"</span>,
+    <span class="string">pv</span>: <span class="number">1</span>,
+    <span class="string">uv</span>: { <span class="keyword">$size</span>: <span class="string">"$unique_users"</span> }
+  }}
+])
+        </div>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>✓ 优点</h4>
+            <ul>
+              <li>结果完全精确</li>
+              <li>无需额外组件</li>
+              <li>适合数据量 < 100w / 天</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>✗ 缺点</h4>
+            <ul>
+              <li>$addToSet 内存占用大</li>
+              <li>超大集合会触发 100MB 限制</li>
+              <li>需要 allowDiskUse: true</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-hyperloglog" class="tab-panel">
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">memory</span> 方案 B：MongoDB 5.0+ $countAccumulator</div>
+        <div class="code-block">
+<span class="code-label">Aggregation</span>
+<span class="comment">// MongoDB 7.0+ 支持 $percentile / $median</span>
+<span class="comment">// 对于 UV 去重，可以预先在写入时做去重</span>
+
+<span class="comment">// 写入端去重：用 upsert 保证同一用户同天只写一条</span>
+db.events_daily.<span class="method">updateOne</span>(
+  { <span class="string">anonymous_id</span>: uid, <span class="string">date</span>: today, <span class="string">event_type</span>: <span class="string">"pv"</span> },
+  {
+    <span class="keyword">$inc</span>: { <span class="string">pv_count</span>: <span class="number">1</span> },
+    <span class="keyword">$setOnInsert</span>: { <span class="string">first_seen</span>: now, <span class="string">pages</span>: [] },
+    <span class="keyword">$addToSet</span>: { <span class="string">pages</span>: page }
+  },
+  { <span class="keyword">upsert</span>: <span class="keyword">true</span> }
+)
+
+<span class="comment">// 查询 UV：直接 countDocuments</span>
+db.events_daily.<span class="method">countDocuments</span>({
+  <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
+  <span class="string">event_type</span>: <span class="string">"pv"</span>
+})
+        </div>
+        <div class="highlight-box">
+          <span class="material-icons-outlined">lightbulb</span>
+          <div>
+            <strong>核心思路</strong>：将去重压力从查询端转移到写入端。写入时用 <code>updateOne + upsert</code> 保证同一用户同天同一事件类型只有一条记录，查询时直接 count 即可得到 UV。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-redis" class="tab-panel">
+      <div class="card">
+        <div class="card-title"><span class="material-icons-outlined">memory</span> 方案 C：Redis HyperLogLog 实时去重</div>
+        <div class="code-block">
+<span class="code-label">Redis</span>
+<span class="comment">// 实时 UV 统计，精确度 0.81% 误差</span>
+PFADD  <span class="string">"uv:2026-08-31:/home"</span>  <span class="string">"user_abc123"</span>
+PFCOUNT <span class="string">"uv:2026-08-31:/home"</span>
+
+<span class="comment">// 按小时统计</span>
+PFADD  <span class="string">"uv:2026-08-31:10:/home"</span>  <span class="string">"user_abc123"</span>
+
+<span class="comment">// 合并多天</span>
+PFMERGE <span class="string">"uv:2026-08:week1"</span>  <span class="string">"uv:2026-08-31:/home"</span>  <span class="string">"uv:2026-08-30:/home"</span>
+        </div>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>✓ 优点</h4>
+            <ul>
+              <li>每个 key 仅占 12KB</li>
+              <li>实时查询，毫秒级</li>
+              <li>支持跨天/跨页合并</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>✗ 缺点</h4>
+            <ul>
+              <li>0.81% 标准误差</li>
+              <li>需要额外维护 Redis</li>
+              <li>不支持下钻（看不了具体用户列表）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <div class="summary-banner">
+    <h3>
+      <span class="material-icons-outlined">checklist</span>
+      方案总结
+    </h3>
+    <ul>
+      <li><strong>Shard Key</strong>：<code>{ date: 1, anonymous_id: "hashed" }</code> — 按天分区 + 用户哈希分散写入</li>
+      <li><strong>索引</strong>：5 个索引覆盖 TTL / 按天聚合 / 按页统计 / 用户行为序列 / UV 去重</li>
+      <li><strong>写入</strong>：Kafka 削峰 + bulkWrite 无序批量 + w:1 j:false 弱持久化</li>
+      <li><strong>UV 去重</strong>：小规模用 $addToSet，大规模用写入端 upsert 预去重，实时看板用 Redis HLL</li>
+      <li><strong>数据保留</strong>：TTL Index 自动清理 180 天前数据，热数据用 date 字段快速定位</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer class="footer">
+  MongoDB 埋点存储方案 · 2026
+</footer>
+
+<script>
+function switchTab(e, panelId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+</script>
+</body>
+</html>

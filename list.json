@@ -1,5 +1,7 @@
 [
   { "name": "electron", "src": "electron.html" },
+  { "name": "mongodb", "src": "mongodb.html" },
+  { "name": "next", "src": "next.html" },
   { "name": "pi-agent-core.infra", "src": "pi-agent-core.infra.html" },
   { "name": "pi-ai.infra", "src": "pi-ai.infra.html" },
   { "name": "prime-coding-agent", "src": "prime-coding-agent.html" },
@@ -7,10 +9,10 @@
   { "name": "prime-rn-ui-client", "src": "prime-rn-ui-client.html" },
   { "name": "prime-ui-client", "src": "prime-ui-client.html" },
   { "name": "prime.info", "src": "prime.info.html" },
+  { "name": "prisma", "src": "prisma.html" },
   { "name": "python-syntax", "src": "python-syntax.html" },
   { "name": "react-native", "src": "react-native.html" },
-  { "name": "next", "src": "next.html" },
   { "name": "react", "src": "react.html" },
-  { "name": "prisma", "src": "prisma.html" },
-  { "name": "socket-transfer", "src": "socket-transfer.html" }
+  { "name": "socket-transfer", "src": "socket-transfer.html" },
+  { "name": "ssr", "src": "ssr.html" }
 ]
