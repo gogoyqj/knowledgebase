@@ -6,7 +6,6 @@
   <title>Vue 3 核心能力完全指南</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <style>
     :root {
       --md-primary: #6750A4;
@@ -189,7 +188,13 @@
     }
 
     /* ─── Section ─── */
-    .section { animation: fadeUp .5s ease-out both; }
+    .section {
+      display: none;
+      animation: fadeUp .5s ease-out both;
+    }
+    .section.active {
+      display: block;
+    }
     .section-title {
       display: flex;
       align-items: center;
@@ -409,11 +414,6 @@
       from { opacity: 0; transform: translateY(24px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .section:nth-child(1) { animation-delay: .05s; }
-    .section:nth-child(2) { animation-delay: .1s; }
-    .section:nth-child(3) { animation-delay: .15s; }
-    .section:nth-child(4) { animation-delay: .2s; }
-    .section:nth-child(5) { animation-delay: .25s; }
 
     /* ─── Footer ─── */
     footer {
@@ -441,7 +441,6 @@
 </head>
 <body>
 
-<div id="app">
   <!-- Top Bar -->
   <header class="top-bar">
     <span class="material-icons-round" style="opacity:.5">menu</span>
@@ -461,15 +460,12 @@
   <!-- Tabs -->
   <nav class="tabs-wrap">
     <div class="tabs">
-      <button
-        v-for="(tab, i) in tabs"
-        :key="i"
-        class="tab-btn"
-        :class="{ active: activeTab === i }"
-        @click="activeTab = i"
-      >
-        {{ tab }}
-      </button>
+      <button class="tab-btn active" data-tab="0">响应式原理</button>
+      <button class="tab-btn" data-tab="1">Composition API</button>
+      <button class="tab-btn" data-tab="2">Composables</button>
+      <button class="tab-btn" data-tab="3">最佳实践</button>
+      <button class="tab-btn" data-tab="4">Provide / Inject</button>
+      <button class="tab-btn" data-tab="5">Pinia 原理</button>
     </div>
   </nav>
 
@@ -477,7 +473,7 @@
   <main class="content">
 
     <!-- ==================== Section 0: Reactivity ==================== -->
-    <div class="section" v-show="activeTab === 0">
+    <div class="section active" data-section="0">
 
       <div class="section-title">
         <div class="section-icon purple">
@@ -706,7 +702,7 @@ x.value++  <span class="cm">// ✅ 原对象同步更新</span></pre>
     </div>
 
     <!-- ==================== Section 1: Composition API ==================== -->
-    <div class="section" v-show="activeTab === 1">
+    <div class="section" data-section="1">
 
       <div class="section-title">
         <div class="section-icon pink">
@@ -825,7 +821,7 @@ x.value++  <span class="cm">// ✅ 原对象同步更新</span></pre>
     </div>
 
     <!-- ==================== Section 2: Composables ==================== -->
-    <div class="section" v-show="activeTab === 2">
+    <div class="section" data-section="2">
 
       <div class="section-title">
         <div class="section-icon green">
@@ -981,7 +977,7 @@ x.value++  <span class="cm">// ✅ 原对象同步更新</span></pre>
     </div>
 
     <!-- ==================== Section 3: Best Practices ==================== -->
-    <div class="section" v-show="activeTab === 3">
+    <div class="section" data-section="3">
 
       <div class="section-title">
         <div class="section-icon purple">
@@ -1163,7 +1159,7 @@ obj2.value = { <span class="prop">count</span>: <span class="num">1</span> }  <s
     </div>
 
     <!-- ==================== Section 4: provide/inject ==================== -->
-    <div class="section" v-show="activeTab === 4">
+    <div class="section" data-section="4">
 
       <div class="section-title">
         <div class="section-icon pink">
@@ -1250,24 +1246,265 @@ obj2.value = { <span class="prop">count</span>: <span class="num">1</span> }  <s
       </div>
     </div>
 
+    <!-- ==================== Section 5: Pinia ==================== -->
+    <div class="section" data-section="5">
+
+      <div class="section-title">
+        <div class="section-icon purple">
+          <span class="material-icons-round">storefront</span>
+        </div>
+        <h3>Pinia 原理：下一代状态管理</h3>
+      </div>
+
+      <p style="color:var(--md-on-surface-variant);margin-bottom:24px">
+        Pinia 是 Vue 官方推荐的状态管理库，移除了 Vuex 中的 <strong>mutations</strong>，
+        用 <strong>Composition API 风格</strong> 直接定义 state、getters、actions，体积仅 ~1KB。
+      </p>
+
+      <!-- Architecture Flow -->
+      <div class="flow">
+        <div class="flow-step s1"> defineStore() </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s2"> reactive() 包裹 state </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s3"> computed() 实现 getters </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s1"> $patch / $reset 触发更新 </div>
+      </div>
+
+      <!-- Card: defineStore -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-purple">核心 API</span>
+          <h4>defineStore — 创建 Store</h4>
+        </div>
+        <p>Pinia 的核心是 <code>defineStore()</code>，返回一个工厂函数。调用时在组件中获取 store 实例，所有状态自动保持响应式。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">TypeScript</span><span>两种定义风格</span></div>
+          <pre><span class="cm">// ─── Options Store（类似 Vuex）───</span>
+<span class="kw">export const</span> <span class="var">useCounterStore</span> = <span class="fn">defineStore</span>(<span class="str">'counter'</span>, {
+  <span class="fn">state</span>: () => ({ <span class="prop">count</span>: <span class="num">0</span> }),
+  <span class="fn">getters</span>: {
+    <span class="fn">double</span>: (<span class="var">state</span>) => state.count * <span class="num">2</span>,
+  },
+  <span class="fn">actions</span>: {
+    <span class="fn">increment</span>() { <span class="kw">this</span>.count++ },
+  },
+})
+
+<span class="cm">// ─── Setup Store（Composition API 风格）───</span>
+<span class="kw">export const</span> <span class="var">useCounterStore</span> = <span class="fn">defineStore</span>(<span class="str">'counter'</span>, () => {
+  <span class="kw">const</span> <span class="var">count</span> = <span class="fn">ref</span>(<span class="num">0</span>)
+  <span class="kw">const</span> <span class="var">double</span> = <span class="fn">computed</span>(() => count.value * <span class="num">2</span>)
+  <span class="kw">function</span> <span class="fn">increment</span>() { count.value++ }
+  <span class="kw">return</span> { count, double, increment }
+})</pre>
+        </div>
+        <div class="callout tip">
+          <span class="material-icons-round">lightbulb</span>
+          <div><strong>推荐 Setup Store：</strong> 更灵活，天然支持 composables 复用，TypeScript 类型推断更好。</div>
+        </div>
+      </div>
+
+      <!-- Card: Pinia 内部原理 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">源码解析</span>
+          <h4>Pinia 如何实现响应式 Store？</h4>
+        </div>
+        <p>Pinia 内部使用 Vue 的 <code>reactive()</code> 包裹 state，用 <code>computed()</code> 实现 getters，整个 store 就是一个响应式对象。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>简化版核心原理</span></div>
+          <pre><span class="kw">function</span> <span class="fn">createSetupStore</span>(<span class="var">id</span>, <span class="var">setup</span>, <span class="var">pinia</span>) {
+  <span class="cm">// 1. 创建响应式 state 容器</span>
+  <span class="kw">const</span> <span class="var">localState</span> = <span class="fn">reactive</span>({})
+
+  <span class="cm">// 2. 执行 setup 函数，收集返回值</span>
+  <span class="kw">const</span> <span class="var">setupResult</span> = <span class="fn">setup</span>()
+
+  <span class="cm">// 3. 将 ref/computed/function 分类处理</span>
+  <span class="kw">for</span> (<span class="kw">const</span> <span class="var">key</span> <span class="kw">in</span> setupResult) {
+    <span class="kw">const</span> <span class="var">val</span> = setupResult[key]
+
+    <span class="kw">if</span> (<span class="fn">isRef</span>(val) && !<span class="fn">isComputed</span>(val)) {
+      <span class="cm">// ref → 直接挂载到 store（state）</span>
+      localState[key] = val
+    } <span class="kw">else if</span> (<span class="fn">isComputed</span>(val)) {
+      <span class="cm">// computed → 挂载为 getter（只读）</span>
+      <span class="fn">Object</span>.<span class="fn">defineProperty</span>(store, key, {
+        <span class="fn">get</span>: () => val.value,
+      })
+    } <span class="kw">else if</span> (<span class="kw">typeof</span> val === <span class="str">'function'</span>) {
+      <span class="cm">// function → 包装为 action（绑定 this）</span>
+      store[key] = <span class="fn">action</span>(val.<span class="fn">bind</span>(store))
+    }
+  }
+
+  <span class="cm">// 4. 用 reactive 包裹整个 store</span>
+  <span class="kw">const</span> <span class="var">store</span> = <span class="fn">reactive</span>(localState)
+
+  <span class="cm">// 5. 注册到全局 Pinia 实例</span>
+  pinia._s.<span class="fn">set</span>(id, store)
+
+  <span class="kw">return</span> store
+}</pre>
+        </div>
+        <div class="callout warn">
+          <span class="material-icons-round">warning</span>
+          <div><strong>关键点：</strong> store 本身是 <code>reactive()</code> 对象，解构 store 属性会丢失响应式！必须用 <code>storeToRefs()</code> 或直接使用 <code>store.xxx</code>。</div>
+        </div>
+      </div>
+
+      <!-- Card: storeToRefs -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-pink">响应式保持</span>
+          <h4>storeToRefs — 安全解构</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">TypeScript</span><span>正确使用 store</span></div>
+          <pre><span class="kw">import</span> { storeToRefs } <span class="kw">from</span> <span class="str">'pinia'</span>
+<span class="kw">import</span> { <span class="fn">useCounterStore</span> } <span class="kw">from</span> <span class="str">'./stores/counter'</span>
+
+<span class="kw">const</span> <span class="var">store</span> = <span class="fn">useCounterStore</span>()
+
+<span class="cm">// ❌ 错误：直接解构丢失响应式</span>
+<span class="kw">const</span> { count, double } = store  <span class="cm">// count 是普通 number！</span>
+
+<span class="cm">// ✅ 正确：用 storeToRefs 解构 state 和 getters</span>
+<span class="kw">const</span> { count, double } = <span class="fn">storeToRefs</span>(store)  <span class="cm">// 保持 ref</span>
+
+<span class="cm">// ✅ actions 直接解构即可（函数不依赖响应式）</span>
+<span class="kw">const</span> { increment } = store</pre>
+        </div>
+      </div>
+
+      <!-- Card: $patch / $reset -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">批量更新</span>
+          <h4>$patch 与 $reset — 高效修改状态</h4>
+        </div>
+        <p><code>$patch</code> 可以批量修改多个属性（只触发一次更新），<code>$reset</code> 可以重置整个 store 回初始值。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">TypeScript</span><span>批量更新与重置</span></div>
+          <pre><span class="kw">const</span> <span class="var">store</span> = <span class="fn">useUserStore</span>()
+
+<span class="cm">// $patch 对象语法：批量修改</span>
+store.<span class="fn">$patch</span>({
+  <span class="prop">name</span>: <span class="str">'张三'</span>,
+  <span class="prop">age</span>: <span class="num">25</span>,
+  <span class="prop">email</span>: <span class="str">'zhangsan@example.com'</span>
+})  <span class="cm">// 只触发一次响应式更新</span>
+
+<span class="cm">// $patch 函数语法：支持复杂逻辑</span>
+store.<span class="fn">$patch</span>((<span class="var">state</span>) => {
+  state.todos.<span class="fn">push</span>({ <span class="prop">id</span>: <span class="num">3</span>, <span class="prop">text</span>: <span class="str">'新任务'</span>, <span class="prop">done</span>: <span class="kw">false</span> })
+  state.lastUpdated = <span class="type">Date</span>.<span class="fn">now</span>()
+})
+
+<span class="cm">// $reset：重置为初始值（仅 Options Store 支持）</span>
+store.<span class="fn">$reset</span>()  <span class="cm">// state 回到 defineStore 中的初始值</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: Pinia vs Vuex -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-blue">对比</span>
+          <h4>Pinia vs Vuex 设计理念</h4>
+        </div>
+        <table class="compare-table">
+          <thead>
+            <tr><th>特性</th><th>Pinia</th><th>Vuex</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Mutations</td><td>❌ 移除，actions 直接修改 state</td><td>✅ 必须通过 mutations</td></tr>
+            <tr><td>模块嵌套</td><td>扁平化，每个 store 独立</td><td>支持嵌套 modules</td></tr>
+            <tr><td>TypeScript</td><td>✅ 原生类型推断，零配置</td><td>⚠️ 需要大量类型声明</td></tr>
+            <tr><td>体积</td><td>~1KB（无依赖）</td><td>~10KB+（依赖 Vue）</td></tr>
+            <tr><td>Composition API</td><td>✅ Setup Store 原生支持</td><td>❌ 不支持</td></tr>
+            <tr><td>DevTools</td><td>✅ 完整支持</td><td>✅ 完整支持</td></tr>
+            <tr><td>热更新</td><td>✅ HMR 无需重载页面</td><td>⚠️ 部分支持</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Card: Plugins -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">扩展</span>
+          <h4>Pinia 插件系统</h4>
+        </div>
+        <p>Pinia 插件可以为所有 store 添加公共功能：持久化、日志、权限校验等。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">TypeScript</span><span>自定义持久化插件</span></div>
+          <pre><span class="cm">// 简易 localStorage 持久化插件</span>
+<span class="kw">export function</span> <span class="fn">piniaPersistPlugin</span>({ <span class="var">store</span> }) {
+  <span class="cm">// 1. 初始化时从 localStorage 恢复</span>
+  <span class="kw">const</span> <span class="var">saved</span> = localStorage.<span class="fn">getItem</span>(store.$id)
+  <span class="kw">if</span> (saved) {
+    store.<span class="fn">$patch</span>(<span class="type">JSON</span>.<span class="fn">parse</span>(saved))
+  }
+
+  <span class="cm">// 2. 监听变化，自动保存</span>
+  store.<span class="fn">$subscribe</span>((<span class="var">mutation</span>, <span class="var">state</span>) => {
+    localStorage.<span class="fn">setItem</span>(store.$id, <span class="type">JSON</span>.<span class="fn">stringify</span>(state))
+  })
+}
+
+<span class="cm">// 注册插件</span>
+<span class="kw">const</span> <span class="var">pinia</span> = <span class="fn">createPinia</span>()
+pinia.<span class="fn">use</span>(piniaPersistPlugin)
+
+app.<span class="fn">use</span>(pinia)</pre>
+        </div>
+      </div>
+
+      <!-- Card: 最佳实践 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">实践</span>
+          <h4>Store 设计原则</h4>
+        </div>
+        <ul>
+          <li><strong>按功能拆分 store</strong>：user、cart、settings 各自独立，避免单一大 store</li>
+          <li><strong>Setup Store 优先</strong>：天然支持 composables，逻辑复用更方便</li>
+          <li><strong>actions 中处理异步</strong>：不要在组件中写 fetch 逻辑，封装到 store 的 actions</li>
+          <li><strong>用 $patch 批量更新</strong>：修改多个属性时减少触发次数</li>
+          <li><strong>storeToRefs 解构</strong>：永远不要直接解构 store 的 state/getters</li>
+          <li><strong>避免循环引用</strong>：store A 不要直接调用 store B 的 action，改用事件或组合函数</li>
+        </ul>
+      </div>
+    </div>
+
   </main>
 
   <footer>
     Vue 3 核心能力完全指南 · Vue 3.4+ · Composition API · 响应式原理 · Composables · 最佳实践
   </footer>
-</div>
 
-<script>
-const { createApp, ref, reactive, computed, watch, watchEffect, toRefs } = Vue
+  <script>
+    // Pure vanilla JS for tab switching
+    document.addEventListener('DOMContentLoaded', function() {
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      const sections = document.querySelectorAll('.section');
 
-createApp({
-  setup() {
-    const activeTab = ref(0)
-    const tabs = ['响应式原理', 'Composition API', 'Composables', '最佳实践', 'Provide / Inject']
-    return { activeTab, tabs }
-  }
-}).mount('#app')
-</script>
+      tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const tabId = this.getAttribute('data-tab');
+
+          // Update active tab button
+          tabButtons.forEach(function(b) { b.classList.remove('active'); });
+          this.classList.add('active');
+
+          // Update active section
+          sections.forEach(function(section) { section.classList.remove('active'); });
+          document.querySelector('.section[data-section="' + tabId + '"]').classList.add('active');
+        });
+      });
+    });
+  </script>
 
 </body>
 </html>
