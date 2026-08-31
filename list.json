@@ -18,6 +18,7 @@
   { "name": "python-syntax", "src": "python-syntax.html" },
   { "name": "react-native", "src": "react-native.html" },
   { "name": "react", "src": "react.html" },
+  { "name": "redux", "src": "redux.html" },
   { "name": "socket-transfer", "src": "socket-transfer.html" },
   { "name": "ssr", "src": "ssr.html" },
   { "name": "vue", "src": "vue.html" }

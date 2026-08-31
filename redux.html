@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redux 深度解析 — Store · Middleware · Redux Toolkit</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #7627B5;
+    --md-on-primary: #fff;
+    --md-primary-container: #F3E5F5;
+    --md-on-primary-container: #4A148C;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F7F2FA;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #7627B5 0%, #AB47BC 50%, #CE93D8 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 580px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(118,39,181,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.purple { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.pink   { background: var(--md-tertiary-container); color: #4A2532; }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.green  { background: #D0F5D8; color: #003D16; }
+  .card-icon.amber  { background: #FFF3C4; color: #5D4037; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.tertiary {
+    background: var(--md-tertiary-container);
+    color: #4A2532;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #F5F0FF;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Accent Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  /* ── Comparison Table ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">Rx</div>
+  <h1>Redux <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>Store · Middleware · Redux Toolkit</h2>
+  <p>深入理解 Redux 核心架构、中间件洋葱模型与现代 Redux Toolkit 最佳实践</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="core">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">storage</span>
+    核心架构
+  </button>
+  <button class="tab-btn" data-tab="middleware">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">swap_horiz</span>
+    中间件原理
+  </button>
+  <button class="tab-btn" data-tab="ecosystem">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">extension</span>
+    常用中间件
+  </button>
+  <button class="tab-btn" data-tab="rtk">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">rocket_launch</span>
+    Redux Toolkit
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== CORE ==================== -->
+  <section class="section active" id="core">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">storage</span></div>
+        <h3>Redux 是什么？</h3>
+      </div>
+      <p>
+        <strong>Redux</strong> 是一个可预测的 JavaScript 状态容器，核心思想源自 Elm 架构和 Flux 模式。
+        它将应用的全部状态存储在一个 <strong>单一的 Store</strong> 中，通过 <strong>纯函数 Reducer</strong> 来描述状态变更，
+        并通过 <strong>Action</strong> 来描述"发生了什么"。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>Redux 的三大原则：<strong>单一数据源</strong>、<strong>State 只读</strong>、<strong>纯函数修改</strong>。这三条约束让状态变更变得可追踪、可回放、可测试。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>三大核心原则</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">database</span> 单一数据源</h3>
+          <p>整个应用的状态存储在唯一一个 Store 对象树中。这让 SSR、调试、状态持久化变得简单——只需序列化一棵树。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">block</span> State 只读</h3>
+          <p>唯一改变 State 的方法是 dispatch 一个 Action。Action 是普通对象，描述"发生了什么"，但不描述"怎么变"。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">functions</span> 纯函数修改</h3>
+          <p>Reducer 是纯函数 <span class="inline-code">(state, action) => newState</span>，不产生副作用，不修改原 State，确保可预测性。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">schema</span></div>
+        <h3>核心数据结构</h3>
+      </div>
+      <pre><span class="cm">// Action — 描述"发生了什么"的普通对象</span>
+<span class="kw">const</span> addTodoAction = {
+  <span class="fn">type</span>: <span class="str">'todos/add'</span>,       <span class="cm">// 必须字段：Action 类型</span>
+  <span class="fn">payload</span>: {              <span class="cm">// 可选：携带的数据</span>
+    id: <span class="num">1</span>,
+    text: <span class="str">'学习 Redux'</span>,
+    completed: <span class="kw">false</span>
+  },
+  <span class="fn">meta</span>: {},               <span class="cm">// 可选：额外信息（如来源、时间戳）</span>
+  <span class="fn">error</span>: <span class="kw">false</span>            <span class="cm">// 可选：是否为错误 Action</span>
+}
+
+<span class="cm">// Action Creator — 创建 Action 的工厂函数</span>
+<span class="kw">const</span> <span class="fn">addTodo</span> = (text) => ({
+  type: <span class="str">'todos/add'</span>,
+  payload: { id: <span class="fn">nextId</span>(), text, completed: <span class="kw">false</span> }
+})
+
+<span class="cm">// Reducer — 纯函数：(state, action) => newState</span>
+<span class="kw">function</span> <span class="fn">todosReducer</span>(state = [], action) {
+  <span class="kw">switch</span> (action.type) {
+    <span class="kw">case</span> <span class="str">'todos/add'</span>:
+      <span class="kw">return</span> [...state, action.payload]   <span class="cm">// 不可变更新！</span>
+    <span class="kw">case</span> <span class="str">'todos/toggle'</span>:
+      <span class="kw">return</span> state.map(todo =>
+        todo.id === action.payload.id
+          ? { ...todo, completed: !todo.completed }
+          : todo
+      )
+    <span class="kw">default</span>:
+      <span class="kw">return</span> state                       <span class="cm">// 未匹配则原样返回</span>
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">sync_alt</span></div>
+        <h3>单向数据流</h3>
+      </div>
+      <p>Redux 的数据流是<strong>严格单向</strong>的，整个生命周期如下：</p>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────┐
+  │                    Redux 单向数据流                       │
+  └──────────────────────────────────────────────────────────┘
+
+  ┌─────────┐   dispatch(action)   ┌──────────┐
+  │  View    │ ──────────────────▶ │  Store   │
+  │ (UI层)   │                     │  (状态)   │
+  └─────────┘                     └────┬─────┘
+       ▲                                │
+       │                                │ 调用 reducer(state, action)
+       │                                ▼
+       │                          ┌──────────┐
+       │   getState() / subscribe │ Reducer  │
+       │ ◀────────────────────── │ (纯函数)  │
+       │                          └──────────┘
+       │                                │
+       │                                │ 返回 newState
+       │                                ▼
+       │                          ┌──────────┐
+       │   subscribe 回调触发     │ new State│
+       └───────────────────────── │ (新状态)  │
+                                  └──────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">code</span></div>
+        <h3>Store 核心 API — 手写实现</h3>
+      </div>
+      <p>Redux Store 的实现极其精简，核心仅约 30 行代码：</p>
+      <pre><span class="kw">function</span> <span class="fn">createStore</span>(reducer, enhancer) {
+  <span class="cm">// 1. 如果传入了 enhancer（中间件），用它增强 createStore</span>
+  <span class="kw">if</span> (<span class="kw">typeof</span> enhancer === <span class="str">'function'</span>) {
+    <span class="kw">return</span> enhancer(createStore)(reducer)
+  }
+
+  <span class="kw">let</span> currentState          <span class="cm">// 当前状态树</span>
+  <span class="kw">let</span> listeners = []        <span class="cm">// 订阅者列表</span>
+  <span class="kw">let</span> isDispatching = <span class="kw">false</span> <span class="cm">// 防止在 reducer 中 dispatch</span>
+
+  <span class="cm">// 2. 获取当前状态</span>
+  <span class="kw">function</span> <span class="fn">getState</span>() {
+    <span class="kw">return</span> currentState
+  }
+
+  <span class="cm">// 3. 订阅状态变化，返回取消订阅函数</span>
+  <span class="kw">function</span> <span class="fn">subscribe</span>(listener) {
+    listeners.push(listener)
+    <span class="kw">let</span> subscribed = <span class="kw">true</span>
+    <span class="kw">return function</span> <span class="fn">unsubscribe</span>() {
+      <span class="kw">if</span> (!subscribed) <span class="kw">return</span>
+      subscribed = <span class="kw">false</span>
+      <span class="kw">const</span> idx = listeners.indexOf(listener)
+      listeners.splice(idx, <span class="num">1</span>)
+    }
+  }
+
+  <span class="cm">// 4. 派发 Action — 唯一的状态修改入口</span>
+  <span class="kw">function</span> <span class="fn">dispatch</span>(action) {
+    <span class="kw">if</span> (<span class="kw">typeof</span> action.type === <span class="str">'undefined'</span>) {
+      <span class="kw">throw new</span> Error(<span class="str">'Actions must have a type'</span>)
+    }
+    <span class="kw">if</span> (isDispatching) {
+      <span class="kw">throw new</span> Error(<span class="str">'Reducers may not dispatch actions'</span>)
+    }
+    <span class="kw">try</span> {
+      isDispatching = <span class="kw">true</span>
+      currentState = reducer(currentState, action) <span class="cm">// 纯函数调用</span>
+    } <span class="kw">finally</span> {
+      isDispatching = <span class="kw">false</span>
+    }
+    listeners.forEach(fn => fn())  <span class="cm">// 通知所有订阅者</span>
+    <span class="kw">return</span> action
+  }
+
+  <span class="cm">// 5. 初始化：dispatch 一个随机 type 来获取初始状态</span>
+  dispatch({ type: <span class="str">`@@redux/INIT${Math.random()}`</span> })
+
+  <span class="kw">return</span> { getState, subscribe, dispatch }
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">info</span>
+        <div><strong>关键设计</strong>：<span class="inline-code">isDispatching</span> 锁确保 Reducer 中不能再 dispatch，强制保持 Reducer 的纯函数特性。初始 dispatch 的随机 type 用于触发 Reducer 返回默认值。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">call_split</span></div>
+        <h3>combineReducers — 状态切片</h3>
+      </div>
+      <p>当应用状态变复杂时，需要将 Reducer 拆分为多个独立的子 Reducer，每个管理自己的状态切片（slice）：</p>
+      <pre><span class="kw">function</span> <span class="fn">combineReducers</span>(reducers) {
+  <span class="kw">const</span> reducerKeys = Object.keys(reducers)
+
+  <span class="kw">return function</span> <span class="fn">combination</span>(state = {}, action) {
+    <span class="kw">let</span> hasChanged = <span class="kw">false</span>
+    <span class="kw">const</span> nextState = {}
+
+    <span class="kw">for</span> (<span class="kw">const</span> key <span class="kw">of</span> reducerKeys) {
+      <span class="kw">const</span> previousStateForKey = state[key]
+      <span class="kw">const</span> nextStateForKey = reducers[key](previousStateForKey, action)
+      nextState[key] = nextStateForKey
+      hasChanged = hasChanged || nextStateForKey !== previousStateForKey
+    }
+
+    <span class="cm">// 只要有任何一个切片引用变了，就返回新对象</span>
+    <span class="kw">return</span> hasChanged ? nextState : state
+  }
+}
+
+<span class="cm">// 使用示例</span>
+<span class="kw">const</span> rootReducer = combineReducers({
+  todos:    todosReducer,      <span class="cm">// state.todos</span>
+  filters:  filtersReducer,    <span class="cm">// state.filters</span>
+  user:     userReducer        <span class="cm">// state.user</span>
+})</pre>
+    </div>
+
+  </section>
+
+  <!-- ==================== MIDDLEWARE ==================== -->
+  <section class="section" id="middleware">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">swap_horiz</span></div>
+        <h3>中间件是什么？</h3>
+      </div>
+      <p>
+        Redux 中间件是位于 <span class="inline-code">dispatch(action)</span> 和 <span class="inline-code">reducer</span> 之间的扩展层。
+        它提供的是 <strong>dispatch 与 reducer 之间</strong>的第三方扩展能力，可以在不修改 store 和 reducer 的前提下，
+        对 dispatch 行为进行拦截、增强或替换。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>核心公式：<strong>中间件 = 拦截 dispatch 的函数</strong>。它让你在 Action 到达 Reducer 之前执行副作用（异步、日志、路由等），但不改变 Redux 的核心数据流。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">layers</span></div>
+        <h3>洋葱模型 — 中间件的执行顺序</h3>
+      </div>
+      <p>多个中间件组成<strong>洋葱式</strong>管道，每个中间件可以决定是否继续传递 Action：</p>
+      <div class="diagram">  ┌─────────────────────────────────────────────────────────────────┐
+  │                     中间件洋葱模型                               │
+  └─────────────────────────────────────────────────────────────────┘
+
+  dispatch(action)
+       │
+       ▼
+  ┌──────────────────┐
+  │  Logger 中间件     │  ── "记录 Action"
+  │  ┌──────────────┐ │
+  │  │ Thunk 中间件  │ │  ── "判断是否函数"
+  │  │ ┌──────────┐ │ │
+  │  │ │ Saga中间件│ │ │  ── "处理 Generator"
+  │  │ │ ┌──────┐ │ │ │
+  │  │ │ │Reducer│ │ │ │  ── 真正的状态更新
+  │  │ │ └──────┘ │ │ │
+  │  │ │ 返回结果  │ │ │
+  │  │ └──────────┘ │ │
+  │  │ 返回结果      │ │
+  │  └──────────────┘ │
+  │  返回结果          │
+  └──────────────────┘
+       │
+       ▼
+  新的 State & 通知订阅者
+
+  执行顺序：Logger → Thunk → Saga → Reducer → Saga后处理 → Thunk后处理 → Logger后处理</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">code</span></div>
+        <h3>中间件签名 — 三层柯里化</h3>
+      </div>
+      <p>Redux 中间件采用 <strong>三层柯里化</strong> 函数签名，这是理解中间件的关键：</p>
+      <pre><span class="cm">// 中间件的标准签名（三层柯里化）</span>
+<span class="kw">const</span> <span class="fn">myMiddleware</span> = store => next => action => {
+  <span class="cm">//  ▲                  ▲         ▲</span>
+  <span class="cm">//  │                  │         └── 第三层：接收到的 Action</span>
+  <span class="cm">//  │                  └──────────── 第二层：下一个中间件的 dispatch</span>
+  <span class="cm">//  └─────────────────────────────── 第一层：Store 的 { getState, dispatch }</span>
+
+  console.log(<span class="str">'dispatching'</span>, action)
+  <span class="kw">const</span> result = next(action)   <span class="cm">// 传递给下一个中间件</span>
+  console.log(<span class="str">'next state'</span>, store.getState())
+  <span class="kw">return</span> result                  <span class="cm">// 返回 dispatch 结果</span>
+}
+
+<span class="cm">// 拆解来看：</span>
+<span class="kw">const</span> <span class="fn">myMiddleware</span> = (store) => {           <span class="cm">// 第一层：注入 store</span>
+  <span class="kw">return</span> (next) => {                         <span class="cm">// 第二层：注入 next dispatch</span>
+    <span class="kw">return</span> (action) => {                     <span class="cm">// 第三层：处理 action</span>
+      <span class="cm">// 前置逻辑（洋葱的外层）</span>
+      <span class="kw">const</span> result = next(action)             <span class="cm">// 调用下一个中间件</span>
+      <span class="cm">// 后置逻辑（洋葱的内层返回时）</span>
+      <span class="kw">return</span> result
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">build</span></div>
+        <h3>applyMiddleware — 手写实现</h3>
+      </div>
+      <p><span class="inline-code">applyMiddleware</span> 是 Redux 的 Store Enhancer，它将多个中间件组合成一个增强版 dispatch：</p>
+      <pre><span class="kw">function</span> <span class="fn">applyMiddleware</span>(...middlewares) {
+  <span class="cm">// 返回一个 Store Enhancer</span>
+  <span class="kw">return</span> (createStore) => (reducer) => {
+    <span class="cm">// 1. 创建原始 Store</span>
+    <span class="kw">const</span> store = createStore(reducer)
+    <span class="kw">let</span> dispatch = () => {
+      <span class="kw">throw new</span> Error(<span class="str">'Dispatch while constructing'</span>)
+    }
+
+    <span class="cm">// 2. 给中间件提供受限的 store API</span>
+    <span class="kw">const</span> middlewareAPI = {
+      getState: store.getState,
+      dispatch: (action, ...args) => dispatch(action, ...args)
+    }
+
+    <span class="cm">// 3. 柯里化第一层：注入 store</span>
+    <span class="kw">const</span> chain = middlewares.map(mw => mw(middlewareAPI))
+
+    <span class="cm">// 4. 组合中间件：每个中间件的 next 指向下一个</span>
+    dispatch = <span class="fn">compose</span>(...chain)(store.dispatch)
+
+    <span class="kw">return</span> { ...store, dispatch }
+  }
+}
+
+<span class="cm">// compose 函数 — 从右到左组合函数</span>
+<span class="kw">function</span> <span class="fn">compose</span>(...funcs) {
+  <span class="kw">if</span> (funcs.length === <span class="num">0</span>) <span class="kw">return</span> (arg) => arg
+  <span class="kw">if</span> (funcs.length === <span class="num">1</span>) <span class="kw">return</span> funcs[<span class="num">0</span>]
+  <span class="kw">return</span> funcs.reduce((a, b) => (...args) => a(b(...args)))
+}
+
+<span class="cm">// compose(f, g, h) => (...args) => f(g(h(...args)))</span>
+<span class="cm">// 执行顺序：h → g → f（从右到左）</span>
+<span class="cm">// 但在中间件中，最左边的最先被调用</span></pre>
+      <div class="banner">
+        <span class="material-icons-outlined">info</span>
+        <div><strong>为什么 compose 从右到左？</strong> 因为 <span class="inline-code">compose(logger, thunk)(dispatch)</span> 等价于 <span class="inline-code">logger(thunk(dispatch))</span>，thunk 包裹了原始 dispatch，logger 再包裹 thunk，所以 logger 最外层、最先执行。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">draw</span></div>
+        <h3>中间件组合链路图解</h3>
+      </div>
+      <p>以 <span class="inline-code">applyMiddleware(logger, thunk)</span> 为例，看 dispatch 调用链：</p>
+      <div class="diagram">  applyMiddleware(logger, thunk)
+
+  1. compose(logger, thunk) = (...args) => logger(thunk(...args))
+
+  2. chain = [logger(store), thunk(store)]
+           = [loggerMW, thunkMW]
+                ▲            │
+                │            ▼
+  3. dispatch = compose(loggerMW, thunkMW)(store.dispatch)
+             = loggerMW(thunkMW(store.dispatch))
+
+  ┌─────────────────────────────────────────────────────┐
+  │  最终 dispatch 结构（由外到内）：                      │
+  │                                                     │
+  │  dispatch = action =>                               │
+  │    loggerMW(action) {                               │
+  │      console.log('dispatching', action)             │
+  │      next(action) {       ◄── next = thunkMW        │
+  │        if typeof action === 'function'              │
+  │          return action(dispatch, getState)           │
+  │        else                                         │
+  │          return store.dispatch(action) ◄── 原始      │
+  │      }                                              │
+  │      console.log('next state', getState())          │
+  │    }                                                │
+  └─────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">science</span></div>
+        <h3>自定义中间件实战</h3>
+      </div>
+      <pre><span class="cm">// ① 错误上报中间件</span>
+<span class="kw">const</span> <span class="fn">crashReporter</span> = store => next => action => {
+  <span class="kw">try</span> {
+    <span class="kw">return</span> next(action)
+  } <span class="kw">catch</span> (err) {
+    console.error(<span class="str">'🔴 Caught an exception!'</span>, err)
+    Sentry.captureException(err, {
+      extra: { action, state: store.getState() }
+    })
+    <span class="kw">throw</span> err   <span class="cm">// 仍然抛出，让其他中间件/调用者知道</span>
+  }
+}
+
+<span class="cm">// ② Action 节流中间件</span>
+<span class="kw">const</span> <span class="fn">throttle</span> = (type, ms) => {
+  <span class="kw">let</span> lastDispatch = <span class="num">0</span>
+  <span class="kw">return</span> store => next => action => {
+    <span class="kw">if</span> (action.type === type && Date.now() - lastDispatch < ms) {
+      <span class="kw">return</span>    <span class="cm">// 静默丢弃</span>
+    }
+    lastDispatch = Date.now()
+    <span class="kw">return</span> next(action)
+  }
+}
+
+<span class="cm">// ③ Action 过滤中间件</span>
+<span class="kw">const</span> <span class="fn">filter</span> = predicate => store => next => action => {
+  <span class="kw">if</span> (!predicate(action, store.getState())) <span class="kw">return</span>
+  <span class="kw">return</span> next(action)
+}
+
+<span class="cm">// ④ 批量 dispatch 中间件</span>
+<span class="kw">const</span> <span class="fn">batchMiddleware</span> = store => next => action => {
+  <span class="kw">if</span> (action.type === <span class="str">'BATCH'</span> && Array.isArray(action.payload)) {
+    action.payload.forEach(a => store.dispatch(a))
+    <span class="kw">return</span>
+  }
+  <span class="kw">return</span> next(action)
+}</pre>
+    </div>
+
+  </section>
+
+  <!-- ==================== ECOSYSTEM ==================== -->
+  <section class="section" id="ecosystem">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">extension</span></div>
+        <h3>常用中间件对比</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:16px">code</span> redux-thunk</h4>
+          <ul>
+            <li>最简单的异步方案</li>
+            <li>Action Creator 返回<strong>函数</strong>而非对象</li>
+            <li>函数接收 <span class="inline-code">(dispatch, getState)</span></li>
+            <li>适合简单异步逻辑和条件 dispatch</li>
+            <li>缺点：逻辑分散，难以测试</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:16px">auto_awesome</span> redux-saga</h4>
+          <ul>
+            <li>基于 Generator 的异步方案</li>
+            <li>声明式副作用，<strong>极易测试</strong></li>
+            <li>支持并发、取消、竞态、轮询</li>
+            <li>适合复杂的异步流程编排</li>
+            <li>缺点：学习曲线陡峭</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">code</span></div>
+        <h3>redux-thunk 源码</h3>
+      </div>
+      <p>Thunk 中间件的源码极其精简——仅 10 行：</p>
+      <pre><span class="cm">// redux-thunk 源码（v2.x）</span>
+<span class="kw">function</span> <span class="fn">createThunkMiddleware</span>(extraArgument) {
+  <span class="kw">return</span> ({ dispatch, getState }) => next => action => {
+    <span class="cm">// 如果 action 是函数，调用它</span>
+    <span class="kw">if</span> (<span class="kw">typeof</span> action === <span class="str">'function'</span>) {
+      <span class="kw">return</span> action(dispatch, getState, extraArgument)
+    }
+    <span class="cm">// 否则继续传递</span>
+    <span class="kw">return</span> next(action)
+  }
+}
+<span class="kw">const</span> thunk = createThunkMiddleware()
+<span class="kw">export default</span> thunk
+
+<span class="cm">// ────────────────────────────────────</span>
+<span class="cm">// 使用示例</span>
+<span class="cm">// ────────────────────────────────────</span>
+
+<span class="cm">// 普通 Action Creator（返回对象）</span>
+<span class="kw">const</span> <span class="fn">increment</span> = () => ({ type: <span class="str">'counter/increment'</span> })
+
+<span class="cm">// Thunk Action Creator（返回函数）</span>
+<span class="kw">const</span> <span class="fn">fetchUser</span> = (userId) => {
+  <span class="kw">return async</span> (dispatch, getState) => {
+    dispatch({ type: <span class="str">'users/fetchStart'</span> })
+    <span class="kw">try</span> {
+      <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`/api/users/${userId}`</span>)
+      <span class="kw">const</span> data = <span class="kw">await</span> res.json()
+      dispatch({ type: <span class="str">'users/fetchSuccess'</span>, payload: data })
+    } <span class="kw">catch</span> (err) {
+      dispatch({ type: <span class="str">'users/fetchError'</span>, error: err.message })
+    }
+  }
+}
+
+<span class="cm">// 条件 dispatch</span>
+<span class="kw">const</span> <span class="fn">fetchIfNeed</span> = (userId) => (dispatch, getState) => {
+  <span class="kw">const</span> { users } = getState()
+  <span class="kw">if</span> (!users[userId]) {
+    dispatch(fetchUser(userId))
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">auto_awesome</span></div>
+        <h3>redux-saga 核心概念</h3>
+      </div>
+      <p>Saga 使用 Generator 函数声明式地描述副作用流程，将副作用从 Action Creator 中完全抽离：</p>
+      <pre><span class="kw">import</span> { call, put, takeEvery, takeLatest, select } <span class="kw">from</span> <span class="str">'redux-saga/effects'</span>
+
+<span class="cm">// Worker Saga — 执行实际工作</span>
+<span class="kw">function</span>* <span class="fn">fetchUserSaga</span>(action) {
+  <span class="kw">try</span> {
+    <span class="kw">const</span> user = <span class="kw">yield</span> call(Api.fetchUser, action.payload)  <span class="cm">// 声明式调用</span>
+    <span class="kw">yield</span> put({ type: <span class="str">'users/fetchSuccess'</span>, payload: user })  <span class="cm">// dispatch action</span>
+  } <span class="kw">catch</span> (err) {
+    <span class="kw">yield</span> put({ type: <span class="str">'users/fetchError'</span>, error: err.message })
+  }
+}
+
+<span class="cm">// Watcher Saga — 监听 Action</span>
+<span class="kw">function</span>* <span class="fn">watchFetchUser</span>() {
+  <span class="kw">yield</span> takeLatest(<span class="str">'users/fetch'</span>, fetchUserSaga)
+}
+
+<span class="cm">// Root Saga — 组合所有 Saga</span>
+<span class="kw">export default function</span>* <span class="fn">rootSaga</span>() {
+  <span class="kw">yield</span> all([
+    watchFetchUser(),
+    watchOtherFlow(),
+  ])
+}
+
+<span class="cm">// ── 常用 Effect 说明 ──</span>
+<span class="cm">// call(fn, ...args)    — 调用函数（可 mock，易测试）</span>
+<span class="cm">// put(action)          — dispatch 一个 action</span>
+<span class="cm">// take(pattern)        — 等待匹配的 action</span>
+<span class="cm">// takeEvery(pattern)   — 每个匹配都 fork（并发）</span>
+<span class="cm">// takeLatest(pattern)  — 只保留最新的（取消之前的）</span>
+<span class="cm">// select(selector)     — 获取当前 state</span>
+<span class="cm">// fork(fn)             — 非阻塞 fork</span>
+<span class="cm">// cancel(task)         — 取消 fork 的任务</span>
+<span class="cm">// race({...})          — 竞态（谁先完成用谁的结果）</span></pre>
+      <div class="banner">
+        <span class="material-icons-outlined">science</span>
+        <div><strong>为什么 Saga 易测试？</strong> 因为 <span class="inline-code">call</span> / <span class="inline-code">put</span> 只是创建描述对象（Effect），不会立即执行。测试时只需用 <span class="inline-code">generator.next()</span> 逐行推进，断言 yield 出的 Effect 即可，无需 mock 任何网络请求。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">network_check</span></div>
+        <h3>中间件执行时机对比</h3>
+      </div>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────────────┐
+  │                     dispatch(action) 调用链                       │
+  └──────────────────────────────────────────────────────────────────┘
+
+  用户代码 dispatch({ type: 'users/fetch', payload: 1 })
+    │
+    ▼
+  ┌─────────────────┐
+  │ Logger 中间件     │  前置：console.log(action)
+  │                 │
+  │  ┌────────────┐ │
+  │  │ Thunk 中间件│ │  判断：action 是函数还是对象？
+  │  │            │ │
+  │  │  函数 ──────────▶ 直接调用 action(dispatch, getState)
+  │  │            │ │     (可能内部多次 dispatch，形成新循环)
+  │  │  对象 ──────────▶ next(action) ──▶ 传递到 Reducer
+  │  └────────────┘ │
+  │                 │
+  │  后置：console.log(newState)
+  └─────────────────┘
+    │
+    ▼
+  Reducer 计算新 State → 通知订阅者 → UI 更新
+
+  ─────────────────────────────────────────────────────
+  redux-saga 的不同之处：
+  ─────────────────────────────────────────────────────
+
+  Saga 不拦截 dispatch，它在后台监听特定 Action
+  当匹配的 Action 被 dispatch 后，Saga 启动对应的 Generator
+
+  dispatch(action) ──▶ Reducer (正常处理)
+                   └─▶ Saga Watcher (并行监听)
+                          │
+                          ▼
+                        fork(workerSaga)
+                          │
+                          ▼
+                        call(Api.fetch) ──▶ 异步操作
+                          │
+                          ▼
+                        put(successAction) ──▶ 新的 dispatch</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">quiz</span></div>
+        <h3>如何选择中间件？</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">thumb_up</span> redux-thunk</h4>
+          <p>简单异步请求、条件 dispatch、需要快速上手的项目。大多数中小型项目足够。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">thumb_up</span> redux-saga</h4>
+          <p>复杂异步流程：竞态、取消、重试、轮询、编排多个异步操作。需要可测试性的场景。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">thumb_up</span> RTK Query</h4>
+          <p>纯数据获取场景。内置缓存、乐观更新、轮询、自动重取，无需手写任何异步逻辑。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">thumb_up</span> redux-observable</h4>
+          <p>基于 RxJS 的响应式方案。适合事件流密集型场景，如 WebSocket、拖拽、键盘输入。</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ==================== REDUX TOOLKIT ==================== -->
+  <section class="section" id="rtk">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">rocket_launch</span></div>
+        <h3>Redux Toolkit（RTK）</h3>
+      </div>
+      <p>
+        <strong>Redux Toolkit</strong> 是 Redux 官方推荐的编写 Redux 逻辑的方式，解决了原生 Redux 的三大痛点：
+        <strong>配置过多</strong>、<strong>需要额外包</strong>、<strong>样板代码多</strong>。
+        它内部集成了 Immer、Reselect、Redux Thunk 等最佳实践。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>Redux 官方文档明确建议：<strong>所有 Redux 项目都应使用 Redux Toolkit</strong>，不再推荐手写 Action Creator、Reducer 和 Store 配置。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>原生 Redux vs Redux Toolkit</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:16px">close</span> 原生 Redux</h4>
+          <ul>
+            <li>手写 Action Types、Creators、Reducer</li>
+            <li>手动 <span class="inline-code">switch-case</span> 判断类型</li>
+            <li>手动配置 Store、applyMiddleware</li>
+            <li>手动处理不可变更新（展开运算符地狱）</li>
+            <li>需要安装 thunk、devtools 等额外包</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:16px">check</span> Redux Toolkit</h4>
+          <ul>
+            <li><span class="inline-code">createSlice</span> 自动生成 Actions + Reducer</li>
+            <li>直接"修改"state（Immer 不可变更新）</li>
+            <li><span class="inline-code">configureStore</span> 一键配置（含 devtools）</li>
+            <li>内置 <span class="inline-code">createAsyncThunk</span> 处理异步</li>
+            <li>内置 <span class="inline-code">RTK Query</span> 数据获取方案</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">code</span></div>
+        <h3>createSlice — 核心 API</h3>
+      </div>
+      <pre><span class="kw">import</span> { createSlice } <span class="kw">from</span> <span class="str">'@reduxjs/toolkit'</span>
+
+<span class="kw">const</span> todosSlice = createSlice({
+  name: <span class="str">'todos'</span>,                    <span class="cm">// slice 名称（action type 前缀）</span>
+  initialState: [],                 <span class="cm">// 初始状态</span>
+  reducers: {
+    <span class="cm">// ✨ 直接"修改" state！Immer 会在背后生成不可变更新</span>
+    addTodo(state, action) {
+      state.push(action.payload)    <span class="cm">// 看起来是 mutation，实际是 immutable</span>
+    },
+    toggleTodo(state, action) {
+      <span class="kw">const</span> todo = state.find(t => t.id === action.payload)
+      <span class="kw">if</span> (todo) todo.completed = !todo.completed
+    },
+    removeTodo: {
+      reducer(state, action) {
+        <span class="kw">return</span> state.filter(t => t.id !== action.payload)
+      },
+      prepare(id) {                 <span class="cm">// 自定义 action payload</span>
+        <span class="kw">return</span> { payload: id, meta: { timestamp: Date.now() } }
+      }
+    }
+  }
+})
+
+<span class="cm">// 自动生成的 Action Creators</span>
+<span class="kw">export const</span> { addTodo, toggleTodo, removeTodo } = todosSlice.actions
+
+<span class="cm">// 自动生成的 Reducer</span>
+<span class="kw">export default</span> todosSlice.reducer
+
+<span class="cm">// 生成的 Action：</span>
+<span class="cm">// { type: 'todos/addTodo', payload: {...} }</span>
+<span class="cm">// { type: 'todos/toggleTodo', payload: 1 }</span>
+<span class="cm">// { type: 'todos/removeTodo', payload: 2, meta: { timestamp: ... } }</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">settings</span></div>
+        <h3>configureStore — 一键配置</h3>
+      </div>
+      <pre><span class="kw">import</span> { configureStore } <span class="kw">from</span> <span class="str">'@reduxjs/toolkit'</span>
+<span class="kw">import</span> todosReducer <span class="kw">from</span> <span class="str">'./features/todos/todosSlice'</span>
+<span class="kw">import</span> userReducer <span class="kw">from</span> <span class="str">'./features/user/userSlice'</span>
+
+<span class="kw">const</span> store = configureStore({
+  reducer: {
+    todos: todosReducer,
+    user: userReducer,
+  },
+  <span class="cm">// 以下全部可选，configureStore 自带合理默认值：</span>
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: <span class="kw">false</span>,   <span class="cm">// 禁用序列化检查（存 Date 等）</span>
+      immutableCheck: <span class="kw">false</span>,      <span class="cm">// 禁用不可变检查（性能）</span>
+    }).concat(logger),             <span class="cm">// 追加自定义中间件</span>
+  devTools: process.env.NODE_ENV !== <span class="str">'production'</span>,
+  preloadedState: {},             <span class="cm">// SSR 注入初始状态</span>
+})
+
+<span class="cm">// 默认自带：redux-thunk + 序列化检查 + 不可变检查 + DevTools</span>
+<span class="cm">// 一行代码 = 以前的 createStore + applyMiddleware + composeWithDevTools + ...</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">cloud_sync</span></div>
+        <h3>createAsyncThunk — 异步 Action</h3>
+      </div>
+      <pre><span class="kw">import</span> { createSlice, createAsyncThunk } <span class="kw">from</span> <span class="str">'@reduxjs/toolkit'</span>
+
+<span class="cm">// 创建异步 thunk</span>
+<span class="kw">export const</span> fetchUser = createAsyncThunk(
+  <span class="str">'users/fetch'</span>,                  <span class="cm">// action type 前缀</span>
+  <span class="kw">async</span> (userId, { rejectWithValue }) => {
+    <span class="kw">try</span> {
+      <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`/api/users/${userId}`</span>)
+      <span class="kw">if</span> (!res.ok) <span class="kw">throw new</span> Error(res.statusText)
+      <span class="kw">return await</span> res.json()        <span class="cm">// 自动 dispatch fulfilled</span>
+    } <span class="kw">catch</span> (err) {
+      <span class="kw">return</span> rejectWithValue(err.message)  <span class="cm">// 自动 dispatch rejected</span>
+    }
+  }
+)
+
+<span class="cm">// 在 slice 中处理异步状态</span>
+<span class="kw">const</span> usersSlice = createSlice({
+  name: <span class="str">'users'</span>,
+  initialState: {
+    entity: <span class="kw">null</span>,
+    loading: <span class="str">'idle'</span>,       <span class="cm">// 'idle' | 'pending' | 'succeeded' | 'failed'</span>
+    error: <span class="kw">null</span>,
+  },
+  reducers: {},
+  <span class="cm">// extraReducers 处理外部 action（如 createAsyncThunk 自动生成的）</span>
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUser.pending, (state) => {
+        state.loading = <span class="str">'pending'</span>
+      })
+      .addCase(fetchUser.fulfilled, (state, action) => {
+        state.loading = <span class="str">'succeeded'</span>
+        state.entity = action.payload
+      })
+      .addCase(fetchUser.rejected, (state, action) => {
+        state.loading = <span class="str">'failed'</span>
+        state.error = action.payload
+      })
+  },
+})
+
+<span class="cm">// 自动 dispatch 三个 action：</span>
+<span class="cm">// users/fetch/pending   — 请求开始</span>
+<span class="cm">// users/fetch/fulfilled — 请求成功</span>
+<span class="cm">// users/fetch/rejected  — 请求失败</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">api</span></div>
+        <h3>RTK Query — 终极数据获取方案</h3>
+      </div>
+      <p>RTK Query 是 Redux Toolkit 内置的数据获取和缓存方案，完全消除了手写 thunk 和状态管理的需要：</p>
+      <pre><span class="kw">import</span> { createApi, fetchBaseQuery } <span class="kw">from</span> <span class="str">'@reduxjs/toolkit/query/react'</span>
+
+<span class="kw">export const</span> apiSlice = createApi({
+  reducerPath: <span class="str">'api'</span>,
+  baseQuery: fetchBaseQuery({ baseUrl: <span class="str">'/api'</span> }),
+  tagTypes: [<span class="str">'Todos'</span>, <span class="str">'Users'</span>],    <span class="cm">// 缓存标签（用于自动重取）</span>
+  endpoints: (builder) => ({
+    <span class="cm">// 查询（自动缓存）</span>
+    getTodos: builder.query({
+      query: () => <span class="str">'/todos'</span>,
+      providesTags: [<span class="str">'Todos'</span>],      <span class="cm">// 提供缓存标签</span>
+      transformResponse: (res) => res.data,
+    }),
+    <span class="cm">// 变更（自动重取）</span>
+    addTodo: builder.mutation({
+      query: (newTodo) => ({
+        url: <span class="str">'/todos'</span>,
+        method: <span class="str">'POST'</span>,
+        body: newTodo,
+      }),
+      invalidatesTags: [<span class="str">'Todos'</span>],  <span class="cm">// 触发重取 getTodos</span>
+    }),
+  }),
+})
+
+<span class="cm">// 自动生成 Hooks：</span>
+<span class="kw">export const</span> { useGetTodosQuery, useAddTodoMutation } = apiSlice
+
+<span class="cm">// 在组件中使用 — 一切自动化</span>
+<span class="kw">function</span> <span class="fn">TodoList</span>() {
+  <span class="kw">const</span> { data: todos, isLoading, error } = useGetTodosQuery()
+  <span class="kw">const</span> [addTodo] = useAddTodoMutation()
+
+  <span class="kw">if</span> (isLoading) <span class="kw">return</span> <span class="str">'加载中...'</span>
+  <span class="kw">return</span> (
+    &lt;ul&gt;
+      {todos.map(t => &lt;li key={t.id}&gt;{t.text}&lt;/li&gt;)}
+      &lt;button onClick={() => addTodo({ text: <span class="str">'新的'</span> })}&gt;添加&lt;/button&gt;
+    &lt;/ul&gt;
+  )
+}</pre>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">cached</span> 自动缓存</h4>
+          <p>相同参数的查询自动复用缓存，避免重复请求。支持 <span class="inline-code">refetchOnMountOrArgChange</span> 策略。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">autorenew</span> 自动重取</h4>
+          <p>通过 Tag 机制，mutation 成功后自动重取关联的 query，保持数据一致性。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">sync</span> 乐观更新</h4>
+          <p><span class="inline-code">onQueryStarted</span> 支持在请求完成前先更新 UI，失败时自动回滚。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">poll</span> 轮询 & 预取</h4>
+          <p><span class="inline-code">pollingInterval</span> 自动轮询；<span class="inline-code">prefetch</span> 在 hover 时预取数据。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">checklist</span></div>
+        <h3>现代 Redux 最佳实践清单</h3>
+      </div>
+      <ul>
+        <li><strong>始终使用 Redux Toolkit</strong> — 不再手写原生 Redux 样板代码</li>
+        <li><strong>用 <span class="inline-code">createSlice</span></strong> — 自动生成 actions + reducer + immer 支持</li>
+        <li><strong>数据获取首选 RTK Query</strong> — 只有复杂异步流才需要 thunk/saga</li>
+        <li><strong>把逻辑放在 slice 中</strong> — reducer 就是业务逻辑，不要放到组件里</li>
+        <li><strong>用 TypeScript</strong> — RTK 完美支持 TS，自动生成 action 类型</li>
+        <li><strong>按功能组织目录</strong> — <span class="inline-code">features/todos/todosSlice.ts</span>，而非按类型</li>
+        <li><strong>不要在 reducer 中写异步逻辑</strong> — 副作用放到 thunk/RTK Query/saga 中</li>
+        <li><strong>避免嵌套状态</strong> — 使用 <span class="inline-code">createEntityAdapter</span> 管理规范化数据</li>
+      </ul>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>
+  <p>基于 Redux 官方文档与源码分析 · Material Design 3 风格</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
