@@ -1,4 +1,5 @@
 [
+  { "name": "design", "src": "design.html" },
   { "name": "electron", "src": "electron.html" },
   { "name": "log", "src": "log.html" },
   { "name": "mongodb", "src": "mongodb.html" },
