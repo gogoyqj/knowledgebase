@@ -492,7 +492,7 @@
       MongoDB · 埋点存储
     </div>
     <h1>PV/UV/点击上报<br>MongoDB 分片与索引策略</h1>
-    <p>海量埋点数据写入场景下，如何设计 Collection Schema、选择 Shard Key、构建索引，实现高吞吐写入与高效聚合查询的平衡。</p>
+    <p>多项目接入的海量埋点数据写入场景下，如何设计 Collection Schema、选择 Shard Key、构建索引，实现项目级数据隔离、高吞吐写入与高效聚合查询的平衡。</p>
   </div>
 </header>
 
@@ -555,6 +555,7 @@
 <span class="code-label">BSON</span>
 {
   <span class="string">"_id"</span>: ObjectId(<span class="string">"..."</span>),
+  <span class="string">"project_id"</span>: <span class="string">"proj_shop"</span>,       <span class="comment">// 项目标识（多租户隔离）</span>
   <span class="string">"event_type"</span>: <span class="string">"click"</span>,           <span class="comment">// "pv" | "uv" | "click" | "expose" | "custom"</span>
   <span class="string">"page"</span>: <span class="string">"/home"</span>,                <span class="comment">// 页面路径</span>
   <span class="string">"element_id"</span>: <span class="string">"btn_submit"</span>,      <span class="comment">// 点击元素标识（click 事件用）</span>
@@ -577,6 +578,14 @@
         <div>
           <strong>为什么加 <code>date</code> 字段？</strong><br>
           MongoDB 的日期类型不适合直接做 Shard Key（精度太高导致 chunk 过多）。用 <code>"2026-08-31"</code> 字符串作为日期分区键，既可以作为复合 Shard Key 的一部分，也方便按天查询时精确匹配。
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>
+          <strong>为什么加 <code>project_id</code> 字段？</strong><br>
+          多项目接入后，查询几乎总是 <code>{ project_id, date, page }</code> 组合过滤。将 <code>project_id</code> 放入文档和 Shard Key 前缀，可以让 mongos 按项目精准路由到目标 shard，避免跨 shard 的 scatter-gather。同时实现了租户级数据物理隔离。
         </div>
       </div>
     </div>
@@ -647,7 +656,14 @@
             <td><code>{ date: 1, anonymous_id: "hashed" }</code></td>
             <td>✅ 按天 + 用户双重分散</td>
             <td>✅ 按天路由 + 用户聚合</td>
-            <td><span class="badge badge-recommend">★ 最佳</span></td>
+            <td><span class="badge badge-recommend">★ 推荐</span></td>
+          </tr>
+          <tr>
+            <td><strong>G. { project_id, date, hashed(anonymous_id) }</strong></td>
+            <td><code>{ project_id: 1, date: 1, anonymous_id: "hashed" }</code></td>
+            <td>✅ 项目 + 天 + 用户三重分散</td>
+            <td>✅ 按项目+天精准路由</td>
+            <td><span class="badge badge-recommend">★ 多项目最佳</span></td>
           </tr>
         </tbody>
       </table>
@@ -656,26 +672,70 @@
     <!-- 最佳方案详解 -->
     <div class="grid-2">
       <div class="strategy-card best">
-        <div class="card-title"><span class="material-icons-outlined">star</span> 推荐方案：复合 Shard Key</div>
+        <div class="card-title"><span class="material-icons-outlined">star</span> 多项目最佳：三字段复合 Shard Key</div>
+        <div class="code-block" style="font-size:13px">
+<span class="code-label">Shard Key</span>
+{ <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+        </div>
+        <p style="font-size:14px; margin-top:12px;">
+          <strong>第一维度 <code>project_id</code></strong>：路由前缀，<code>db.events.find({ project_id: "proj_shop" })</code> 直接命中该项目所在的 shard，不同项目数据物理隔离。<br><br>
+          <strong>第二维度 <code>date</code></strong>：同一项目内按天分区，<code>{ project_id, date }</code> 组合查询可精准路由到单个 shard。<br><br>
+          <strong>第三维度 <code>anonymous_id: hashed</code></strong>：同项目同天内，哈希分散写入，消除热点。
+        </p>
+      </div>
+
+      <div class="strategy-card good">
+        <div class="card-title"><span class="material-icons-outlined">star_half</span> 单项目备选：两字段 Shard Key</div>
         <div class="code-block" style="font-size:13px">
 <span class="code-label">Shard Key</span>
 { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
         </div>
         <p style="font-size:14px; margin-top:12px;">
-          <strong>第一维度 <code>date</code></strong>：保证同一天的数据落在相邻 chunk，按天查询时只需命中对应 shard，避免 scatter-gather。<br><br>
-          <strong>第二维度 <code>anonymous_id: hashed</code></strong>：同一天内，不同用户的事件被哈希分散到多个 chunk，消除写入热点。
+          如果只有一个项目接入，可以用之前的两字段方案。但一旦多项目，按 <code>project_id</code> 查询会变成 scatter-gather（命中所有 shard），<strong>不推荐</strong>。
         </p>
       </div>
+    </div>
 
-      <div class="strategy-card good">
-        <div class="card-title"><span class="material-icons-outlined">star_half</span> 备选方案：纯 hashed</div>
-        <div class="code-block" style="font-size:13px">
-<span class="code-label">Shard Key</span>
-{ <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+    <!-- 路由原理图解 -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons-outlined">route</span> MongoDB 复合 Shard Key 路由原理</div>
+      <p style="margin-bottom:16px;">MongoDB 对复合 Shard Key 使用<strong>前缀匹配</strong>路由：查询条件覆盖的前缀字段越多，命中的 shard 越少。</p>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>查询条件</th>
+            <th>命中的 shard</th>
+            <th>是否精准路由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>{ project_id: "A" }</code></td>
+            <td>项目 A 的数据所在 shard</td>
+            <td>✅ 按项目路由</td>
+          </tr>
+          <tr>
+            <td><code>{ project_id: "A", date: "2026-08-31" }</code></td>
+            <td>项目 A 当天数据所在 shard</td>
+            <td>✅ 精准路由</td>
+          </tr>
+          <tr>
+            <td><code>{ project_id: "A", date: "2026-08-31", page: "/home" }</code></td>
+            <td>同上（page 不在 shard key 中）</td>
+            <td>✅ 精准路由 + 索引过滤</td>
+          </tr>
+          <tr>
+            <td><code>{ date: "2026-08-31" }</code>（不带 project_id）</td>
+            <td>所有 shard</td>
+            <td>❌ scatter-gather</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="highlight-box" style="margin-top:16px;">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>
+          <strong>结论</strong>：查询时务必带上 <code>project_id</code>，否则前缀匹配失效，退化为全 shard 扫描。前端 SDK 上报时自动注入 <code>project_id</code>，查询接口强制要求该参数。
         </div>
-        <p style="font-size:14px; margin-top:12px;">
-          如果查询场景不按天分区（比如全量聚合），可以只用 <code>anonymous_id</code> 的哈希值。写入均匀，但跨天查询会命中所有 shard。
-        </p>
       </div>
     </div>
 
@@ -684,6 +744,14 @@
       <div>
         <strong>为什么不用 <code>event_type</code> 作为 Shard Key？</strong><br>
         埋点事件类型通常只有 5~10 种（pv、uv、click、expose…），基数太低。MongoDB 要求 Shard Key 的 cardinality 足够高，否则会导致 jumbo chunk（单个 chunk 数据量过大，无法迁移）。
+      </div>
+    </div>
+
+    <div class="highlight-box warn">
+      <span class="material-icons-outlined">warning</span>
+      <div>
+        <strong>为什么不用单独的 <code>project_id</code> 做 Shard Key？</strong><br>
+        <code>project_id</code> 基数太低（通常几十到几百个项目），单独使用会导致 chunk 数量受限，无法充分利用多 shard 并行写入。必须搭配高基数字段（如 <code>anonymous_id: hashed</code>）作为后缀。
       </div>
     </div>
   </section>
@@ -708,24 +776,24 @@ db.events.<span class="method">createIndex</span>(
   { <span class="keyword">expireAfterSeconds</span>: <span class="number">15552000</span> }   <span class="comment">// 180 * 24 * 3600</span>
 )
 
-<span class="comment">// 2. 按天 + 事件类型查询（最常用聚合路径）</span>
+<span class="comment">// 2. 核心聚合：项目 + 天 + 事件类型</span>
 db.events.<span class="method">createIndex</span>(
-  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
+  { <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
 )
 
-<span class="comment">// 3. 按页面维度统计</span>
+<span class="comment">// 3. 按项目 + 页面维度统计</span>
 db.events.<span class="method">createIndex</span>(
-  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
+  { <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
 )
 
 <span class="comment">// 4. 按用户维度查行为序列（漏斗分析）</span>
 db.events.<span class="method">createIndex</span>(
-  { <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
+  { <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> }
 )
 
-<span class="comment">// 5. UV 去重查询（按天 + 用户）</span>
+<span class="comment">// 5. UV 去重查询（按项目 + 天 + 用户）</span>
 db.events.<span class="method">createIndex</span>(
-  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
+  { <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> }
 )
     </div>
 
@@ -735,6 +803,7 @@ db.events.<span class="method">createIndex</span>(
         <div class="code-block" style="font-size:12.5px">
 db.events.<span class="method">aggregate</span>([
   { <span class="keyword">$match</span>: {
+    <span class="string">project_id</span>: <span class="string">"proj_shop"</span>,
     <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
     <span class="string">event_type</span>: <span class="string">"pv"</span>
   }},
@@ -743,7 +812,7 @@ db.events.<span class="method">aggregate</span>([
     <span class="string">pv</span>: { <span class="keyword">$sum</span>: <span class="number">1</span> }
   }}
 ])
-<span class="comment">// 命中索引 #2</span>
+<span class="comment">// 命中索引 #2，精准路由</span>
         </div>
       </div>
 
@@ -752,6 +821,7 @@ db.events.<span class="method">aggregate</span>([
         <div class="code-block" style="font-size:12.5px">
 db.events.<span class="method">aggregate</span>([
   { <span class="keyword">$match</span>: {
+    <span class="string">project_id</span>: <span class="string">"proj_shop"</span>,
     <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
     <span class="string">event_type</span>: <span class="string">"pv"</span>
   }},
@@ -772,6 +842,7 @@ db.events.<span class="method">aggregate</span>([
         <div class="code-block" style="font-size:12.5px">
 db.events.<span class="method">aggregate</span>([
   { <span class="keyword">$match</span>: {
+    <span class="string">project_id</span>: <span class="string">"proj_shop"</span>,
     <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
     <span class="string">event_type</span>: <span class="string">"click"</span>,
     <span class="string">page</span>: <span class="string">"/home"</span>
@@ -872,7 +943,7 @@ use analytics
 db.<span class="method">createCollection</span>(<span class="string">"events"</span>)
 sh.<span class="method">shardCollection</span>(
   <span class="string">"analytics.events"</span>,
-  { <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
+  { <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="string">"hashed"</span> }
 )
 
 <span class="comment">// ========== 3. 创建索引 ==========</span>
@@ -880,17 +951,17 @@ db.events.<span class="method">createIndex</span>(
   { <span class="string">"ts"</span>: <span class="number">1</span> },
   { <span class="keyword">expireAfterSeconds</span>: <span class="number">15552000</span> }
 )
-db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
-db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
-db.events.<span class="method">createIndex</span>({ <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
-db.events.<span class="method">createIndex</span>({ <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"page"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"ts"</span>: <span class="number">1</span> })
+db.events.<span class="method">createIndex</span>({ <span class="string">"project_id"</span>: <span class="number">1</span>, <span class="string">"date"</span>: <span class="number">1</span>, <span class="string">"anonymous_id"</span>: <span class="number">1</span>, <span class="string">"event_type"</span>: <span class="number">1</span> })
 
 <span class="comment">// ========== 4. Schema Validation（可选）==========</span>
 db.<span class="method">runCommand</span>({
   <span class="keyword">collMod</span>: <span class="string">"events"</span>,
   <span class="keyword">validator</span>: {
     <span class="keyword">$jsonSchema</span>: {
-      <span class="keyword">required</span>: [<span class="string">"event_type"</span>, <span class="string">"ts"</span>, <span class="string">"date"</span>, <span class="string">"anonymous_id"</span>],
+      <span class="keyword">required</span>: [<span class="string">"project_id"</span>, <span class="string">"event_type"</span>, <span class="string">"ts"</span>, <span class="string">"date"</span>, <span class="string">"anonymous_id"</span>],
       <span class="keyword">properties</span>: {
         <span class="string">event_type</span>: {
           <span class="keyword">enum</span>: [<span class="string">"pv"</span>, <span class="string">"uv"</span>, <span class="string">"click"</span>, <span class="string">"expose"</span>, <span class="string">"custom"</span>]
@@ -925,7 +996,7 @@ db.<span class="method">runCommand</span>({
         <div class="code-block">
 <span class="code-label">Aggregation</span>
 db.events.<span class="method">aggregate</span>([
-  { <span class="keyword">$match</span>: { <span class="string">date</span>: <span class="string">"2026-08-31"</span>, <span class="string">event_type</span>: <span class="string">"pv"</span> } },
+  { <span class="keyword">$match</span>: { <span class="string">project_id</span>: <span class="string">"proj_shop"</span>, <span class="string">date</span>: <span class="string">"2026-08-31"</span>, <span class="string">event_type</span>: <span class="string">"pv"</span> } },
   { <span class="keyword">$group</span>: {
     <span class="string">_id</span>: { <span class="string">page</span>: <span class="string">"$page"</span> },
     <span class="string">pv</span>: { <span class="keyword">$sum</span>: <span class="number">1</span> },
@@ -969,7 +1040,7 @@ db.events.<span class="method">aggregate</span>([
 
 <span class="comment">// 写入端去重：用 upsert 保证同一用户同天只写一条</span>
 db.events_daily.<span class="method">updateOne</span>(
-  { <span class="string">anonymous_id</span>: uid, <span class="string">date</span>: today, <span class="string">event_type</span>: <span class="string">"pv"</span> },
+  { <span class="string">project_id</span>: pid, <span class="string">anonymous_id</span>: uid, <span class="string">date</span>: today, <span class="string">event_type</span>: <span class="string">"pv"</span> },
   {
     <span class="keyword">$inc</span>: { <span class="string">pv_count</span>: <span class="number">1</span> },
     <span class="keyword">$setOnInsert</span>: { <span class="string">first_seen</span>: now, <span class="string">pages</span>: [] },
@@ -980,6 +1051,7 @@ db.events_daily.<span class="method">updateOne</span>(
 
 <span class="comment">// 查询 UV：直接 countDocuments</span>
 db.events_daily.<span class="method">countDocuments</span>({
+  <span class="string">project_id</span>: <span class="string">"proj_shop"</span>,
   <span class="string">date</span>: <span class="string">"2026-08-31"</span>,
   <span class="string">event_type</span>: <span class="string">"pv"</span>
 })
@@ -999,14 +1071,14 @@ db.events_daily.<span class="method">countDocuments</span>({
         <div class="code-block">
 <span class="code-label">Redis</span>
 <span class="comment">// 实时 UV 统计，精确度 0.81% 误差</span>
-PFADD  <span class="string">"uv:2026-08-31:/home"</span>  <span class="string">"user_abc123"</span>
-PFCOUNT <span class="string">"uv:2026-08-31:/home"</span>
+PFADD  <span class="string">"uv:proj_shop:2026-08-31:/home"</span>  <span class="string">"user_abc123"</span>
+PFCOUNT <span class="string">"uv:proj_shop:2026-08-31:/home"</span>
 
 <span class="comment">// 按小时统计</span>
-PFADD  <span class="string">"uv:2026-08-31:10:/home"</span>  <span class="string">"user_abc123"</span>
+PFADD  <span class="string">"uv:proj_shop:2026-08-31:10:/home"</span>  <span class="string">"user_abc123"</span>
 
 <span class="comment">// 合并多天</span>
-PFMERGE <span class="string">"uv:2026-08:week1"</span>  <span class="string">"uv:2026-08-31:/home"</span>  <span class="string">"uv:2026-08-30:/home"</span>
+PFMERGE <span class="string">"uv:proj_shop:2026-08:week1"</span>  <span class="string">"uv:proj_shop:2026-08-31:/home"</span>  <span class="string">"uv:proj_shop:2026-08-30:/home"</span>
         </div>
         <div class="pros-cons">
           <div class="pros">
@@ -1037,11 +1109,12 @@ PFMERGE <span class="string">"uv:2026-08:week1"</span>  <span class="string">"uv
       方案总结
     </h3>
     <ul>
-      <li><strong>Shard Key</strong>：<code>{ date: 1, anonymous_id: "hashed" }</code> — 按天分区 + 用户哈希分散写入</li>
-      <li><strong>索引</strong>：5 个索引覆盖 TTL / 按天聚合 / 按页统计 / 用户行为序列 / UV 去重</li>
+      <li><strong>Shard Key</strong>：<code>{ project_id: 1, date: 1, anonymous_id: "hashed" }</code> — 项目隔离 + 按天分区 + 用户哈希分散写入</li>
+      <li><strong>索引</strong>：5 个索引均以 <code>project_id</code> 为前缀，覆盖 TTL / 按天聚合 / 按页统计 / 用户行为序列 / UV 去重</li>
+      <li><strong>查询规则</strong>：所有查询必须带 <code>project_id</code>，否则退化为 scatter-gather</li>
       <li><strong>写入</strong>：Kafka 削峰 + bulkWrite 无序批量 + w:1 j:false 弱持久化</li>
       <li><strong>UV 去重</strong>：小规模用 $addToSet，大规模用写入端 upsert 预去重，实时看板用 Redis HLL</li>
-      <li><strong>数据保留</strong>：TTL Index 自动清理 180 天前数据，热数据用 date 字段快速定位</li>
+      <li><strong>数据保留</strong>：TTL Index 自动清理 180 天前数据，热数据用 project_id + date 快速定位</li>
     </ul>
   </div>
 

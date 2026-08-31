@@ -1,5 +1,6 @@
 [
   { "name": "electron", "src": "electron.html" },
+  { "name": "log", "src": "log.html" },
   { "name": "mongodb", "src": "mongodb.html" },
   { "name": "next", "src": "next.html" },
   { "name": "pi-agent-core.infra", "src": "pi-agent-core.infra.html" },

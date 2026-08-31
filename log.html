@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>服务端日志系统 — 架构设计与最佳实践</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #E1BEE7;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-dim: #F5F5F5;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0,0,0,0.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+    --md-radius-xs: 6px;
+    --md-warning: #E65100;
+    --md-warning-container: #FFF3E0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px 16px;
+    box-shadow: 0 2px 4px var(--md-shadow);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: 0.02em; }
+  .top-bar .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; font-weight: 300; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+  .chip .material-icons-outlined { font-size: 16px; }
+
+  .toc {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .toc h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--md-primary); }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 24px; }
+  .toc a {
+    font-size: 13px; color: var(--md-on-surface-variant);
+    text-decoration: none; padding: 3px 0; display: block;
+    transition: color 0.15s;
+  }
+  .toc a:hover { color: var(--md-primary); }
+  .toc a::before { content: "› "; color: var(--md-outline); }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 14px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .material-icons-outlined { font-size: 20px; }
+
+  .card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px var(--md-shadow); }
+  .card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--md-on-surface); }
+  .card h4 { font-size: 14px; font-weight: 500; margin: 12px 0 6px; color: var(--md-on-surface); }
+  .card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); line-height: 1.7; }
+  .card ul, .card ol { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  code {
+    font-family: 'Roboto Mono', monospace; font-size: 12.5px;
+    background: var(--md-surface-dim); padding: 2px 6px;
+    border-radius: 4px; color: var(--md-primary);
+  }
+  pre {
+    background: #263238; color: #EEFFFF;
+    padding: 16px 20px; border-radius: var(--md-radius-sm);
+    overflow-x: auto; font-family: 'Roboto Mono', monospace;
+    font-size: 12.5px; line-height: 1.7;
+    margin: 12px 0;
+  }
+  pre .kw { color: #C792EA; }
+  pre .fn { color: #82AAFF; }
+  pre .str { color: #C3E88D; }
+  pre .cmt { color: #546E7A; }
+  pre .typ { color: #FFCB6B; }
+  pre .var { color: #F78C6C; }
+  pre .dec { color: #89DDFF; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 500;
+    color: var(--md-on-surface-variant); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--md-outline-variant); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--md-primary-light); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--md-primary-container); color: #1565C0; }
+  .badge-green  { background: var(--md-secondary-container); color: #00695C; }
+  .badge-purple { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .badge-red    { background: var(--md-error-container); color: var(--md-error); }
+  .badge-orange { background: var(--md-warning-container); color: var(--md-warning); }
+
+  .flow {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; padding: 20px 0;
+  }
+  .flow-node {
+    padding: 10px 18px; border-radius: var(--md-radius-sm);
+    font-size: 13px; font-weight: 500; text-align: center;
+    min-width: 110px;
+  }
+  .flow-node.primary   { background: var(--md-primary-container); color: #1565C0; }
+  .flow-node.secondary { background: var(--md-secondary-container); color: #00695C; }
+  .flow-node.tertiary  { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .flow-node.surface   { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+  .flow-arrow {
+    font-size: 20px; color: var(--md-outline);
+    display: flex; align-items: center;
+  }
+
+  .accent-block {
+    border-left: 4px solid var(--md-primary);
+    padding: 12px 16px; margin: 12px 0;
+    background: var(--md-primary-light); border-radius: 0 var(--md-radius-xs) var(--md-radius-xs) 0;
+    font-size: 13px; color: var(--md-on-surface-variant);
+  }
+  .accent-block.green { border-color: var(--md-secondary); background: var(--md-secondary-container); }
+  .accent-block.red { border-color: var(--md-error); background: var(--md-error-container); }
+  .accent-block.orange { border-color: var(--md-warning); background: var(--md-warning-container); }
+
+  .diagram-box {
+    background: var(--md-surface-container);
+    border: 2px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 24px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .diagram-box pre {
+    background: transparent; color: var(--md-on-surface);
+    text-align: left; display: inline-block; margin: 0;
+  }
+  .diagram-box pre .box  { color: var(--md-primary); }
+  .diagram-box pre .arr  { color: var(--md-outline); }
+  .diagram-box pre .note { color: var(--md-on-surface-variant); }
+  .diagram-box pre .hl   { color: var(--md-secondary); }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 10px; border-radius: 16px;
+    font-size: 11px; font-weight: 500;
+    background: var(--md-surface-container-high);
+    color: var(--md-on-surface-variant);
+  }
+
+  .compare-table th:first-child { width: 160px; }
+
+  .icon-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .icon-row .material-icons-outlined {
+    font-size: 20px; color: var(--md-primary);
+  }
+
+  .step-list { counter-reset: step; list-style: none; padding-left: 0; }
+  .step-list li {
+    counter-increment: step;
+    padding: 8px 0 8px 36px;
+    position: relative;
+    font-size: 14px;
+    color: var(--md-on-surface-variant);
+  }
+  .step-list li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 8px;
+    width: 24px; height: 24px;
+    background: var(--md-primary-container);
+    color: var(--md-primary);
+    border-radius: 50%;
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>服务端日志系统 — 架构设计与最佳实践</h1>
+  <div class="subtitle">基于 NestJS / Node.js 的结构化日志、异常追踪、指标采集与集中式日志架构</div>
+</div>
+
+<div class="container">
+
+<div class="chip-row">
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>NestJS</span>
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>Pino / Winston</span>
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>Sentry</span>
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>ELK / Loki</span>
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>OpenTelemetry</span>
+  <span class="chip"><span class="material-icons-outlined">bookmark</span>Correlation ID</span>
+</div>
+
+<div class="toc">
+  <h3>目录</h3>
+  <div class="toc-grid">
+    <a href="#overview">日志系统全景与分层架构</a>
+    <a href="#layer1">L1 — 应用日志（结构化日志框架）</a>
+    <a href="#layer2">L2 — 访问日志（HTTP 请求/响应）</a>
+    <a href="#layer3">L3 — 异常追踪（错误捕获与上报）</a>
+    <a href="#layer4">L4 — 链路追踪（Correlation ID）</a>
+    <a href="#layer5">L5 — 指标采集（Metrics / APM）</a>
+    <a href="#layer6">L6 — 操作审计（Audit Trail）</a>
+    <a href="#transport">日志传输与集中式存储</a>
+    <a href="#pino-vs-winston">Pino vs Winston 对比选型</a>
+    <a href="#sentry">Sentry 异常追踪集成</a>
+    <a href="#correlation">Correlation ID 实现方案</a>
+    <a href="#log-fields">标准化日志字段规范</a>
+    <a href="#level-strategy">日志级别策略</a>
+    <a href="#security">日志安全与合规</a>
+    <a href="#checklist">生产环境 Checklist</a>
+    <a href="#project-audit">当前项目审计与改进建议</a>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 概览 -->
+<!-- ============================================================ -->
+<div class="section" id="overview">
+  <div class="section-title"><span class="material-icons-outlined">architecture</span> 日志系统全景与分层架构</div>
+
+  <div class="card">
+    <h3>六层日志架构</h3>
+    <p>一个生产级日志系统不是"一个 logger 打天下"，而是由 6 个关注点不同的层次组成，每层解决独立的问题：</p>
+
+    <table>
+      <thead>
+        <tr><th>层次</th><th>关注点</th><th>工具/方案</th><th>输出目标</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-blue">L1</span> 应用日志</td>
+          <td>业务逻辑、调试信息</td>
+          <td>Pino / Winston（结构化 JSON）</td>
+          <td>文件 → 日志平台</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-blue">L2</span> 访问日志</td>
+          <td>HTTP 请求/响应、耗时</td>
+          <td>pino-http / 自定义 Interceptor</td>
+          <td>文件 → 日志平台</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-red">L3</span> 异常追踪</td>
+          <td>未捕获异常、错误聚合</td>
+          <td>Sentry / Bugsnag</td>
+          <td>Sentry Dashboard</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">L4</span> 链路追踪</td>
+          <td>请求关联、跨服务追踪</td>
+          <td>Correlation ID / OpenTelemetry</td>
+          <td>Jaeger / Zipkin</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">L5</span> 指标采集</td>
+          <td>QPS、延迟、错误率</td>
+          <td>Prometheus / Datadog</td>
+          <td>Grafana Dashboard</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-orange">L6</span> 操作审计</td>
+          <td>用户行为、数据变更</td>
+          <td>数据库表 + 异步写入</td>
+          <td>MySQL / 审计库</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>数据流全景</h3>
+    <div class="diagram-box">
+<pre>
+<span class="box">┌─────────────┐</span>     <span class="box">┌─────────────┐</span>     <span class="box">┌─────────────┐</span>
+<span class="box">│  NestJS App │</span>────<span class="arr">▶│</span> <span class="hl">Log Shipper</span> <span class="arr">│</span>────<span class="arr">▶│</span> <span class="hl">Log Store</span>  <span class="arr">│</span>────<span class="arr">▶</span> <span class="note">Dashboard</span>
+<span class="box">│  (Pino)     │</span>     <span class="box">│  Fluentd    │</span>     <span class="box">│  Loki / ES  │</span>     <span class="note">Grafana / Kibana</span>
+<span class="box">└──────┬──────┘</span>     <span class="box">└─────────────┘</span>     <span class="box">└─────────────┘</span>
+       <span class="arr">│</span>
+       <span class="arr">├────</span> <span class="note">stdout (JSON)</span> ──▶ <span class="hl">容器日志收集</span>
+       <span class="arr">│</span>
+       <span class="arr">├────</span> <span class="note">Sentry SDK</span>  ──▶ <span class="hl">Sentry (异常聚合)</span>
+       <span class="arr">│</span>
+       <span class="arr">└────</span> <span class="note">Prometheus</span>  ──▶ <span class="hl">Grafana (指标看板)</span>
+</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L1 应用日志 -->
+<!-- ============================================================ -->
+<div class="section" id="layer1">
+  <div class="section-title"><span class="material-icons-outlined">description</span> L1 — 应用日志（结构化日志框架）</div>
+
+  <div class="card">
+    <h3>为什么选 Pino？</h3>
+    <p>2024-2026 年 NestJS 社区共识：<strong>Pino 是生产环境首选</strong>。核心优势：</p>
+    <ul>
+      <li><strong>性能碾压</strong>：基准测试中吞吐量是 Winston 的 5-10 倍，因为 JSON 序列化在 C++ 层完成</li>
+      <li><strong>JSON 原生</strong>：输出即结构化 JSON，零配置</li>
+      <li><strong>生态整合</strong>：<code>pino-http</code> 自动记录 HTTP 请求日志，<code>pino-pretty</code> 开发环境美化输出</li>
+      <li><strong>传输分离</strong>：日志格式与日志去向解耦，通过 transport 管道输出到文件/stdout/远程</li>
+    </ul>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>nestjs-pino 基础配置</h3>
+<pre>
+<span class="cmt">// app.module.ts</span>
+<span class="kw">import</span> { <span class="typ">LoggerModule</span> } <span class="kw">from</span> <span class="str">'nestjs-pino'</span>;
+
+<span class="dec">@Module</span>({
+  <span class="fn">imports</span>: [
+    <span class="typ">LoggerModule</span>.<span class="fn">forRoot</span>({
+      <span class="var">pinoHttp</span>: {
+        <span class="cmt">// 生产环境：纯 JSON</span>
+        <span class="cmt">// 开发环境：pino-pretty 美化</span>
+        <span class="var">transport</span>:
+          process.env.<span class="var">NODE_ENV</span> !== <span class="str">'production'</span>
+            ? { <span class="var">target</span>: <span class="str">'pino-pretty'</span> }
+            : <span class="kw">undefined</span>,
+        <span class="cmt">// 自定义请求属性</span>
+        <span class="var">customProps</span>: (<span class="var">req</span>, <span class="var">res</span>) => ({
+          <span class="var">appName</span>: <span class="str">'fcm-push-server'</span>,
+        }),
+        <span class="cmt">// 自定义成功日志级别</span>
+        <span class="var">customLogLevel</span>: (<span class="var">req</span>, <span class="var">res</span>, <span class="var">err</span>) => {
+          <span class="kw">if</span> (res.<span class="var">statusCode</span> >= <span class="var">500</span>) <span class="kw">return</span> <span class="str">'error'</span>;
+          <span class="kw">if</span> (res.<span class="var">statusCode</span> >= <span class="var">400</span>) <span class="kw">return</span> <span class="str">'warn'</span>;
+          <span class="kw">return</span> <span class="str">'info'</span>;
+        },
+      },
+    }),
+  ],
+})
+<span class="kw">export class</span> <span class="typ">AppModule</span> {}
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>替换 NestJS 内置 Logger</h3>
+<pre>
+<span class="cmt">// main.ts</span>
+<span class="kw">import</span> { <span class="typ">NestFactory</span> } <span class="kw">from</span> <span class="str">'@nestjs/core'</span>;
+<span class="kw">import</span> { <span class="typ">Logger</span> } <span class="kw">from</span> <span class="str">'nestjs-pino'</span>;
+
+<span class="kw">async function</span> <span class="fn">bootstrap</span>() {
+  <span class="kw">const</span> app = <span class="kw">await</span> <span class="typ">NestFactory</span>.<span class="fn">create</span>(
+    <span class="typ">AppModule</span>,
+    { <span class="var">bufferLogs</span>: <span class="kw">true</span> }  <span class="cmt">// 防止初始化阶段日志丢失</span>
+  );
+
+  <span class="cmt">// 用 Pino 替换 NestJS 内置 Logger</span>
+  app.<span class="fn">useLogger</span>(app.<span class="fn">get</span>(<span class="typ">Logger</span>));
+
+  <span class="kw">await</span> app.<span class="fn">listen</span>(<span class="var">3000</span>);
+}
+<span class="fn">bootstrap</span>();
+</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Winston 备选方案（适合需要多 transport 的场景）</h3>
+<pre>
+<span class="cmt">// winston-config.ts</span>
+<span class="kw">import</span> { <span class="typ">WinstonModule</span> } <span class="kw">from</span> <span class="str">'nest-winston'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> winston <span class="kw">from</span> <span class="str">'winston'</span>;
+
+<span class="typ">WinstonModule</span>.<span class="fn">forRoot</span>({
+  <span class="var">transports</span>: [
+    <span class="cmt">// 控制台：开发环境用 colorize，生产用 JSON</span>
+    <span class="kw">new</span> winston.<span class="typ">transports</span>.<span class="typ">Console</span>({
+      <span class="var">format</span>:
+        process.env.<span class="var">NODE_ENV</span> === <span class="str">'production'</span>
+          ? winston.format.<span class="fn">combine</span>(
+              winston.format.<span class="fn">timestamp</span>(),
+              winston.format.<span class="fn">json</span>()
+            )
+          : winston.format.<span class="fn">combine</span>(
+              winston.format.<span class="fn">colorize</span>(),
+              winston.format.<span class="fn">timestamp</span>({ <span class="var">format</span>: <span class="str">'HH:mm:ss'</span> }),
+              winston.format.<span class="fn">printf</span>(({ <span class="var">timestamp</span>, <span class="var">level</span>, <span class="var">message</span>, <span class="var">context</span> }) =>
+                <span class="str">`[</span>${<span class="var">timestamp</span>}<span class="str">] </span>${<span class="var">level</span>}<span class="str"> [</span>${<span class="var">context</span> || <span class="str">''</span>}<span class="str">] </span>${<span class="var">message</span>}<span class="str">`</span>
+              ),
+            ),
+    }),
+    <span class="cmt">// 文件：按大小轮转</span>
+    <span class="kw">new</span> winston.<span class="typ">transports</span>.<span class="typ">File</span>({
+      <span class="var">filename</span>: <span class="str">'logs/error.log'</span>,
+      <span class="var">level</span>: <span class="str">'error'</span>,
+      <span class="var">maxsize</span>: <span class="var">50</span> * <span class="var">1024</span> * <span class="var">1024</span>, <span class="cmt">// 50MB</span>
+      <span class="var">maxFiles</span>: <span class="var">14</span>,
+    }),
+  ],
+});
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L2 访问日志 -->
+<!-- ============================================================ -->
+<div class="section" id="layer2">
+  <div class="section-title"><span class="material-icons-outlined">http</span> L2 — 访问日志（HTTP 请求/响应）</div>
+
+  <div class="card">
+    <h3>pino-http（推荐方案）</h3>
+    <p><code>nestjs-pino</code> 内置 <code>pino-http</code> 中间件，自动为每个请求生成一行结构化日志，包含：</p>
+    <ul>
+      <li><code>req</code> — method、url、headers、remoteAddress</li>
+      <li><code>res</code> — statusCode、headers</li>
+      <li><code>responseTime</code> — 精确到毫秒</li>
+      <li><code>reqId</code> — 自动生成的请求 ID（可自定义）</li>
+    </ul>
+
+    <div class="accent-block green">
+      <strong>vs 自定义 Interceptor：</strong>pino-http 在 TCP 层捕获响应结束事件，比 RxJS <code>tap</code> 拦截器更准确（不会遗漏异常路径），且性能开销更低。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>自定义请求日志字段</h3>
+<pre>
+<span class="typ">LoggerModule</span>.<span class="fn">forRoot</span>({
+  <span class="var">pinoHttp</span>: {
+    <span class="cmt">// 自定义请求序列化（脱敏 + 业务字段）</span>
+    <span class="var">customAttributeKeys</span>: {
+      <span class="var">req</span>: <span class="str">'request'</span>,
+      <span class="var">res</span>: <span class="str">'response'</span>,
+      <span class="var">err</span>: <span class="str">'error'</span>,
+      <span class="var">reqId</span>: <span class="str">'requestId'</span>,
+      <span class="var">responseTime</span>: <span class="str">'duration'</span>,
+    },
+    <span class="cmt">// 添加业务上下文</span>
+    <span class="var">customProps</span>: (<span class="var">req</span>, <span class="var">res</span>) => ({
+      <span class="var">userId</span>: req.<span class="var">user</span>?.<span class="var">id</span>,
+      <span class="var">appId</span>: req.<span class="var">headers</span>?.[<span class="str">'x-app-id'</span>],
+      <span class="var">env</span>: process.env.<span class="var">ENV_MODE</span>,
+    }),
+    <span class="cmt">// 脱敏：不记录 Authorization 头</span>
+    <span class="var">redact</span>: [<span class="str">'req.headers.authorization'</span>, <span class="str">'req.body.password'</span>],
+  },
+});
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L3 异常追踪 -->
+<!-- ============================================================ -->
+<div class="section" id="layer3">
+  <div class="section-title"><span class="material-icons-outlined">bug_report</span> L3 — 异常追踪（错误捕获与上报）</div>
+
+  <div class="card">
+    <h3>全局异常过滤器（基础防线）</h3>
+    <p>每个 NestJS 项目都应有全局异常过滤器，但它的职责仅是<strong>格式化响应</strong>和<strong>本地记录</strong>。真正的问题聚合和告警应交给 Sentry。</p>
+
+<pre>
+<span class="cmt">// all-exceptions.filter.ts</span>
+<span class="kw">import</span> { <span class="typ">Catch</span>, <span class="typ">ArgumentsHost</span>, <span class="typ">HttpException</span>, <span class="typ">HttpStatus</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+<span class="kw">import</span> { <span class="typ">BaseExceptionFilter</span> } <span class="kw">from</span> <span class="str">'@nestjs/core'</span>;
+<span class="kw">import</span> { <span class="typ">Logger</span> } <span class="kw">from</span> <span class="str">'nestjs-pino'</span>;
+
+<span class="dec">@Catch</span>()
+<span class="kw">export class</span> <span class="typ">AllExceptionsFilter</span> <span class="kw">extends</span> <span class="typ">BaseExceptionFilter</span> {
+  <span class="kw">private readonly</span> logger = <span class="kw">new</span> <span class="typ">Logger</span>(<span class="str">'ExceptionFilter'</span>);
+
+  <span class="fn">catch</span>(<span class="var">exception</span>: <span class="kw">unknown</span>, <span class="var">host</span>: <span class="typ">ArgumentsHost</span>) {
+    <span class="kw">const</span> ctx = host.<span class="fn">switchToHttp</span>();
+    <span class="kw">const</span> request = ctx.<span class="fn">getRequest</span>();
+    <span class="kw">const</span> response = ctx.<span class="fn">getResponse</span>();
+
+    <span class="kw">const</span> status = exception <span class="kw">instanceof</span> <span class="typ">HttpException</span>
+      ? exception.<span class="fn">getStatus</span>()
+      : <span class="typ">HttpStatus</span>.<span class="var">INTERNAL_SERVER_ERROR</span>;
+
+    <span class="cmt">// 结构化错误日志</span>
+    <span class="kw">this</span>.logger.<span class="fn">error</span>({
+      <span class="var">message</span>: exception <span class="kw">instanceof</span> <span class="typ">Error</span> ? exception.<span class="var">message</span> : <span class="str">'Unknown error'</span>,
+      <span class="var">statusCode</span>: status,
+      <span class="var">method</span>: request.<span class="var">method</span>,
+      <span class="var">url</span>: request.<span class="var">url</span>,
+      <span class="var">requestId</span>: request.<span class="var">id</span>,  <span class="cmt">// pino-http 自动注入</span>
+      <span class="var">stack</span>: exception <span class="kw">instanceof</span> <span class="typ">Error</span> ? exception.<span class="var">stack</span> : <span class="kw">undefined</span>,
+    });
+
+    <span class="cmt">// 让 Sentry 捕获（见下文）</span>
+    <span class="cmt">// Sentry.captureException(exception);</span>
+
+    <span class="kw">super</span>.<span class="fn">catch</span>(exception, host);
+  }
+}
+</pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Sentry 集成架构</h3>
+      <ul>
+        <li>捕获未处理异常 + Promise rejection</li>
+        <li>自动聚合相同错误（fingerprint）</li>
+        <li>附带请求上下文、用户信息</li>
+        <li>支持 Source Map 还原 TypeScript 堆栈</li>
+        <li>错误率阈值告警（邮件/Slack/飞书）</li>
+        <li>Release Tracking 关联部署版本</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>错误分类与上报策略</h3>
+      <table>
+        <tr><th>错误类型</th><th>上报？</th><th>说明</th></tr>
+        <tr><td>5xx 服务端异常</td><td><span class="badge badge-red">必须</span></td><td>代码 bug、依赖超时</td></tr>
+        <tr><td>4xx 客户端错误</td><td><span class="badge badge-orange">按需</span></td><td>401/403 频繁时需告警</td></tr>
+        <tr><td>业务校验失败</td><td><span class="badge badge-green">不上报</span></td><td>参数错误、权限不足</td></tr>
+        <tr><td>外部 API 超时</td><td><span class="badge badge-red">必须</span></td><td>FCM / XMPP 调用失败</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L4 链路追踪 -->
+<!-- ============================================================ -->
+<div class="section" id="layer4">
+  <div class="section-title"><span class="material-icons-outlined">link</span> L4 — 链路追踪（Correlation ID）</div>
+
+  <div class="card">
+    <h3>为什么需要 Correlation ID？</h3>
+    <p>没有 Correlation ID，当一个请求经过 Controller → Service → 外部 API → 数据库，产生 10 条日志时，你<strong>无法将它们关联起来</strong>。尤其在并发场景下，日志交错排列，排查问题如同大海捞针。</p>
+  </div>
+
+  <div class="card">
+    <h3>方案一：nestjs-pino 内置 reqId（推荐，最简）</h3>
+<pre>
+<span class="typ">LoggerModule</span>.<span class="fn">forRoot</span>({
+  <span class="var">pinoHttp</span>: {
+    <span class="cmt">// 使用请求头中的 x-request-id，没有则自动生成</span>
+    <span class="var">genReqId</span>: (<span class="var">req</span>) =>
+      req.<span class="var">headers</span>[<span class="str">'x-request-id'</span>] || <span class="fn">randomUUID</span>(),
+    <span class="cmt">// 响应头中返回 request-id</span>
+    <span class="var">customAttributeKeys</span>: {
+      <span class="var">reqId</span>: <span class="str">'requestId'</span>,
+    },
+  },
+});
+<span class="cmt">// 效果：每条日志自动附带 {"requestId":"abc-123"}</span>
+</pre>
+  </div>
+
+  <div class="card">
+    <h3>方案二：nestjs-cls（跨函数传递上下文）</h3>
+    <p>当需要在日志之外的场景（如审计、多租户）传递请求上下文时，使用 <code>nestjs-cls</code> 封装 <code>AsyncLocalStorage</code>：</p>
+<pre>
+<span class="cmt">// app.module.ts</span>
+<span class="kw">import</span> { <span class="typ">ClsModule</span> } <span class="kw">from</span> <span class="str">'nestjs-cls'</span>;
+
+<span class="dec">@Module</span>({
+  <span class="fn">imports</span>: [
+    <span class="typ">ClsModule</span>.<span class="fn">forRoot</span>({
+      <span class="var">global</span>: <span class="kw">true</span>,
+      <span class="var">middleware</span>: {
+        <span class="cmt">// 每个请求自动创建 CLS 上下文</span>
+        <span class="fn">mount</span>: <span class="kw">true</span>,
+        <span class="fn">setup</span>: (<span class="var">cls</span>, <span class="var">req</span>) => {
+          <span class="var">cls</span>.<span class="fn">set</span>(<span class="str">'requestId'</span>, req.<span class="var">headers</span>[<span class="str">'x-request-id'</span>] || <span class="fn">randomUUID</span>());
+          <span class="var">cls</span>.<span class="fn">set</span>(<span class="str">'userId'</span>, req.<span class="var">user</span>?.<span class="var">id</span>);
+        },
+      },
+    }),
+  ],
+})
+<span class="kw">export class</span> <span class="typ">AppModule</span> {}
+
+<span class="cmt">// 任意 Service 中使用</span>
+<span class="kw">import</span> { <span class="typ">ClsService</span> } <span class="kw">from</span> <span class="str">'nestjs-cls'</span>;
+
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">MessageTaskService</span> {
+  <span class="fn">constructor</span>(<span class="kw">private readonly</span> cls: <span class="typ">ClsService</span>) {}
+
+  <span class="fn">sendPush</span>() {
+    <span class="kw">const</span> requestId = <span class="kw">this</span>.cls.<span class="fn">get</span>(<span class="str">'requestId'</span>);
+    <span class="cmt">// 可直接传给下游 API，无需手动透传参数</span>
+  }
+}
+</pre>
+  </div>
+
+  <div class="card">
+    <h3>方案三：OpenTelemetry（分布式追踪，跨服务）</h3>
+    <p>当项目演进为微服务架构（Node ↔ Java ↔ XMPP 服务），需要完整的分布式链路追踪时：</p>
+    <div class="flow">
+      <div class="flow-node primary">Node.js App</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node secondary">OTel SDK</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node tertiary">OTel Collector</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node surface">Jaeger / Tempo</div>
+    </div>
+    <ul>
+      <li>自动注入 <code>traceparent</code> / <code>tracestate</code> 头</li>
+      <li>自动追踪 HTTP、数据库、Redis 调用</li>
+      <li>Span 关联到日志（通过 <code>traceId</code> 字段）</li>
+    </ul>
+    <div class="accent-block">
+      <strong>渐进式策略：</strong>先用方案一（reqId）覆盖 80% 场景；需要跨函数上下文时引入方案二；微服务化后再升级到方案三。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L5 指标采集 -->
+<!-- ============================================================ -->
+<div class="section" id="layer5">
+  <div class="section-title"><span class="material-icons-outlined">analytics</span> L5 — 指标采集（Metrics / APM）</div>
+
+  <div class="card">
+    <h3>为什么日志不够？</h3>
+    <p>日志告诉你"发生了什么"，但无法回答：</p>
+    <ul>
+      <li>当前 QPS 是多少？比昨天高还是低？</li>
+      <li>P99 延迟是否超过 SLA？</li>
+      <li>错误率突增时，是哪些接口出了问题？</li>
+      <li>FCM 推送成功率趋势如何？</li>
+    </ul>
+    <p>这些需要<strong>指标（Metrics）</strong>来回答。</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Prometheus + Grafana（推荐）</h3>
+<pre>
+<span class="cmt">// 安装</span>
+yarn add <span class="str">prom-client</span>
+
+<span class="cmt">// metrics.ts — 自定义业务指标</span>
+<span class="kw">import</span> { <span class="typ">Counter</span>, <span class="typ">Histogram</span>, <span class="typ">register</span> } <span class="kw">from</span> <span class="str">'prom-client'</span>;
+
+<span class="cmt">// 推送任务计数器</span>
+<span class="kw">export const</span> pushTaskTotal = <span class="kw">new</span> <span class="typ">Counter</span>({
+  <span class="var">name</span>: <span class="str">'push_task_total'</span>,
+  <span class="var">help</span>: <span class="str">'Total push tasks'</span>,
+  <span class="var">labelNames</span>: [<span class="str">'status'</span>, <span class="str">'app_id'</span>],
+});
+
+<span class="cmt">// 请求延迟直方图</span>
+<span class="kw">export const</span> httpRequestDuration = <span class="kw">new</span> <span class="typ">Histogram</span>({
+  <span class="var">name</span>: <span class="str">'http_request_duration_ms'</span>,
+  <span class="var">help</span>: <span class="str">'HTTP request duration in ms'</span>,
+  <span class="var">labelNames</span>: [<span class="str">'method'</span>, <span class="str">'route'</span>, <span class="str">'status'</span>],
+  <span class="var">buckets</span>: [<span class="var">10</span>, <span class="var">50</span>, <span class="var">100</span>, <span class="var">200</span>, <span class="var">500</span>, <span class="var">1000</span>, <span class="var">2000</span>],
+});
+
+<span class="cmt">// 暴露 /metrics 端点</span>
+app.<span class="fn">use</span>(<span class="str">'/metrics'</span>, <span class="kw">async</span> (<span class="var">req</span>, <span class="var">res</span>) => {
+  res.<span class="fn">setHeader</span>(<span class="str">'Content-Type'</span>, register.<span class="var">contentType</span>);
+  res.<span class="fn">end</span>(<span class="kw">await</span> register.<span class="fn">metrics</span>());
+});
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>核心监控指标</h3>
+      <table>
+        <tr><th>指标名</th><th>类型</th><th>用途</th></tr>
+        <tr><td><code>http_requests_total</code></td><td>Counter</td><td>总请求数，按 method/route/status</td></tr>
+        <tr><td><code>http_request_duration_ms</code></td><td>Histogram</td><td>请求延迟分布</td></tr>
+        <tr><td><code>push_task_total</code></td><td>Counter</td><td>推送任务数，按状态</td></tr>
+        <tr><td><code>push_success_rate</code></td><td>Gauge</td><td>推送成功率</td></tr>
+        <tr><td><code>external_api_duration_ms</code></td><td>Histogram</td><td>外部 API 调用耗时</td></tr>
+        <tr><td><code>db_query_duration_ms</code></td><td>Histogram</td><td>数据库查询耗时</td></tr>
+        <tr><td><code>active_connections</code></td><td>Gauge</td><td>活跃连接数</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- L6 操作审计 -->
+<!-- ============================================================ -->
+<div class="section" id="layer6">
+  <div class="section-title"><span class="material-icons-outlined">shield</span> L6 — 操作审计（Audit Trail）</div>
+
+  <div class="card">
+    <h3>审计日志 vs 应用日志</h3>
+    <table>
+      <tr><th>维度</th><th>应用日志</th><th>审计日志</th></tr>
+      <tr><td>目的</td><td>排错、调试</td><td>合规、问责、追溯</td></tr>
+      <tr><td>生命周期</td><td>7-30 天轮转</td><td>永久保留（或按法规要求）</td></tr>
+      <tr><td>存储</td><td>文件/日志平台</td><td>独立数据库</td></tr>
+      <tr><td>内容</td><td>技术细节</td><td>谁、在什么时间、对什么、做了什么操作</td></tr>
+      <tr><td>格式</td><td>JSON 日志</td><td>结构化记录（数据库行）</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>NestJS 审计日志实现模式</h3>
+<pre>
+<span class="cmt">// 使用装饰器 + 拦截器模式（当前项目已采用此模式）</span>
+
+<span class="cmt">// 1. 自定义装饰器标记需要审计的操作</span>
+<span class="kw">export const</span> <span class="fn">AuditAction</span> = (<span class="var">action</span>: <span class="kw">string</span>) =>
+  <span class="fn">SetMetadata</span>(<span class="str">'audit:action'</span>, action);
+
+<span class="cmt">// 2. 拦截器在操作成功后异步写入审计记录</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">AuditInterceptor</span> <span class="kw">implements</span> <span class="typ">NestInterceptor</span> {
+  <span class="fn">intercept</span>(<span class="var">context</span>: <span class="typ">ExecutionContext</span>, <span class="var">next</span>: <span class="typ">CallHandler</span>) {
+    <span class="kw">const</span> action = <span class="kw">this</span>.reflector.<span class="fn">get</span>(<span class="str">'audit:action'</span>, context.<span class="fn">getHandler</span>());
+
+    <span class="kw">return</span> next.<span class="fn">handle</span>().<span class="fn">pipe</span>(
+      <span class="fn">tap</span>((<span class="var">data</span>) => {
+        <span class="kw">if</span> (action) {
+          <span class="cmt">// 异步写入，不阻塞响应</span>
+          <span class="kw">this</span>.auditService.<span class="fn">log</span>({
+            <span class="var">userId</span>: context.<span class="fn">switchToHttp</span>().<span class="fn">getRequest</span>().<span class="var">user</span>.<span class="var">id</span>,
+            <span class="var">action</span>,
+            <span class="var">resource</span>: context.<span class="fn">getClass</span>().<span class="var">name</span>,
+            <span class="var">timestamp</span>: <span class="kw">new</span> <span class="typ">Date</span>(),
+          }).<span class="fn">catch</span>(<span class="var">err</span> =>
+            <span class="kw">this</span>.logger.<span class="fn">warn</span>(<span class="str">`Audit log failed: </span>${err.<span class="var">message</span>}<span class="str">`</span>)
+          );
+        }
+      }),
+    );
+  }
+}
+
+<span class="cmt">// 3. Controller 中使用</span>
+<span class="dec">@Post</span>()
+<span class="dec">@AuditAction</span>(<span class="str">'create-push-task'</span>)
+<span class="fn">createTask</span>(<span class="dec">@Body</span>() <span class="var">dto</span>: <span class="typ">CreateTaskDto</span>) { ... }
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 日志传输 -->
+<!-- ============================================================ -->
+<div class="section" id="transport">
+  <div class="section-title"><span class="material-icons-outlined">cloud_upload</span> 日志传输与集中式存储</div>
+
+  <div class="card">
+    <h3>架构选型对比</h3>
+    <table class="compare-table">
+      <tr>
+        <th>方案</th>
+        <th>组成</th>
+        <th>优势</th>
+        <th>劣势</th>
+        <th>适用场景</th>
+      </tr>
+      <tr>
+        <td><span class="badge badge-blue">ELK Stack</span></td>
+        <td>Elasticsearch + Logstash + Kibana</td>
+        <td>全文检索强、生态成熟</td>
+        <td>资源消耗大、运维复杂</td>
+        <td>大规模日志分析</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-green">Grafana Loki</span></td>
+        <td>Loki + Promtail + Grafana</td>
+        <td>轻量、成本低、与 Prometheus 共享 Grafana</td>
+        <td>不支持全文索引</td>
+        <td>云原生 / K8s 环境</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-purple">Datadog</span></td>
+        <td>SaaS 全托管</td>
+        <td>开箱即用、APM + Logs + Metrics 一体</td>
+        <td>费用高、数据出境</td>
+        <td>预算充足、快速上手</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-orange">EFK Stack</span></td>
+        <td>Elasticsearch + Fluentd + Kibana</td>
+        <td>Fluentd 是 CNCF 标准</td>
+        <td>同 ELK 运维成本</td>
+        <td>K8s 环境替代 ELK</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>推荐传输架构（容器化部署）</h3>
+    <div class="diagram-box">
+<pre>
+<span class="box">┌──────────────────────┐</span>
+<span class="box">│   NestJS App (Pino)  │</span>
+<span class="box">│   输出 JSON 到 stdout │</span>
+<span class="box">└──────────┬───────────┘</span>
+           <span class="arr">│</span>
+           <span class="arr">├────</span> <span class="note">stdout (JSON)</span> ──▶ <span class="hl">Fluentd / Promtail</span> ──▶ <span class="box">Loki / ES</span>
+           <span class="arr">│</span>
+           <span class="arr">└────</span> <span class="note">Sentry SDK</span>  ────────────────────────▶ <span class="box">Sentry</span>
+
+<span class="note">12-Factor App 原则：应用只管输出日志到 stdout，不负责日志的路由和存储。</span>
+</pre>
+    </div>
+
+    <div class="accent-block green">
+      <strong>最佳实践：</strong>容器化环境中，应用只管将 JSON 日志输出到 stdout/stderr，由 Kubernetes 的日志驱动（Fluentd/Promtail/Filebeat）负责收集和转发。这样应用不依赖日志存储后端，解耦更彻底。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Pino Transport 配置示例</h3>
+<pre>
+<span class="cmt">// 当需要同时输出到 stdout + 文件（非容器化场景）</span>
+<span class="kw">const</span> pinoConfig = {
+  <span class="var">transport</span>: {
+    <span class="var">targets</span>: [
+      <span class="cmt">// 开发环境美化输出</span>
+      {
+        <span class="var">target</span>: <span class="str">'pino-pretty'</span>,
+        <span class="var">options</span>: { <span class="var">colorize</span>: <span class="kw">true</span> },
+        <span class="var">level</span>: <span class="str">'debug'</span>,
+      },
+      <span class="cmt">// 生产环境输出到文件（按日期轮转）</span>
+      {
+        <span class="var">target</span>: <span class="str">'pino-roll'</span>,
+        <span class="var">options</span>: {
+          <span class="var">file</span>: <span class="str">'./logs/app.log'</span>,
+          <span class="var">frequency</span>: <span class="str">'daily'</span>,
+          <span class="var">size</span>: <span class="str">'50m'</span>,
+          <span class="var">limit</span>: { <span class="var">count</span>: <span class="var">14</span> },
+        },
+        <span class="var">level</span>: <span class="str">'info'</span>,
+      },
+      <span class="cmt">// 错误日志单独输出</span>
+      {
+        <span class="var">target</span>: <span class="str">'pino-roll'</span>,
+        <span class="var">options</span>: { <span class="var">file</span>: <span class="str">'./logs/error.log'</span> },
+        <span class="var">level</span>: <span class="str">'error'</span>,
+      },
+    ],
+  },
+};
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Pino vs Winston -->
+<!-- ============================================================ -->
+<div class="section" id="pino-vs-winston">
+  <div class="section-title"><span class="material-icons-outlined">compare</span> Pino vs Winston 对比选型</div>
+
+  <div class="card">
+    <table class="compare-table">
+      <tr>
+        <th>维度</th>
+        <th><span class="badge badge-green">Pino</span></th>
+        <th><span class="badge badge-blue">Winston</span></th>
+      </tr>
+      <tr>
+        <td>性能</td>
+        <td><strong>极快</strong> — JSON 序列化在 C++ 层（sonic-boom）</td>
+        <td>中等 — 纯 JS JSON.stringify</td>
+      </tr>
+      <tr>
+        <td>Bundle 大小</td>
+        <td>~30KB（核心）</td>
+        <td>~120KB（含依赖）</td>
+      </tr>
+      <tr>
+        <td>输出格式</td>
+        <td>JSON 原生，pino-pretty 开发美化</td>
+        <td>灵活 format chain（JSON / printf / 自定义）</td>
+      </tr>
+      <tr>
+        <td>Transport</td>
+        <td>独立进程（不阻塞主线程）</td>
+        <td>同进程（高并发时可能阻塞）</td>
+      </tr>
+      <tr>
+        <td>NestJS 集成</td>
+        <td><code>nestjs-pino</code> — 官方推荐</td>
+        <td><code>nest-winston</code> — 社区维护</td>
+      </tr>
+      <tr>
+        <td>HTTP 日志</td>
+        <td><code>pino-http</code> 内置，零配置</td>
+        <td>需自定义 Interceptor 或 morgan</td>
+      </tr>
+      <tr>
+        <td>生态</td>
+        <td>pino-http / pino-pretty / pino-roll</td>
+        <td>winston-daily-rotate / winston-elasticsearch</td>
+      </tr>
+      <tr>
+        <td>适用场景</td>
+        <td>高并发生产环境、微服务</td>
+        <td>需要复杂 format、多 transport 路由</td>
+      </tr>
+    </table>
+
+    <div class="accent-block">
+      <strong>结论：</strong>新项目首选 Pino。如果已有 Winston 基础设施且运行良好，无需强行迁移。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Sentry -->
+<!-- ============================================================ -->
+<div class="section" id="sentry">
+  <div class="section-title"><span class="material-icons-outlined">error_outline</span> Sentry 异常追踪集成</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>安装与初始化</h3>
+<pre>
+<span class="cmt"># 安装</span>
+yarn add <span class="str">@sentry/nestjs</span> <span class="str">@sentry/profiling-node</span>
+
+<span class="cmt"># main.ts — 尽早初始化</span>
+<span class="kw">import</span> * <span class="kw">as</span> Sentry <span class="kw">from</span> <span class="str">'@sentry/nestjs'</span>;
+
+Sentry.<span class="fn">init</span>({
+  <span class="var">dsn</span>: process.env.<span class="var">SENTRY_DSN</span>,
+  <span class="var">environment</span>: process.env.<span class="var">ENV_MODE</span>,
+  <span class="var">release</span>: process.env.<span class="var">APP_VERSION</span>,
+  <span class="var">tracesSampleRate</span>: <span class="var">0.2</span>,  <span class="cmt">// 20% 性能追踪采样</span>
+  <span class="var">profilesSampleRate</span>: <span class="var">0.1</span>,
+  <span class="var">integrations</span>: [
+    Sentry.<span class="fn">nestIntegration</span>(),
+    Sentry.<span class="fn">httpIntegration</span>({ <span class="var">tracing</span>: <span class="kw">true</span> }),
+  ],
+  <span class="cmt">// 过滤不需要上报的错误</span>
+  <span class="var">beforeSend</span>(<span class="var">event</span>, <span class="var">hint</span>) {
+    <span class="kw">if</span> (hint.<span class="var">originalException</span> <span class="kw">instanceof</span> <span class="typ">HttpException</span>) {
+      <span class="kw">if</span> (hint.<span class="var">originalException</span>.<span class="fn">getStatus</span>() < <span class="var">500</span>) <span class="kw">return null</span>;
+    }
+    <span class="kw">return</span> event;
+  },
+});
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>全局 Sentry 过滤器</h3>
+<pre>
+<span class="cmt">// sentry-exception.filter.ts</span>
+<span class="kw">import</span> { <span class="typ">Catch</span>, <span class="typ">ArgumentsHost</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+<span class="kw">import</span> { <span class="typ">BaseExceptionFilter</span> } <span class="kw">from</span> <span class="str">'@nestjs/core'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> Sentry <span class="kw">from</span> <span class="str">'@sentry/nestjs'</span>;
+
+<span class="dec">@Catch</span>()
+<span class="kw">export class</span> <span class="typ">SentryExceptionFilter</span> <span class="kw">extends</span> <span class="typ">BaseExceptionFilter</span> {
+  <span class="fn">catch</span>(<span class="var">exception</span>: <span class="kw">unknown</span>, <span class="var">host</span>: <span class="typ">ArgumentsHost</span>) {
+    Sentry.<span class="fn">captureException</span>(exception, {
+      <span class="cmt">// 附加上下文</span>
+      <span class="var">contexts</span>: {
+        <span class="var">request</span>: {
+          <span class="var">method</span>: host.<span class="fn">switchToHttp</span>().<span class="fn">getRequest</span>().<span class="var">method</span>,
+          <span class="var">url</span>: host.<span class="fn">switchToHttp</span>().<span class="fn">getRequest</span>().<span class="var">url</span>,
+        },
+      },
+    });
+    <span class="kw">super</span>.<span class="fn">catch</span>(exception, host);
+  }
+}
+
+<span class="cmt">// main.ts 全局注册</span>
+app.<span class="fn">useGlobalFilters</span>(<span class="kw">new</span> <span class="typ">SentryExceptionFilter</span>());
+</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>手动上报（业务层错误）</h3>
+<pre>
+<span class="cmt">// 对于需要额外上下文的业务错误</span>
+<span class="kw">import</span> * <span class="kw">as</span> Sentry <span class="kw">from</span> <span class="str">'@sentry/nestjs'</span>;
+
+<span class="kw">try</span> {
+  <span class="kw">await</span> <span class="kw">this</span>.fcmService.<span class="fn">send</span>(payload);
+} <span class="kw">catch</span> (<span class="var">err</span>) {
+  Sentry.<span class="fn">withScope</span>((<span class="var">scope</span>) => {
+    scope.<span class="fn">setTag</span>(<span class="str">'module'</span>, <span class="str">'push-task'</span>);
+    scope.<span class="fn">setLevel</span>(<span class="str">'error'</span>);
+    scope.<span class="fn">setContext</span>(<span class="str">'pushPayload'</span>, {
+      <span class="var">taskId</span>: payload.<span class="var">taskId</span>,
+      <span class="var">appId</span>: payload.<span class="var">appId</span>,
+      <span class="var">targetCount</span>: payload.<span class="var">targets</span>?.<span class="var">length</span>,
+    });
+    Sentry.<span class="fn">captureException</span>(err);
+  });
+  <span class="kw">throw</span> err;
+}
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Correlation ID 实现 -->
+<!-- ============================================================ -->
+<div class="section" id="correlation">
+  <div class="section-title"><span class="material-icons-outlined">fingerprint</span> Correlation ID 实现方案</div>
+
+  <div class="card">
+    <h3>三种方案对比</h3>
+    <table class="compare-table">
+      <tr>
+        <th>方案</th>
+        <th>实现</th>
+        <th>侵入性</th>
+        <th>适用场景</th>
+      </tr>
+      <tr>
+        <td><span class="badge badge-green">pino-http reqId</span></td>
+        <td>nestjs-pino 内置</td>
+        <td>零侵入</td>
+        <td>单体应用，日志关联</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-blue">nestjs-cls</span></td>
+        <td>AsyncLocalStorage 封装</td>
+        <td>低侵入</td>
+        <td>需要跨函数传递上下文</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-purple">OpenTelemetry</span></td>
+        <td>OTel SDK + 自动注入</td>
+        <td>中等侵入</td>
+        <td>微服务分布式追踪</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>请求头传播规范</h3>
+    <table>
+      <tr><th>Header</th><th>格式</th><th>说明</th></tr>
+      <tr><td><code>x-request-id</code></td><td>UUID v4</td><td>请求唯一标识，网关层生成</td></tr>
+      <tr><td><code>x-correlation-id</code></td><td>UUID v4</td><td>关联标识，跨服务透传（可与 request-id 相同）</td></tr>
+      <tr><td><code>traceparent</code></td><td>W3C Trace Context</td><td>分布式追踪上下文（OTel 自动生成）</td></tr>
+      <tr><td><code>x-user-id</code></td><td>用户 ID</td><td>业务上下文，便于日志过滤</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 标准化日志字段 -->
+<!-- ============================================================ -->
+<div class="section" id="log-fields">
+  <div class="section-title"><span class="material-icons-outlined">data_object</span> 标准化日志字段规范</div>
+
+  <div class="card">
+    <h3>每条日志必须包含的字段</h3>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>示例</th><th>说明</th></tr>
+      <tr><td><code>timestamp</code></td><td>ISO 8601</td><td><code>"2026-08-31T10:30:00.123Z"</code></td><td>UTC 时间戳（pino 默认提供）</td></tr>
+      <tr><td><code>level</code></td><td>string</td><td><code>"info"</code></td><td>日志级别（pino 数字 → 文本映射）</td></tr>
+      <tr><td><code>msg</code></td><td>string</td><td><code>"Push task created"</code></td><td>日志消息（pino 用 msg 而非 message）</td></tr>
+      <tr><td><code>requestId</code></td><td>string</td><td><code>"abc-123-def"</code></td><td>请求关联 ID</td></tr>
+      <tr><td><code>context</code></td><td>string</td><td><code>"MessageTaskService"</code></td><td>日志来源（类名/模块名）</td></tr>
+      <tr><td><code>userId</code></td><td>string</td><td><code>"u_12345"</code></td><td>操作用户（如有）</td></tr>
+      <tr><td><code>env</code></td><td>string</td><td><code>"production"</code></td><td>环境标识</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>日志输出示例</h3>
+<pre>
+<span class="cmt">// 访问日志（pino-http 自动生成）</span>
+{
+  <span class="str">"level"</span>: <span class="var">30</span>,
+  <span class="str">"time"</span>: <span class="str">"2026-08-31T10:30:00.123Z"</span>,
+  <span class="str">"requestId"</span>: <span class="str">"550e8400-e29b-41d4-a716-446655440000"</span>,
+  <span class="str">"request"</span>: {
+    <span class="str">"method"</span>: <span class="str">"POST"</span>,
+    <span class="str">"url"</span>: <span class="str">"/api/message-task/create"</span>,
+    <span class="str">"query"</span>: {},
+    <span class="str">"remoteAddress"</span>: <span class="str">"10.0.0.1"</span>
+  },
+  <span class="str">"response"</span>: { <span class="str">"statusCode"</span>: <span class="var">200</span> },
+  <span class="str">"duration"</span>: <span class="var">42</span>,
+  <span class="str">"userId"</span>: <span class="str">"u_12345"</span>,
+  <span class="str">"appName"</span>: <span class="str">"fcm-push-server"</span>,
+  <span class="str">"msg"</span>: <span class="str">"request completed"</span>
+}
+
+<span class="cmt">// 错误日志（手动记录）</span>
+{
+  <span class="str">"level"</span>: <span class="var">50</span>,
+  <span class="str">"time"</span>: <span class="str">"2026-08-31T10:30:00.456Z"</span>,
+  <span class="str">"requestId"</span>: <span class="str">"550e8400-..."</span>,
+  <span class="str">"context"</span>: <span class="str">"FcmService"</span>,
+  <span class="str">"msg"</span>: <span class="str">"FCM send failed"</span>,
+  <span class="str">"err"</span>: {
+    <span class="str">"type"</span>: <span class="str">"Error"</span>,
+    <span class="str">"message"</span>: <span class="str">"Request timeout after 5000ms"</span>,
+    <span class="str">"stack"</span>: <span class="str">"Error: Request timeout...\n    at ..."</span>
+  },
+  <span class="str">"taskId"</span>: <span class="str">"task_789"</span>,
+  <span class="str">"retryCount"</span>: <span class="var">2</span>
+}
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 日志级别策略 -->
+<!-- ============================================================ -->
+<div class="section" id="level-strategy">
+  <div class="section-title"><span class="material-icons-outlined">tune</span> 日志级别策略</div>
+
+  <div class="card">
+    <h3>级别定义与使用场景</h3>
+    <table>
+      <tr><th>级别</th><th>Pino 数字</th><th>使用场景</th><th>生产环境</th></tr>
+      <tr>
+        <td><code>fatal</code></td><td>60</td>
+        <td>进程即将崩溃、无法恢复的错误</td>
+        <td><span class="badge badge-red">始终输出</span></td>
+      </tr>
+      <tr>
+        <td><code>error</code></td><td>50</td>
+        <td>请求级错误、外部依赖失败</td>
+        <td><span class="badge badge-red">始终输出</span></td>
+      </tr>
+      <tr>
+        <td><code>warn</code></td><td>40</td>
+        <td>非预期但可恢复的情况（重试成功、降级）</td>
+        <td><span class="badge badge-orange">始终输出</span></td>
+      </tr>
+      <tr>
+        <td><code>info</code></td><td>30</td>
+        <td>业务关键事件（任务创建、推送完成）</td>
+        <td><span class="badge badge-green">推荐级别</span></td>
+      </tr>
+      <tr>
+        <td><code>debug</code></td><td>20</td>
+        <td>开发调试信息、中间变量</td>
+        <td><span class="badge badge-blue">仅开发/排障</span></td>
+      </tr>
+      <tr>
+        <td><code>trace</code></td><td>10</td>
+        <td>函数入口/出口、循环内部</td>
+        <td><span class="badge badge-blue">仅开发</span></td>
+      </tr>
+    </table>
+
+    <div class="accent-block">
+      <strong>环境级别配置：</strong><br>
+      Production → <code>info</code>（或 <code>warn</code>，视日志量而定）<br>
+      Staging → <code>info</code><br>
+      Development → <code>debug</code>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>动态日志级别（运行时调优）</h3>
+<pre>
+<span class="cmt">// pino 支持运行时动态调整级别，无需重启</span>
+<span class="cmt">// 可通过管理接口实现</span>
+
+<span class="dec">@Controller</span>(<span class="str">'admin'</span>)
+<span class="kw">export class</span> <span class="typ">AdminController</span> {
+  <span class="fn">constructor</span>(<span class="dec">@InjectPinoLogger</span>() <span class="kw">private readonly</span> logger: <span class="typ">PinoLogger</span>) {}
+
+  <span class="dec">@Post</span>(<span class="str">'log-level'</span>)
+  <span class="fn">setLogLevel</span>(<span class="dec">@Body</span>(<span class="str">'level'</span>) <span class="var">level</span>: <span class="kw">string</span>) {
+    <span class="kw">this</span>.logger.<span class="fn">level</span> = level;
+    <span class="kw">return</span> { <span class="var">level</span>: <span class="kw">this</span>.logger.<span class="fn">level</span> };
+  }
+}
+<span class="cmt">// 临时开启 debug：POST /admin/log-level { "level": "debug" }</span>
+<span class="cmt">// 排查完毕后恢复：POST /admin/log-level { "level": "info" }</span>
+</pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 日志安全 -->
+<!-- ============================================================ -->
+<div class="section" id="security">
+  <div class="section-title"><span class="material-icons-outlined">lock</span> 日志安全与合规</div>
+
+  <div class="card">
+    <h3>敏感数据脱敏</h3>
+    <table>
+      <tr><th>数据类型</th><th>处理方式</th><th>示例</th></tr>
+      <tr><td>密码</td><td><strong>禁止记录</strong></td><td><code>password: "***"</code></td></tr>
+      <tr><td>Token / Secret</td><td>截断或哈希</td><td><code>token: "a8f3...x9k2"</code></td></tr>
+      <tr><td>Authorization 头</td><td>完全脱敏</td><td><code>authorization: "[REDACTED]"</code></td></tr>
+      <tr><td>手机号</td><td>部分掩码</td><td><code>phone: "+86****5678"</code></td></tr>
+      <tr><td>邮箱</td><td>部分掩码</td><td><code>email: "u***@example.com"</code></td></tr>
+      <tr><td>IP 地址</td><td>保留（运维需要）</td><td>—</td></tr>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Pino 内置脱敏</h3>
+<pre>
+<span class="kw">const</span> pinoConfig = {
+  <span class="var">redact</span>: {
+    <span class="var">paths</span>: [
+      <span class="str">'req.headers.authorization'</span>,
+      <span class="str">'req.headers.cookie'</span>,
+      <span class="str">'req.body.password'</span>,
+      <span class="str">'req.body.token'</span>,
+      <span class="str">'*.secret'</span>,
+      <span class="str">'*.apiKey'</span>,
+    ],
+    <span class="var">censor</span>: <span class="str">'[REDACTED]'</span>,
+  },
+};
+</pre>
+    </div>
+
+    <div class="card">
+      <h3>日志保留策略</h3>
+      <table>
+        <tr><th>日志类型</th><th>保留期限</th><th>存储</th></tr>
+        <tr><td>访问日志</td><td>7-14 天</td><td>文件 + 日志平台</td></tr>
+        <tr><td>应用日志</td><td>14-30 天</td><td>文件 + 日志平台</td></tr>
+        <tr><td>错误日志</td><td>30-90 天</td><td>文件 + Sentry</td></tr>
+        <tr><td>审计日志</td><td>永久（或 1 年+）</td><td>独立数据库</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Checklist -->
+<!-- ============================================================ -->
+<div class="section" id="checklist">
+  <div class="section-title"><span class="material-icons-outlined">checklist</span> 生产环境 Checklist</div>
+
+  <div class="card">
+    <h3>日志系统上线检查清单</h3>
+    <table>
+      <tr><th>类别</th><th>检查项</th><th>优先级</th></tr>
+      <tr>
+        <td rowspan="5">结构化日志</td>
+        <td>所有日志输出为 JSON 格式</td>
+        <td><span class="badge badge-red">P0</span></td>
+      </tr>
+      <tr><td>统一日志字段规范（timestamp / level / msg / requestId）</td><td><span class="badge badge-red">P0</span></td></tr>
+      <tr><td>日志级别按环境配置（生产 info，开发 debug）</td><td><span class="badge badge-red">P0</span></td></tr>
+      <tr><td>文件轮转与大小限制已配置</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr><td>无 <code>console.log</code> 绕过结构化日志（代码审查）</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr>
+        <td rowspan="3">异常追踪</td>
+        <td>全局异常过滤器已注册</td>
+        <td><span class="badge badge-red">P0</span></td>
+      </tr>
+      <tr><td>Sentry / 外部错误上报已集成</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr><td>Source Map 已上传（TypeScript 项目）</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr>
+        <td rowspan="3">请求追踪</td>
+        <td>每个请求生成唯一 requestId</td>
+        <td><span class="badge badge-red">P0</span></td>
+      </tr>
+      <tr><td>requestId 贯穿所有相关日志</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr><td>跨服务请求透传 correlation-id 头</td><td><span class="badge badge-blue">P2</span></td></tr>
+      <tr>
+        <td rowspan="3">安全合规</td>
+        <td>敏感字段已脱敏（password / token / authorization）</td>
+        <td><span class="badge badge-red">P0</span></td>
+      </tr>
+      <tr><td>日志保留策略已制定并执行</td><td><span class="badge badge-orange">P1</span></td></tr>
+      <tr><td>审计日志独立存储，生命周期与应用日志分离</td><td><span class="badge badge-blue">P2</span></td></tr>
+      <tr>
+        <td rowspan="2">可观测性</td>
+        <td>/metrics 端点暴露核心业务指标</td>
+        <td><span class="badge badge-orange">P1</span></td>
+      </tr>
+      <tr><td>Grafana / Kibana 看板已建立</td><td><span class="badge badge-blue">P2</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 当前项目审计 -->
+<!-- ============================================================ -->
+<div class="section" id="project-audit">
+  <div class="section-title"><span class="material-icons-outlined">assignment</span> 当前项目审计与改进建议</div>
+
+  <div class="card">
+    <h3>现状评估</h3>
+    <table>
+      <tr><th>维度</th><th>当前状态</th><th>评级</th><th>说明</th></tr>
+      <tr>
+        <td>日志框架</td>
+        <td>log4js + @quickts/nestjs-log4js</td>
+        <td><span class="badge badge-orange">可接受</span></td>
+        <td>可用，但 log4js 性能不如 Pino，且 @quickts 维护不活跃</td>
+      </tr>
+      <tr>
+        <td>日志格式</td>
+        <td>JSON 结构化（自定义 layout）</td>
+        <td><span class="badge badge-green">良好</span></td>
+        <td>已实现结构化输出，三类日志分离</td>
+      </tr>
+      <tr>
+        <td>日志轮转</td>
+        <td>dateFile，7 天保留</td>
+        <td><span class="badge badge-green">良好</span></td>
+        <td>符合最佳实践</td>
+      </tr>
+      <tr>
+        <td>异常过滤</td>
+        <td>全局 ExceptionsFilter + errorLog</td>
+        <td><span class="badge badge-orange">可接受</span></td>
+        <td>有基础异常捕获，但无外部上报</td>
+      </tr>
+      <tr>
+        <td>外部错误上报</td>
+        <td>❌ 无 Sentry / Bugsnag</td>
+        <td><span class="badge badge-red">缺失</span></td>
+        <td>生产错误只能看文件，无聚合告警</td>
+      </tr>
+      <tr>
+        <td>请求追踪</td>
+        <td>access log 拦截器，无 requestId</td>
+        <td><span class="badge badge-red">缺失</span></td>
+        <td>无法关联单个请求的多条日志</td>
+      </tr>
+      <tr>
+        <td>指标 / APM</td>
+        <td>❌ 无 Prometheus / Metrics</td>
+        <td><span class="badge badge-red">缺失</span></td>
+        <td>无 QPS、延迟、错误率监控</td>
+      </tr>
+      <tr>
+        <td>操作审计</td>
+        <td>MySQL action_history 表</td>
+        <td><span class="badge badge-green">良好</span></td>
+        <td>已有审计机制</td>
+      </tr>
+      <tr>
+        <td>业务告警</td>
+        <td>飞书机器人通知</td>
+        <td><span class="badge badge-green">良好</span></td>
+        <td>业务级告警已有覆盖</td>
+      </tr>
+      <tr>
+        <td>代码规范</td>
+        <td>146 处 console.log 散落</td>
+        <td><span class="badge badge-red">待治理</span></td>
+        <td>绕过结构化日志体系</td>
+      </tr>
+      <tr>
+        <td>死依赖</td>
+        <td>nest-logger 未使用</td>
+        <td><span class="badge badge-orange">待清理</span></td>
+        <td>增加安全扫描噪音</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>渐进式改进路线图</h3>
+
+    <h4>Phase 1 — 零成本优化（1-2 天）</h4>
+    <ol class="step-list">
+      <li>清理 <code>nest-logger</code> 死依赖</li>
+      <li>在全局异常过滤器中添加 <code>requestId</code> 字段（从请求头读取或生成 UUID）</li>
+      <li>在 access log 拦截器中注入 <code>requestId</code> 到每条日志</li>
+      <li>在 axios 响应拦截器中透传 <code>x-request-id</code> 到下游请求</li>
+    </ol>
+
+    <h4>Phase 2 — 外部错误上报（2-3 天）</h4>
+    <ol class="step-list">
+      <li>集成 <code>@sentry/nestjs</code>，配置 DSN 和环境变量</li>
+      <li>在全局异常过滤器中添加 <code>Sentry.captureException()</code></li>
+      <li>上传 Source Map 以便 TypeScript 堆栈还原</li>
+      <li>配置 Sentry 告警规则（错误率突增 → 飞书通知）</li>
+    </ol>
+
+    <h4>Phase 3 — 日志框架升级（3-5 天，可选）</h4>
+    <ol class="step-list">
+      <li>从 log4js 迁移到 <code>nestjs-pino</code>（可渐进式：新模块用 Pino，旧模块保留 log4js）</li>
+      <li>统一日志输出到 stdout（适配容器化部署）</li>
+      <li>引入 Fluentd/Promtail 收集日志到 Grafana Loki</li>
+    </ol>
+
+    <h4>Phase 4 — 可观测性增强（持续）</h4>
+    <ol class="step-list">
+      <li>引入 <code>prom-client</code>，暴露 <code>/metrics</code> 端点</li>
+      <li>定义核心业务指标（推送任务数、成功率、延迟分布）</li>
+      <li>搭建 Grafana Dashboard</li>
+      <li>ESLint 规则禁止裸 <code>console.log</code>，逐步替换 146 处为结构化日志</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>最小改动方案：在现有 log4js 基础上添加 requestId</h3>
+    <p>如果暂时不做框架迁移，可以在现有架构上用最小改动获得 80% 的收益：</p>
+
+<pre>
+<span class="cmt">// common/middleware/correlation-id.middleware.ts</span>
+<span class="kw">import</span> { <span class="typ">Injectable</span>, <span class="typ">NestMiddleware</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+<span class="kw">import</span> { <span class="fn">randomUUID</span> } <span class="kw">from</span> <span class="str">'crypto'</span>;
+
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">CorrelationIdMiddleware</span> <span class="kw">implements</span> <span class="typ">NestMiddleware</span> {
+  <span class="fn">use</span>(<span class="var">req</span>: <span class="kw">any</span>, <span class="var">res</span>: <span class="kw">any</span>, <span class="var">next</span>: () => <span class="kw">void</span>) {
+    <span class="kw">const</span> requestId = req.<span class="var">headers</span>[<span class="str">'x-request-id'</span>] || <span class="fn">randomUUID</span>();
+    req.<span class="var">requestId</span> = requestId;
+    res.<span class="fn">setHeader</span>(<span class="str">'x-request-id'</span>, requestId);
+    <span class="fn">next</span>();
+  }
+}
+
+<span class="cmt">// app.module.ts — 在 ConsumerModule 中注册</span>
+<span class="kw">export class</span> <span class="typ">AppModule</span> <span class="kw">implements</span> <span class="typ">OnModuleInit</span> {
+  <span class="fn">configure</span>(<span class="var">consumer</span>: <span class="typ">MiddlewareConsumer</span>) {
+    consumer
+      .<span class="fn">apply</span>(<span class="typ">CorrelationIdMiddleware</span>)
+      .<span class="fn">forRoutes</span>(<span class="str">'*'</span>);
+  }
+}
+
+<span class="cmt">// common/log4js.ts — 修改日志函数，自动读取 requestId</span>
+<span class="kw">export function</span> <span class="fn">accessLog</span>(<span class="var">data</span>: <span class="typ">AccessLogDataType</span>) {
+  accessLogger.<span class="fn">info</span>({
+    ...data,
+    <span class="var">requestId</span>: data.<span class="var">requestId</span> || <span class="str">'-'</span>,
+  });
+}
+</pre>
+  </div>
+</div>
+
+</div><!-- /.container -->
+
+</body>
+</html>
