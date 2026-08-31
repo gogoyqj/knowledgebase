@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NestJS 深度解析 — 架构 · 设计模式 · 最佳实践</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #000000;
+    --md-on-primary: #fff;
+    --md-primary-container: #E8E0F0;
+    --md-on-primary-container: #1D1B20;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-accent: #D63384;
+    --md-accent-light: #E91E63;
+    --md-accent-container: #FCE4EC;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #FFF5F7;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #D63384, #E91E63);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-accent); }
+
+  .hero {
+    background: linear-gradient(135deg, #880E4F 0%, #D63384 50%, #E91E63 100%);
+    color: #fff;
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 600px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-accent); background: rgba(214,51,132,.06); }
+  .tab-btn.active { color: var(--md-accent); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-accent);
+    border-radius: 3px 3px 0 0;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.pink    { background: var(--md-accent-container); color: #880E4F; }
+  .card-icon.blue    { background: #D3E4FF; color: #001C3B; }
+  .card-icon.purple  { background: #EDE9FE; color: #5B21B6; }
+  .card-icon.orange  { background: #FEF3C7; color: #92400E; }
+  .card-icon.green   { background: #D1FAE5; color: #065F46; }
+  .card-icon.cyan    { background: #CFFAFE; color: #155E75; }
+  .card-icon.red     { background: #FEE2E2; color: #991B1B; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-accent-container);
+    color: #880E4F;
+  }
+  .chip.green {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+  .chip.orange {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .chip.blue {
+    background: #D3E4FF;
+    color: #001C3B;
+  }
+
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-accent);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #C792EA; }
+  .fn  { color: #82AAFF; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .tag { color: #F07178; }
+  .attr { color: #C792EA; }
+  .punct { color: #89DDFF; }
+  .op { color: #89DDFF; }
+  .var { color: #EEFFFF; }
+  .dec { color: #F78C6C; }
+
+  .diagram {
+    background: #FFF5F7;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-accent-container);
+    color: #880E4F;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  .banner.warn {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .banner.success {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+  .banner.info {
+    background: #D3E4FF;
+    color: #001C3B;
+  }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-item {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .feature-item h4 {
+    font-size: 14px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-item p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  .pattern-card {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .pattern-card h4 {
+    font-size: 16px; font-weight: 500;
+    color: var(--md-accent);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pattern-card .desc {
+    font-size: 14px;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 12px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--md-accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+
+  .toc {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .toc h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 12px;
+  }
+  .toc ul { padding-left: 20px; }
+  .toc li {
+    font-size: 14px;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 6px;
+  }
+  .toc a {
+    color: var(--md-accent);
+    text-decoration: none;
+  }
+  .toc a:hover { text-decoration: underline; }
+
+  .layer-diagram {
+    background: linear-gradient(135deg, #FCE4EC 0%, #F3E5F5 100%);
+    border: 1px solid #E1BEE7;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .layer-box {
+    display: inline-block;
+    background: white;
+    border-radius: 8px;
+    padding: 12px 24px;
+    margin: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    box-shadow: var(--md-shadow-1);
+  }
+  .layer-arrow {
+    display: block;
+    color: var(--md-accent);
+    font-size: 20px;
+    margin: 8px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo">N</div>
+  <h1>NestJS <span>深度解析</span></h1>
+</div>
+
+<div class="hero">
+  <h2>架构 · 设计模式 · 最佳实践</h2>
+  <p>构建企业级 Node.js 应用的渐进式框架，基于 TypeScript，受 Angular 启发</p>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('arch')">架构体系</button>
+  <button class="tab-btn" onclick="showTab('patterns')">设计模式</button>
+  <button class="tab-btn" onclick="showTab('modules')">模块系统</button>
+  <button class="tab-btn" onclick="showTab('di')">依赖注入</button>
+  <button class="tab-btn" onclick="showTab('middleware')">中间件与守卫</button>
+  <button class="tab-btn" onclick="showTab('best')">最佳实践</button>
+</div>
+
+<div class="container">
+
+<!-- ==================== 架构体系 ==================== -->
+<div class="section active" id="sec-arch">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">architecture</span></div>
+      <h3>NestJS 整体架构</h3>
+    </div>
+    <p>NestJS 采用分层架构，将应用分为 <strong>Controller → Service → Repository</strong> 三层，每层职责清晰，便于测试和维护。</p>
+    <div class="layer-diagram">
+      <div class="layer-box">🌐 HTTP 请求</div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-box">🛡️ 中间件 (Middleware)</div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-box">🔒 管道 (Pipe) · 守卫 (Guard) · 拦截器 (Interceptor)</div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-box">🎮 控制器 (Controller)</div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-box">⚙️ 服务 (Service / Provider)</div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-box">💾 数据访问层 (Repository / Prisma / TypeORM)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">hub</span></div>
+      <h3>请求生命周期</h3>
+    </div>
+    <p>每个请求经过以下阶段：</p>
+    <ol>
+      <li><strong>中间件 (Middleware)</strong> — 最先执行，可访问 <span class="inline-code">req/res</span> 对象</li>
+      <li><strong>守卫 (Guard)</strong> — 认证/授权逻辑，决定请求是否可继续</li>
+      <li><strong>拦截器 (Interceptor)</strong> — 请求前后处理，可转换响应/异常</li>
+      <li><strong>管道 (Pipe)</strong> — 参数验证与转换</li>
+      <li><strong>控制器 (Controller)</strong> — 处理请求，调用服务</li>
+      <li><strong>服务 (Service)</strong> — 业务逻辑</li>
+      <li><strong>异常过滤器 (Exception Filter)</strong> — 统一异常处理</li>
+    </ol>
+    <div class="banner info">
+      <span class="material-icons-outlined">info</span>
+      <div>拦截器的 <strong>before</strong> 部分在管道之前执行，<strong>after</strong> 部分在管道之后执行。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">code</span></div>
+      <h3>应用启动入口</h3>
+    </div>
+<pre><span class="cm">// main.ts</span>
+<span class="kw">import</span> { <span class="typ">NestFactory</span> } <span class="kw">from</span> <span class="str">'@nestjs/core'</span>;
+<span class="kw">import</span> { <span class="typ">ValidationPipe</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+<span class="kw">import</span> { <span class="typ">AppModule</span> } <span class="kw">from</span> <span class="str">'./app.module'</span>;
+
+<span class="kw">async function</span> <span class="fn">bootstrap</span>() {
+  <span class="kw">const</span> app = <span class="kw">await</span> <span class="typ">NestFactory</span>.<span class="fn">create</span>(<span class="typ">AppModule</span>);
+
+  <span class="cm">// 全局管道 - 自动验证 DTO</span>
+  app.<span class="fn">useGlobalPipes</span>(<span class="kw">new</span> <span class="typ">ValidationPipe</span>({
+    whitelist: <span class="num">true</span>,        <span class="cm">// 自动剥离未定义属性</span>
+    forbidNonWhitelisted: <span class="num">true</span>, <span class="cm">// 未知属性抛异常</span>
+    transform: <span class="num">true</span>,       <span class="cm">// 自动转换类型</span>
+  }));
+
+  <span class="kw">await</span> app.<span class="fn">listen</span>(<span class="num">3000</span>);
+}
+<span class="fn">bootstrap</span>();</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon green"><span class="material-icons-outlined">folder</span></div>
+      <h3>项目结构</h3>
+    </div>
+<pre><span class="cm">src/</span>
+├── <span class="str">app.module.ts</span>          <span class="cm">// 根模块</span>
+├── <span class="str">main.ts</span>                <span class="cm">// 入口文件</span>
+├── <span class="cm">common/</span>                <span class="cm">// 公共模块</span>
+│   ├── <span class="cm">decorators/</span>        <span class="cm">// 自定义装饰器</span>
+│   ├── <span class="cm">filters/</span>           <span class="cm">// 异常过滤器</span>
+│   ├── <span class="cm">guards/</span>            <span class="cm">// 全局守卫</span>
+│   ├── <span class="cm">interceptors/</span>      <span class="cm">// 拦截器</span>
+│   ├── <span class="cm">pipes/</span>             <span class="cm">// 管道</span>
+│   └── <span class="str">dto/</span>               <span class="cm">// 通用 DTO</span>
+├── <span class="cm">modules/</span>               <span class="cm">// 业务模块</span>
+│   ├── <span class="cm">user/</span>
+│   │   ├── <span class="str">user.module.ts</span>
+│   │   ├── <span class="str">user.controller.ts</span>
+│   │   ├── <span class="str">user.service.ts</span>
+│   │   ├── <span class="str">dto/</span>
+│   │   └── <span class="str">entities/</span>
+│   └── <span class="cm">auth/</span>
+└── <span class="cm">config/</span>                <span class="cm">// 配置</span></pre>
+  </div>
+
+</div>
+
+<!-- ==================== 设计模式 ==================== -->
+<div class="section" id="sec-patterns">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">pattern</span></div>
+      <h3>核心设计模式总览</h3>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <h4>🏗️ 控制反转 (IoC)</h4>
+        <p>框架控制对象的创建和生命周期，开发者只需声明依赖</p>
+      </div>
+      <div class="feature-item">
+        <h4>💉 依赖注入 (DI)</h4>
+        <p>通过构造函数自动注入依赖，解耦模块间关系</p>
+      </div>
+      <div class="feature-item">
+        <h4>🎯 装饰器模式</h4>
+        <p>大量使用 TypeScript 装饰器声明元数据</p>
+      </div>
+      <div class="feature-item">
+        <h4>🔗 责任链模式</h4>
+        <p>中间件、守卫、拦截器形成处理链</p>
+      </div>
+      <div class="feature-item">
+        <h4>🧩 模块模式</h4>
+        <p>按功能领域组织代码，每个模块自包含</p>
+      </div>
+      <div class="feature-item">
+        <h4>🏭 工厂模式</h4>
+        <p>Provider 的 useFactory 动态创建实例</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">swap_horiz</span></div>
+      <h3>控制反转 (IoC) 容器</h3>
+    </div>
+    <p>NestJS 内置 IoC 容器，自动管理所有 Provider 的实例化和依赖解析：</p>
+<pre><span class="cm">// 传统方式 - 手动管理依赖（紧耦合）</span>
+<span class="kw">class</span> <span class="typ">UserService</span> {
+  <span class="kw">private</span> repo: <span class="typ">UserRepository</span>;
+  <span class="kw">constructor</span>() {
+    <span class="kw">this</span>.repo = <span class="kw">new</span> <span class="typ">UserRepository</span>(); <span class="cm">// ❌ 直接实例化</span>
+  }
+}
+
+<span class="cm">// NestJS 方式 - IoC 容器注入（松耦合）</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">class</span> <span class="typ">UserService</span> {
+  <span class="kw">constructor</span>(
+    <span class="kw">private readonly</span> repo: <span class="typ">UserRepository</span>, <span class="cm">// ✅ 自动注入</span>
+    <span class="kw">private readonly</span> cache: <span class="typ">CacheService</span>,
+  ) {}
+}</pre>
+    <div class="banner">
+      <span class="material-icons-outlined">lightbulb</span>
+      <div>IoC 容器在启动时扫描所有模块，构建依赖图，按拓扑顺序实例化 Provider。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">palette</span></div>
+      <h3>装饰器模式</h3>
+    </div>
+    <p>NestJS 大量使用 TypeScript 装饰器，将元数据附加到类和方法上：</p>
+<pre><span class="cm">// 类装饰器</span>
+<span class="dec">@Controller</span>(<span class="str">'users'</span>)
+<span class="dec">@ApiTags</span>(<span class="str">'Users'</span>)
+<span class="kw">export class</span> <span class="typ">UserController</span> {
+
+  <span class="cm">// 方法装饰器</span>
+  <span class="dec">@Post</span>()
+  <span class="dec">@HttpCode</span>(<span class="num">201</span>)
+  <span class="dec">@UseGuards</span>(<span class="typ">AuthGuard</span>)
+  <span class="dec">@ApiOperation</span>({ summary: <span class="str">'创建用户'</span> })
+  <span class="fn">create</span>(<span class="dec">@Body</span>() dto: <span class="typ">CreateUserDto</span>) { <span class="cm">// 参数装饰器</span>
+    <span class="kw">return this</span>.service.<span class="fn">create</span>(dto);
+  }
+
+  <span class="dec">@Get</span>(<span class="str">':id'</span>)
+  <span class="fn">findOne</span>(<span class="dec">@Param</span>(<span class="str">'id'</span>, <span class="typ">ParseUUIDPipe</span>) id: <span class="typ">string</span>) {
+    <span class="kw">return this</span>.service.<span class="fn">findOne</span>(id);
+  }
+}
+
+<span class="cm">// 自定义装饰器</span>
+<span class="kw">export const</span> <span class="fn">CurrentUser</span> = <span class="fn">createParamDecorator</span>(
+  (data: <span class="typ">string</span>, ctx: <span class="typ">ExecutionContext</span>) => {
+    <span class="kw">const</span> request = ctx.<span class="fn">switchToHttp</span>().<span class="fn">getRequest</span>();
+    <span class="kw">const</span> user = request.user;
+    <span class="kw">return</span> data ? user?.[data] : user;
+  },
+);</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon orange"><span class="material-icons-outlined">view_carousel</span></div>
+      <h3>策略模式 (Strategy Pattern)</h3>
+    </div>
+    <p>Passport 集成是策略模式的典型应用，不同认证方式封装为独立策略：</p>
+<pre><span class="cm">// JWT 策略</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">JwtStrategy</span> <span class="kw">extends</span> <span class="fn">PassportStrategy</span>(<span class="typ">Strategy</span>) {
+  <span class="kw">constructor</span>(<span class="kw">private</span> config: <span class="typ">ConfigService</span>) {
+    <span class="kw">super</span>({
+      jwtFromRequest: <span class="typ">ExtractJwt</span>.<span class="fn">fromAuthHeaderAsBearerToken</span>(),
+      secretOrKey: config.<span class="fn">get</span>(<span class="str">'JWT_SECRET'</span>),
+    });
+  }
+
+  <span class="kw">async</span> <span class="fn">validate</span>(payload: <span class="typ">JwtPayload</span>): <span class="typ">Promise</span>&lt;<span class="typ">User</span>&gt; {
+    <span class="kw">return</span> { id: payload.sub, email: payload.email };
+  }
+}
+
+<span class="cm">// Local 策略（用户名密码）</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">LocalStrategy</span> <span class="kw">extends</span> <span class="fn">PassportStrategy</span>(<span class="typ">LocalStrategy</span>) {
+  <span class="kw">async</span> <span class="fn">validate</span>(username: <span class="typ">string</span>, password: <span class="typ">string</span>): <span class="typ">Promise</span>&lt;<span class="typ">User</span>&gt; {
+    <span class="kw">return this</span>.authService.<span class="fn">validateUser</span>(username, password);
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon green"><span class="material-icons-outlined">build_circle</span></div>
+      <h3>工厂模式 (Factory Pattern)</h3>
+    </div>
+    <p>Provider 的 <span class="inline-code">useFactory</span> 支持异步动态创建实例：</p>
+<pre><span class="cm">// 动态数据库连接</span>
+<span class="kw">const</span> databaseProviders = [
+  {
+    provide: <span class="str">'DATABASE_CONNECTION'</span>,
+    useFactory: <span class="kw">async</span> (config: <span class="typ">ConfigService</span>) => {
+      <span class="kw">const</span> conn = <span class="kw">await</span> <span class="fn">createConnection</span>({
+        type: <span class="str">'postgres'</span>,
+        host: config.<span class="fn">get</span>(<span class="str">'DB_HOST'</span>),
+        port: config.<span class="fn">get</span>(<span class="str">'DB_PORT'</span>),
+        database: config.<span class="fn">get</span>(<span class="str">'DB_NAME'</span>),
+      });
+      <span class="kw">return</span> conn;
+    },
+    inject: [<span class="typ">ConfigService</span>],
+  },
+];
+
+<span class="cm">// 异步配置</span>
+<span class="kw">const</span> configProvider = {
+  provide: <span class="str">'ASYNC_CONFIG'</span>,
+  useFactory: <span class="kw">async</span> () => {
+    <span class="kw">const</span> config = <span class="kw">await</span> <span class="fn">fetchRemoteConfig</span>();
+    <span class="kw">return</span> config;
+  },
+};</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon cyan"><span class="material-icons-outlined">cached</span></div>
+      <h3>代理模式 (Proxy Pattern)</h3>
+    </div>
+    <p>拦截器 (Interceptor) 本质是代理模式，在方法执行前后插入逻辑：</p>
+<pre><span class="cm">// 缓存拦截器 - 代理原始方法</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">CacheInterceptor</span> <span class="kw">implements</span> <span class="typ">NestInterceptor</span> {
+  <span class="kw">constructor</span>(<span class="kw">private</span> cacheManager: <span class="typ">Cache</span>) {}
+
+  <span class="kw">async</span> <span class="fn">intercept</span>(
+    context: <span class="typ">ExecutionContext</span>,
+    next: <span class="typ">CallHandler</span>,
+  ): <span class="typ">Observable</span>&lt;<span class="typ">any</span>&gt; {
+    <span class="kw">const</span> key = <span class="kw">this</span>.<span class="fn">trackBy</span>(context);
+    <span class="kw">const</span> cached = <span class="kw">await this</span>.cacheManager.<span class="fn">get</span>(key);
+
+    <span class="kw">if</span> (cached) {
+      <span class="kw">return</span> <span class="fn">of</span>(cached); <span class="cm">// 返回缓存</span>
+    }
+
+    <span class="kw">return</span> next.<span class="fn">handle</span>().<span class="fn">pipe</span>(
+      <span class="fn">tap</span>(response =>
+        <span class="kw">this</span>.cacheManager.<span class="fn">set</span>(key, response, <span class="num">60</span>)
+      ),
+    );
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon red"><span class="material-icons-outlined">bubble_chart</span></div>
+      <h3>观察者模式 (Observer Pattern)</h3>
+    </div>
+    <p>NestJS 的事件系统基于 EventEmitter，实现发布-订阅：</p>
+<pre><span class="cm">// 定义事件</span>
+<span class="kw">export class</span> <span class="typ">UserCreatedEvent</span> {
+  <span class="kw">constructor</span>(<span class="kw">public readonly</span> user: <span class="typ">User</span>) {}
+}
+
+<span class="cm">// 事件处理器</span>
+<span class="dec">@EventsHandler</span>(<span class="typ">UserCreatedEvent</span>)
+<span class="kw">export class</span> <span class="typ">UserCreatedHandler</span>
+  <span class="kw">implements</span> <span class="typ">IEventHandler</span>&lt;<span class="typ">UserCreatedEvent</span>&gt; {
+
+  <span class="kw">async</span> <span class="fn">handle</span>(event: <span class="typ">UserCreatedEvent</span>) {
+    <span class="kw">await this</span>.emailService.<span class="fn">sendWelcome</span>(event.user);
+    <span class="kw">await this</span>.analyticsService.<span class="fn">track</span>(<span class="str">'user_created'</span>);
+  }
+}
+
+<span class="cm">// 发布事件</span>
+<span class="kw">await this</span>.eventBus.<span class="fn">publish</span>(<span class="kw">new</span> <span class="typ">UserCreatedEvent</span>(user));</pre>
+  </div>
+
+</div>
+
+<!-- ==================== 模块系统 ==================== -->
+<div class="section" id="sec-modules">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">widgets</span></div>
+      <h3>模块 (Module) 基础</h3>
+    </div>
+    <p>模块是 NestJS 组织代码的基本单位，每个模块封装一组相关的功能：</p>
+<pre><span class="dec">@Module</span>({
+  imports: [<span class="typ">DatabaseModule</span>],          <span class="cm">// 导入其他模块</span>
+  controllers: [<span class="typ">UserController</span>],      <span class="cm">// 本模块的控制器</span>
+  providers: [<span class="typ">UserService</span>],          <span class="cm">// 本模块的服务</span>
+  exports: [<span class="typ">UserService</span>],            <span class="cm">// 对外暴露的服务</span>
+})
+<span class="kw">export class</span> <span class="typ">UserModule</span> {}</pre>
+    <div class="banner info">
+      <span class="material-icons-outlined">info</span>
+      <div>模块内的 Provider 默认是私有的，必须通过 <span class="inline-code">exports</span> 才能被其他模块使用。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">dynamic_feed</span></div>
+      <h3>动态模块 (Dynamic Module)</h3>
+    </div>
+    <p>动态模块允许在导入时传入配置，运行时动态生成模块：</p>
+<pre><span class="dec">@Module</span>({})
+<span class="kw">export class</span> <span class="typ">DatabaseModule</span> {
+  <span class="kw">static</span> <span class="fn">forRoot</span>(options: <span class="typ">DbOptions</span>): <span class="typ">DynamicModule</span> {
+    <span class="kw">return</span> {
+      module: <span class="typ">DatabaseModule</span>,
+      global: options.isGlobal,
+      providers: [
+        {
+          provide: <span class="str">'DB_OPTIONS'</span>,
+          useValue: options,
+        },
+        <span class="typ">DatabaseService</span>,
+      ],
+      exports: [<span class="typ">DatabaseService</span>],
+    };
+  }
+}
+
+<span class="cm">// 使用</span>
+<span class="dec">@Module</span>({
+  imports: [
+    <span class="typ">DatabaseModule</span>.<span class="fn">forRoot</span>({
+      host: <span class="str">'localhost'</span>,
+      port: <span class="num">5432</span>,
+      isGlobal: <span class="num">true</span>,
+    }),
+  ],
+})
+<span class="kw">export class</span> <span class="typ">AppModule</span> {}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">extension</span></div>
+      <h3>可配置模块 (Configurable Module)</h3>
+    </div>
+    <p>NestJS 10+ 提供 <span class="inline-code">@nestjs/common</span> 的 ConfigurableModuleBuilder，减少模板代码：</p>
+<pre><span class="kw">import</span> { <span class="typ">ConfigurableModuleBuilder</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+
+<span class="kw">export interface</span> <span class="typ">CacheModuleOptions</span> {
+  ttl: <span class="typ">number</span>;
+  max: <span class="typ">number</span>;
+}
+
+<span class="kw">export const</span> {
+  <span class="typ">ConfigurableModuleClass</span>,
+  <span class="typ">MODULE_OPTIONS_TOKEN</span>,
+} = <span class="kw">new</span> <span class="typ">ConfigurableModuleBuilder</span>&lt;<span class="typ">CacheModuleOptions</span>&gt;()
+  .<span class="fn">setClassMethodName</span>(<span class="str">'forRoot'</span>)
+  .<span class="fn">setExtras</span>(
+    { isGlobal: <span class="num">false</span> },
+    (definition, extras) => ({
+      ...definition,
+      global: extras.isGlobal,
+    }),
+  )
+  .<span class="fn">build</span>();
+
+<span class="cm">// 使用 - 自动生成 forRoot / forRootAsync</span>
+<span class="dec">@Module</span>({
+  imports: [
+    <span class="typ">CacheModule</span>.<span class="fn">forRoot</span>({ ttl: <span class="num">60</span>, max: <span class="num">100</span> }),
+  ],
+})</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon green"><span class="material-icons-outlined">share</span></div>
+      <h3>模块复用策略</h3>
+    </div>
+    <div class="compare-grid">
+      <div class="compare-box old">
+        <h4><span class="material-icons-outlined" style="color:#B3261E;font-size:18px">close</span> 反模式</h4>
+        <ul>
+          <li>God Module — 所有功能塞一个模块</li>
+          <li>循环依赖 — A 导入 B，B 导入 A</li>
+          <li>不导出就使用 — 未 exports 的 Provider</li>
+          <li>全局滥用 — 所有模块都设 global</li>
+        </ul>
+      </div>
+      <div class="compare-box new">
+        <h4><span class="material-icons-outlined" style="color:#065F46;font-size:18px">check</span> 推荐做法</h4>
+        <ul>
+          <li>按领域拆分 — UserModule, OrderModule</li>
+          <li>共享模块提取 — SharedModule</li>
+          <li>forwardRef() 解决循环依赖</li>
+          <li>仅配置模块设为全局</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== 依赖注入 ==================== -->
+<div class="section" id="sec-di">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">settings_input_component</span></div>
+      <h3>Provider 注册方式</h3>
+    </div>
+    <p>NestJS 支持多种 Provider 注册方式：</p>
+<pre><span class="cm">// 1. 标准类 Provider（最常用）</span>
+providers: [<span class="typ">UserService</span>]
+
+<span class="cm">// 2. 自定义 token + 值</span>
+providers: [
+  { provide: <span class="str">'API_URL'</span>, useValue: <span class="str">'https://api.example.com'</span> },
+]
+
+<span class="cm">// 3. 工厂模式（异步/动态）</span>
+providers: [
+  {
+    provide: <span class="str">'CONFIG'</span>,
+    useFactory: <span class="kw">async</span> (http: <span class="typ">HttpService</span>) => {
+      <span class="kw">const</span> res = <span class="kw">await</span> http.<span class="fn">get</span>(<span class="str">'/config'</span>).<span class="fn">toPromise</span>();
+      <span class="kw">return</span> res.data;
+    },
+    inject: [<span class="typ">HttpService</span>],
+  },
+]
+
+<span class="cm">// 4. 别名 Provider</span>
+providers: [
+  { provide: <span class="typ">LoggerService</span>, useExisting: <span class="typ">MyLogger</span> },
+]
+
+<span class="cm">// 5. 类替换 Provider（覆盖现有）</span>
+providers: [
+  { provide: <span class="typ">UserService</span>, useClass: <span class="typ">MockUserService</span> },
+]</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">token</span></div>
+      <h3>Injection Token</h3>
+    </div>
+    <p>Token 是 DI 容器中 Provider 的唯一标识：</p>
+<pre><span class="cm">// 字符串 Token</span>
+<span class="dec">@Inject</span>(<span class="str">'DATABASE_CONNECTION'</span>) <span class="kw">private</span> conn: <span class="typ">Connection</span>
+
+<span class="cm">// 类 Token（推荐）</span>
+<span class="dec">@Inject</span>(<span class="typ">UserService</span>) <span class="kw">private</span> userService: <span class="typ">UserService</span>
+
+<span class="cm">// Symbol Token</span>
+<span class="kw">export const</span> <span class="var">USER_REPOSITORY</span> = <span class="fn">Symbol</span>(<span class="str">'USER_REPOSITORY'</span>);
+<span class="dec">@Inject</span>(<span class="var">USER_REPOSITORY</span>) <span class="kw">private</span> repo: <span class="typ">IUserRepository</span>
+
+<span class="cm">// Opaque Token（类型安全）</span>
+<span class="kw">import</span> { <span class="fn">createParamDecorator</span> } <span class="kw">from</span> <span class="str">'@nestjs/common'</span>;
+<span class="kw">export const</span> <span class="typ">REDIS_CLIENT</span> = <span class="kw">new</span> <span class="typ">InjectionToken</span>&lt;<span class="typ">Redis</span>&gt;(<span class="str">'REDIS_CLIENT'</span>);</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">scope</span></div>
+      <h3>Provider 生命周期 (Scope)</h3>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <h4>DEFAULT <span class="badge">单例</span></h4>
+        <p>整个应用共享一个实例，性能最优。默认行为。</p>
+      </div>
+      <div class="feature-item">
+        <h4>REQUEST <span class="badge">请求级</span></h4>
+        <p>每个请求创建新实例，请求结束销毁。可注入 Request 对象。</p>
+      </div>
+      <div class="feature-item">
+        <h4>TRANSIENT <span class="badge">瞬态</span></h4>
+        <p>每次注入创建新实例。适合有状态的 Provider。</p>
+      </div>
+    </div>
+<pre><span class="cm">// 作用域级别性能对比</span>
+<span class="dec">@Injectable</span>({ scope: <span class="typ">Scope</span>.DEFAULT })   <span class="cm">// ⚡ 最快 - 全局单例</span>
+<span class="dec">@Injectable</span>({ scope: <span class="typ">Scope</span>.REQUEST })   <span class="cm">// 🐢 每请求新实例</span>
+<span class="dec">@Injectable</span>({ scope: <span class="typ">Scope</span>.TRANSIENT }) <span class="cm">// 🐢 每注入新实例</span></pre>
+    <div class="banner warn">
+      <span class="material-icons-outlined">warning</span>
+      <div>REQUEST scope 会破坏单例优势，在微服务/高并发场景慎用。用 <span class="inline-code">CLS_MODULE_OPTIONS</span> 替代。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon orange"><span class="material-icons-outlined">loop</span></div>
+      <h3>解决循环依赖</h3>
+    </div>
+<pre><span class="cm">// 模块循环依赖</span>
+<span class="dec">@Module</span>({
+  imports: [<span class="fn">forwardRef</span>(() => <span class="typ">ModuleB</span>)], <span class="cm">// 延迟引用</span>
+})
+<span class="kw">export class</span> <span class="typ">ModuleA</span> {}
+
+<span class="cm">// Provider 循环依赖</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">ServiceA</span> {
+  <span class="kw">constructor</span>(
+    <span class="dec">@Inject</span>(<span class="fn">forwardRef</span>(() => <span class="typ">ServiceB</span>))
+    <span class="kw">private</span> serviceB: <span class="typ">ServiceB</span>,
+  ) {}
+}
+
+<span class="cm">// 推荐：用事件总线解耦</span>
+<span class="cm">// 避免 A → B → A，改为 A → EventBus ← B</span></pre>
+  </div>
+
+</div>
+
+<!-- ==================== 中间件与守卫 ==================== -->
+<div class="section" id="sec-middleware">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">security</span></div>
+      <h3>守卫 (Guard)</h3>
+    </div>
+    <p>守卫负责认证和授权，返回 <span class="inline-code">true/false</span> 决定请求是否继续：</p>
+<pre><span class="cm">// 角色守卫</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">RolesGuard</span> <span class="kw">implements</span> <span class="typ">CanActivate</span> {
+  <span class="kw">constructor</span>(<span class="kw">private</span> reflector: <span class="typ">Reflector</span>) {}
+
+  <span class="fn">canActivate</span>(context: <span class="typ">ExecutionContext</span>): <span class="typ">boolean</span> {
+    <span class="kw">const</span> roles = <span class="kw">this</span>.reflector.<span class="fn">getAllAndOverride</span>&lt;<span class="typ">string</span>[]&gt;(
+      <span class="var">ROLES_KEY</span>,
+      [context.<span class="fn">getHandler</span>(), context.<span class="fn">getClass</span>()],
+    );
+    <span class="kw">if</span> (!roles) <span class="kw">return true</span>;
+
+    <span class="kw">const</span> { user } = context.<span class="fn">switchToHttp</span>().<span class="fn">getRequest</span>();
+    <span class="kw">return</span> roles.<span class="fn">includes</span>(user.role);
+  }
+}
+
+<span class="cm">// 自定义角色装饰器</span>
+<span class="kw">export const</span> <span class="fn">Roles</span> = (...roles: <span class="typ">string</span>[]) =>
+  <span class="fn">SetMetadata</span>(<span class="var">ROLES_KEY</span>, roles);
+
+<span class="cm">// 使用</span>
+<span class="dec">@Roles</span>(<span class="str">'admin'</span>)
+<span class="dec">@UseGuards</span>(<span class="typ">RolesGuard</span>)
+<span class="dec">@Delete</span>(<span class="str">':id'</span>)
+<span class="fn">delete</span>(<span class="dec">@Param</span>(<span class="str">'id'</span>) id: <span class="typ">string</span>) {}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">transform</span></div>
+      <h3>管道 (Pipe)</h3>
+    </div>
+    <p>管道用于参数验证和转换，是数据清洗的第一道防线：</p>
+<pre><span class="cm">// 使用 class-validator 验证 DTO</span>
+<span class="kw">import</span> { <span class="typ">IsString</span>, <span class="typ">IsEmail</span>, <span class="typ">MinLength</span>, <span class="typ">IsOptional</span> } <span class="kw">from</span> <span class="str">'class-validator'</span>;
+
+<span class="kw">export class</span> <span class="typ">CreateUserDto</span> {
+  <span class="dec">@IsString</span>()
+  <span class="dec">@MinLength</span>(<span class="num">2</span>)
+  name: <span class="typ">string</span>;
+
+  <span class="dec">@IsEmail</span>()
+  email: <span class="typ">string</span>;
+
+  <span class="dec">@IsString</span>()
+  <span class="dec">@MinLength</span>(<span class="num">8</span>)
+  password: <span class="typ">string</span>;
+
+  <span class="dec">@IsOptional</span>()
+  <span class="dec">@IsString</span>()
+  avatar?: <span class="typ">string</span>;
+}
+
+<span class="cm">// 自定义管道</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">ParseObjectIdPipe</span> <span class="kw">implements</span> <span class="typ">PipeTransform</span> {
+  <span class="fn">transform</span>(value: <span class="typ">string</span>) {
+    <span class="kw">if</span> (!<span class="typ">Types</span>.<span class="fn">ObjectId</span>.<span class="fn">isValid</span>(value)) {
+      <span class="kw">throw new</span> <span class="typ">BadRequestException</span>(<span class="str">'无效的 ID 格式'</span>);
+    }
+    <span class="kw">return</span> value;
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">swap_calls</span></div>
+      <h3>拦截器 (Interceptor)</h3>
+    </div>
+<pre><span class="cm">// 响应转换拦截器</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">TransformInterceptor</span>&lt;T&gt;
+  <span class="kw">implements</span> <span class="typ">NestInterceptor</span>&lt;T, <span class="typ">Response</span>&lt;T&gt;&gt; {
+
+  <span class="fn">intercept</span>(
+    context: <span class="typ">ExecutionContext</span>,
+    next: <span class="typ">CallHandler</span>,
+  ): <span class="typ">Observable</span>&lt;<span class="typ">Response</span>&lt;T&gt;&gt; {
+    <span class="kw">return</span> next.<span class="fn">handle</span>().<span class="fn">pipe</span>(
+      <span class="fn">map</span>(data => ({
+        code: <span class="num">200</span>,
+        message: <span class="str">'success'</span>,
+        data,
+        timestamp: <span class="kw">new</span> <span class="typ">Date</span>().<span class="fn">toISOString</span>(),
+      })),
+    );
+  }
+}
+
+<span class="cm">// 日志拦截器</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">LoggingInterceptor</span> <span class="kw">implements</span> <span class="typ">NestInterceptor</span> {
+  <span class="fn">intercept</span>(context: <span class="typ">ExecutionContext</span>, next: <span class="typ">CallHandler</span>): <span class="typ">Observable</span>&lt;<span class="typ">any</span>&gt; {
+    <span class="kw">const</span> now = <span class="typ">Date</span>.<span class="fn">now</span>();
+    <span class="kw">return</span> next.<span class="fn">handle</span>().<span class="fn">pipe</span>(
+      <span class="fn">tap</span>(() => console.<span class="fn">log</span>(<span class="str">`耗时: ${Date.now() - now}ms`</span>)),
+    );
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon orange"><span class="material-icons-outlined">error_outline</span></div>
+      <h3>异常过滤器 (Exception Filter)</h3>
+    </div>
+<pre><span class="cm">// 统一异常过滤器</span>
+<span class="dec">@Catch</span>()
+<span class="kw">export class</span> <span class="typ">AllExceptionsFilter</span> <span class="kw">implements</span> <span class="typ">ExceptionFilter</span> {
+  <span class="fn">catch</span>(exception: <span class="typ">unknown</span>, host: <span class="typ">ArgumentsHost</span>) {
+    <span class="kw">const</span> ctx = host.<span class="fn">switchToHttp</span>();
+    <span class="kw">const</span> response = ctx.<span class="fn">getResponse</span>&lt;<span class="typ">Response</span>&gt;();
+    <span class="kw">const</span> request = ctx.<span class="fn">getRequest</span>&lt;<span class="typ">Request</span>&gt;();
+
+    <span class="kw">const</span> status = exception <span class="kw">instanceof</span> <span class="typ">HttpException</span>
+      ? exception.<span class="fn">getStatus</span>()
+      : <span class="num">500</span>;
+
+    <span class="kw">const</span> message = exception <span class="kw">instanceof</span> <span class="typ">HttpException</span>
+      ? exception.<span class="fn">getResponse</span>()
+      : <span class="str">'Internal server error'</span>;
+
+    response.<span class="fn">status</span>(status).<span class="fn">json</span>({
+      code: status,
+      message: <span class="kw">typeof</span> message === <span class="str">'string'</span>
+        ? message
+        : (message <span class="kw">as any</span>).message,
+      path: request.url,
+      timestamp: <span class="kw">new</span> <span class="typ">Date</span>().<span class="fn">toISOString</span>(),
+    });
+  }
+}
+
+<span class="cm">// 注册为全局过滤器</span>
+app.<span class="fn">useGlobalFilters</span>(<span class="kw">new</span> <span class="typ">AllExceptionsFilter</span>());</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon green"><span class="material-icons-outlined">compare_arrows</span></div>
+      <h3>执行顺序对比</h3>
+    </div>
+    <div class="diagram">请求方向 →
+  Middleware → Guard → Interceptor(before) → Pipe → Controller → Service
+
+响应方向 ←
+  ExceptionFilter ← Interceptor(after) ← Pipe ← Controller</div>
+    <div class="banner">
+      <span class="material-icons-outlined">lightbulb</span>
+      <div><strong>洋葱模型</strong>：拦截器包裹在控制器外层，可同时处理请求和响应。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">difference</span></div>
+      <h3>四者核心差异</h3>
+    </div>
+    <p>Guard、Interceptor、Pipe、Filter 各司其职，互补而非替代：</p>
+    <div class="compare-grid">
+      <div class="compare-box new">
+        <h4>🛡️ Guard — 放行/拒绝</h4>
+        <ul>
+          <li>职责：认证/授权，决定请求<strong>是否放行</strong></li>
+          <li>返回：<span class="inline-code">boolean</span> — true 放行，false 抛 403</li>
+          <li>时机：在 Interceptor 和 Pipe <strong>之前</strong></li>
+          <li>能否访问响应：❌ 只看请求</li>
+          <li>典型：角色检查、JWT 验证、IP 白名单</li>
+        </ul>
+      </div>
+      <div class="compare-box new">
+        <h4>🔄 Interceptor — 增强处理</h4>
+        <ul>
+          <li>职责：请求/响应的<strong>增强与转换</strong></li>
+          <li>返回：<span class="inline-code">Observable</span> — 可转换/缓存响应</li>
+          <li>时机：包裹控制器，before 在 Pipe 前，after 在后</li>
+          <li>能否访问响应：✅ 可处理响应（tap/map）</li>
+          <li>典型：响应格式化、缓存、日志、超时</li>
+        </ul>
+      </div>
+      <div class="compare-box new">
+        <h4>🔧 Pipe — 验证/转换</h4>
+        <ul>
+          <li>职责：参数<strong>验证与类型转换</strong></li>
+          <li>返回：转换后的值，或抛 <span class="inline-code">BadRequestException</span></li>
+          <li>时机：在 Interceptor(before) 之后、Controller 之前</li>
+          <li>能否访问响应：❌ 只处理入参</li>
+          <li>典型：DTO 验证、ParseIntPipe、自定义校验</li>
+        </ul>
+      </div>
+      <div class="compare-box new">
+        <h4>🧯 Filter — 异常处理</h4>
+        <ul>
+          <li>职责：捕获异常，<strong>统一错误响应</strong></li>
+          <li>返回：格式化的错误 JSON</li>
+          <li>时机：最后防线，Controller/Pipe/Guard 抛的异常</li>
+          <li>能否访问响应：✅ 格式化错误响应</li>
+          <li>典型：统一错误格式、异常日志、404/500 页面</li>
+        </ul>
+      </div>
+    </div>
+    <div class="banner">
+      <span class="material-icons-outlined">tips_and_updates</span>
+      <div><strong>简单判断：</strong>问"能不能访问？"→ Guard ｜ 问"怎么处理？"→ Interceptor ｜ 问"参数对不对？"→ Pipe ｜ 问"出错了怎么办？"→ Filter</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== 最佳实践 ==================== -->
+<div class="section" id="sec-best">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon pink"><span class="material-icons-outlined">star</span></div>
+      <h3>代码组织最佳实践</h3>
+    </div>
+    <div class="pattern-card">
+      <h4>1. DTO 模式 (Data Transfer Object)</h4>
+      <div class="desc">入参和出参分离，使用 class-validator 验证</div>
+<pre><span class="cm">// 请求 DTO - 验证入参</span>
+<span class="kw">export class</span> <span class="typ">CreateUserDto</span> {
+  <span class="dec">@IsString</span>() <span class="dec">@MinLength</span>(<span class="num">2</span>) name: <span class="typ">string</span>;
+  <span class="dec">@IsEmail</span>() email: <span class="typ">string</span>;
+}
+
+<span class="cm">// 响应 DTO - 控制出参</span>
+<span class="kw">export class</span> <span class="typ">UserResponseDto</span> {
+  <span class="dec">@Expose</span>() id: <span class="typ">string</span>;
+  <span class="dec">@Expose</span>() name: <span class="typ">string</span>;
+  <span class="dec">@Expose</span>() email: <span class="typ">string</span>;
+  <span class="dec">@Exclude</span>() password: <span class="typ">string</span>; <span class="cm">// 排除敏感字段</span>
+}
+
+<span class="cm">// 控制器中使用</span>
+<span class="dec">@Get</span>(<span class="str">':id'</span>)
+<span class="dec">@UseInterceptors</span>(<span class="typ">ClassSerializerInterceptor</span>)
+<span class="kw">async</span> <span class="fn">findOne</span>(<span class="dec">@Param</span>(<span class="str">'id'</span>) id: <span class="typ">string</span>): <span class="typ">Promise</span>&lt;<span class="typ">UserResponseDto</span>&gt; {
+  <span class="kw">return this</span>.service.<span class="fn">findOne</span>(id);
+}</pre>
+    </div>
+
+    <div class="pattern-card">
+      <h4>2. Repository 模式</h4>
+      <div class="desc">隔离数据访问层，便于切换数据库和单元测试</div>
+<pre><span class="cm">// 定义接口</span>
+<span class="kw">export interface</span> <span class="typ">IUserRepository</span> {
+  <span class="fn">findById</span>(id: <span class="typ">string</span>): <span class="typ">Promise</span>&lt;<span class="typ">User</span> | <span class="num">null</span>&gt;;
+  <span class="fn">create</span>(data: <span class="typ">CreateUserDto</span>): <span class="typ">Promise</span>&lt;<span class="typ">User</span>&gt;;
+  <span class="fn">update</span>(id: <span class="typ">string</span>, data: <span class="typ">UpdateUserDto</span>): <span class="typ">Promise</span>&lt;<span class="typ">User</span>&gt;;
+}
+
+<span class="cm">// Prisma 实现</span>
+<span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">UserRepository</span> <span class="kw">implements</span> <span class="typ">IUserRepository</span> {
+  <span class="kw">constructor</span>(<span class="kw">private</span> prisma: <span class="typ">PrismaService</span>) {}
+
+  <span class="kw">async</span> <span class="fn">findById</span>(id: <span class="typ">string</span>) {
+    <span class="kw">return this</span>.prisma.user.<span class="fn">findUnique</span>({ where: { id } });
+  }
+}
+
+<span class="cm">// 测试时替换为 Mock</span>
+{
+  provide: <span class="typ">UserRepository</span>,
+  useClass: <span class="typ">MockUserRepository</span>,
+}</pre>
+    </div>
+
+    <div class="pattern-card">
+      <h4>3. 领域事件模式</h4>
+      <div class="desc">解耦业务逻辑，异步处理副作用</div>
+<pre><span class="dec">@Injectable</span>()
+<span class="kw">export class</span> <span class="typ">OrderService</span> {
+  <span class="kw">constructor</span>(<span class="kw">private</span> eventBus: <span class="typ">EventBus</span>) {}
+
+  <span class="kw">async</span> <span class="fn">createOrder</span>(dto: <span class="typ">CreateOrderDto</span>) {
+    <span class="kw">const</span> order = <span class="kw">await this</span>.repo.<span class="fn">create</span>(dto);
+
+    <span class="cm">// 发布事件，不关心谁处理</span>
+    <span class="kw">this</span>.eventBus.<span class="fn">publish</span>(<span class="kw">new</span> <span class="typ">OrderCreatedEvent</span>(order));
+
+    <span class="kw">return</span> order;
+  }
+}
+
+<span class="cm">// 事件处理器（自动发送邮件、更新库存等）</span>
+<span class="dec">@EventsHandler</span>(<span class="typ">OrderCreatedEvent</span>)
+<span class="kw">export class</span> <span class="typ">OrderCreatedHandler</span> {
+  <span class="kw">async</span> <span class="fn">handle</span>(event: <span class="typ">OrderCreatedEvent</span>) {
+    <span class="kw">await this</span>.email.<span class="fn">sendOrderConfirmation</span>(event.order);
+    <span class="kw">await this</span>.inventory.<span class="fn">decrement</span>(event.order.items);
+  }
+}</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><span class="material-icons-outlined">verified</span></div>
+      <h3>测试最佳实践</h3>
+    </div>
+<pre><span class="cm">// 单元测试 - 使用 Jest</span>
+<span class="fn">describe</span>(<span class="str">'UserService'</span>, () => {
+  <span class="kw">let</span> service: <span class="typ">UserService</span>;
+  <span class="kw">let</span> repo: <span class="typ">MockUserRepository</span>;
+
+  <span class="fn">beforeEach</span>(<span class="kw">async</span> () => {
+    <span class="kw">const</span> module = <span class="kw">await</span> <span class="typ">Test</span>.<span class="fn">createTestingModule</span>({
+      providers: [
+        <span class="typ">UserService</span>,
+        {
+          provide: <span class="typ">UserRepository</span>,
+          useClass: <span class="typ">MockUserRepository</span>,
+        },
+      ],
+    }).<span class="fn">compile</span>();
+
+    service = module.<span class="fn">get</span>(<span class="typ">UserService</span>);
+    repo = module.<span class="fn">get</span>(<span class="typ">UserRepository</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">'should return user by id'</span>, <span class="kw">async</span> () => {
+    <span class="kw">const</span> user = <span class="kw">await</span> service.<span class="fn">findOne</span>(<span class="str">'1'</span>);
+    <span class="fn">expect</span>(user).<span class="fn">toBeDefined</span>();
+    <span class="fn">expect</span>(user.id).<span class="fn">toBe</span>(<span class="str">'1'</span>);
+  });
+});</pre>
+    <div class="banner success">
+      <span class="material-icons-outlined">tips_and_updates</span>
+      <div>使用 <span class="inline-code">Test.createTestingModule()</span> 创建测试模块，用 Mock 替换所有外部依赖。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon purple"><span class="material-icons-outlined">speed</span></div>
+      <h3>性能优化技巧</h3>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <h4>🚀 启用 Fastify 适配器</h4>
+        <p>比 Express 快 2-3 倍，适合高并发 API</p>
+      </div>
+      <div class="feature-item">
+        <h4>📦 启用 Compression</h4>
+        <p>压缩响应体，减少网络传输</p>
+      </div>
+      <div class="feature-item">
+        <h4>💾 响应缓存</h4>
+        <p>使用 CacheModule 缓存热点数据</p>
+      </div>
+      <div class="feature-item">
+        <h4>🔌 连接池管理</h4>
+        <p>数据库和 Redis 使用连接池</p>
+      </div>
+    </div>
+<pre><span class="cm">// Fastify 适配器</span>
+<span class="kw">import</span> { <span class="typ">FastifyAdapter</span> } <span class="kw">from</span> <span class="str">'@nestjs/platform-fastify'</span>;
+
+<span class="kw">const</span> app = <span class="kw">await</span> <span class="typ">NestFactory</span>.<span class="fn">create</span>(
+  <span class="typ">AppModule</span>,
+  <span class="kw">new</span> <span class="typ">FastifyAdapter</span>(),
+);
+
+<span class="cm">// 启用缓存</span>
+<span class="dec">@Module</span>({
+  imports: [
+    <span class="typ">CacheModule</span>.<span class="fn">register</span>({
+      store: <span class="str">'redis'</span>,
+      host: <span class="str">'localhost'</span>,
+      port: <span class="num">6379</span>,
+      ttl: <span class="num">60</span>,
+    }),
+  ],
+})</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon orange"><span class="material-icons-outlined">checklist</span></div>
+      <h3>安全最佳实践</h3>
+    </div>
+    <ul>
+      <li><strong>Helmet</strong> — 设置安全 HTTP 头</li>
+      <li><strong>CORS</strong> — 限制跨域来源</li>
+      <li><strong>Rate Limiting</strong> — 防止暴力破解</li>
+      <li><strong>CSRF Protection</strong> — 跨站请求伪造防护</li>
+      <li><strong>Input Validation</strong> — 永远不信任用户输入</li>
+      <li><strong>JWT 黑名单</strong> — Token 撤销机制</li>
+    </ul>
+<pre><span class="cm">// 安全中间件配置</span>
+<span class="kw">import</span> helmet <span class="kw">from</span> <span class="str">'helmet'</span>;
+<span class="kw">import</span> { <span class="typ">ThrottlerModule</span> } <span class="kw">from</span> <span class="str">'@nestjs/throttler'</span>;
+
+app.<span class="fn">use</span>(<span class="fn">helmet</span>());
+app.<span class="fn">enableCors</span>({
+  origin: [<span class="str">'https://myapp.com'</span>],
+  credentials: <span class="num">true</span>,
+});
+
+<span class="dec">@Module</span>({
+  imports: [
+    <span class="typ">ThrottlerModule</span>.<span class="fn">forRoot</span>([{
+      ttl: <span class="num">60000</span>,    <span class="cm">// 1 分钟</span>
+      limit: <span class="num">100</span>,     <span class="cm">// 最多 100 次请求</span>
+    }]),
+  ],
+})</pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon green"><span class="material-icons-outlined">integration_instructions</span></div>
+      <h3>常用集成清单</h3>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <h4>🐘 数据库</h4>
+        <p>Prisma / TypeORM / Mongoose</p>
+      </div>
+      <div class="feature-item">
+        <h4>🔴 缓存</h4>
+        <p>CacheModule / Redis / ioredis</p>
+      </div>
+      <div class="feature-item">
+        <h4>🔐 认证</h4>
+        <p>Passport / JWT / OAuth2</p>
+      </div>
+      <div class="feature-item">
+        <h4>📡 实时通信</h4>
+        <p>WebSocket / Socket.io / SSE</p>
+      </div>
+      <div class="feature-item">
+        <h4>📋 API 文档</h4>
+        <p>Swagger (@nestjs/swagger)</p>
+      </div>
+      <div class="feature-item">
+        <h4>📨 消息队列</h4>
+        <p>Bull / RabbitMQ / Kafka</p>
+      </div>
+      <div class="feature-item">
+        <h4>🔍 日志</h4>
+        <p>Pino / Winston / NestJS Logger</p>
+      </div>
+      <div class="feature-item">
+        <h4>📊 监控</h4>
+        <p>Prometheus / OpenTelemetry</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- .container -->
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>

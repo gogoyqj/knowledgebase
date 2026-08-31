@@ -2,7 +2,9 @@
   { "name": "electron", "src": "electron.html" },
   { "name": "log", "src": "log.html" },
   { "name": "mongodb", "src": "mongodb.html" },
+  { "name": "nest", "src": "nest.html" },
   { "name": "next", "src": "next.html" },
+  { "name": "p", "src": "p.html" },
   { "name": "pi-agent-core.infra", "src": "pi-agent-core.infra.html" },
   { "name": "pi-ai.infra", "src": "pi-ai.infra.html" },
   { "name": "prime-coding-agent", "src": "prime-coding-agent.html" },
@@ -15,5 +17,6 @@
   { "name": "react-native", "src": "react-native.html" },
   { "name": "react", "src": "react.html" },
   { "name": "socket-transfer", "src": "socket-transfer.html" },
-  { "name": "ssr", "src": "ssr.html" }
+  { "name": "ssr", "src": "ssr.html" },
+  { "name": "vue", "src": "vue.html" }
 ]

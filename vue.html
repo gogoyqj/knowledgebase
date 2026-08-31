@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue 3 核心能力完全指南</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    :root {
+      --md-primary: #6750A4;
+      --md-on-primary: #FFFFFF;
+      --md-primary-container: #EADDFF;
+      --md-on-primary-container: #21005D;
+      --md-secondary: #625B71;
+      --md-secondary-container: #E8DEF8;
+      --md-on-secondary-container: #1D192B;
+      --md-tertiary: #7D5260;
+      --md-tertiary-container: #FFD8E4;
+      --md-surface: #FFFBFE;
+      --md-surface-variant: #E7E0EC;
+      --md-on-surface: #1C1B1F;
+      --md-on-surface-variant: #49454F;
+      --md-outline: #79747E;
+      --md-outline-variant: #CAC4D0;
+      --md-elevation-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+      --md-elevation-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+      --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+      --md-shape-s: 8px;
+      --md-shape-m: 12px;
+      --md-shape-l: 16px;
+      --md-shape-xl: 28px;
+      --md-type-display: 900 2.5rem/1.2 'Noto Sans SC', sans-serif;
+      --md-type-headline: 700 1.75rem/1.3 'Noto Sans SC', sans-serif;
+      --md-type-title: 500 1.25rem/1.4 'Noto Sans SC', sans-serif;
+      --md-type-body: 400 1rem/1.6 'Noto Sans SC', sans-serif;
+      --md-type-label: 500 .75rem/1.4 'Noto Sans SC', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--md-surface);
+      color: var(--md-on-surface);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Top App Bar ─── */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      background: var(--md-surface);
+      border-bottom: 1px solid var(--md-outline-variant);
+      backdrop-filter: blur(12px);
+    }
+    .top-bar .material-icons-round {
+      font-size: 24px;
+      color: var(--md-on-surface-variant);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      transition: background .2s;
+    }
+    .top-bar .material-icons-round:hover {
+      background: var(--md-surface-variant);
+    }
+    .top-bar h1 {
+      font: 700 1.125rem/1.4 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface);
+    }
+
+    /* ─── Hero ─── */
+    .hero {
+      padding: 80px 24px 64px;
+      text-align: center;
+      background: linear-gradient(135deg, var(--md-primary-container) 0%, #F6EDFF 40%, var(--md-surface) 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(103,80,164,.12) 0%, transparent 70%);
+      top: -200px; right: -100px;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 400px; height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(125,82,96,.1) 0%, transparent 70%);
+      bottom: -100px; left: -50px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+      font: 500 .8125rem/1 'Noto Sans SC', sans-serif;
+      margin-bottom: 24px;
+      letter-spacing: .02em;
+    }
+    .hero h2 {
+      font: var(--md-type-display);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      color: var(--md-on-primary-container);
+      max-width: 700px;
+      margin: 0 auto 16px;
+    }
+    .hero p {
+      font: 300 1.125rem/1.7 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface-variant);
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* ─── Navigation Tabs ─── */
+    .tabs-wrap {
+      position: sticky;
+      top: 56px;
+      z-index: 90;
+      background: var(--md-surface);
+      border-bottom: 1px solid var(--md-outline-variant);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs-wrap::-webkit-scrollbar { display: none; }
+    .tabs {
+      display: flex;
+      gap: 0;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 14px 24px;
+      border: none;
+      background: none;
+      font: 500 .875rem/1 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface-variant);
+      cursor: pointer;
+      position: relative;
+      transition: color .2s;
+      white-space: nowrap;
+    }
+    .tab-btn::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%) scaleX(0);
+      width: 60%;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+      background: var(--md-primary);
+      transition: transform .25s cubic-bezier(.4,0,.2,1);
+    }
+    .tab-btn.active {
+      color: var(--md-primary);
+      font-weight: 700;
+    }
+    .tab-btn.active::after {
+      transform: translateX(-50%) scaleX(1);
+    }
+    .tab-btn:hover {
+      color: var(--md-on-surface);
+      background: rgba(103,80,164,.06);
+    }
+
+    /* ─── Content ─── */
+    .content {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    /* ─── Section ─── */
+    .section { animation: fadeUp .5s ease-out both; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .section-icon {
+      width: 48px; height: 48px;
+      border-radius: var(--md-shape-m);
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+    }
+    .section-icon.purple { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+    .section-icon.pink { background: var(--md-tertiary-container); color: var(--md-tertiary); }
+    .section-icon.green { background: #D0F0C0; color: #2E7D32; }
+    .section-title h3 {
+      font: var(--md-type-headline);
+      color: var(--md-on-surface);
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--md-surface);
+      border: 1px solid var(--md-outline-variant);
+      border-radius: var(--md-shape-l);
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: box-shadow .25s, transform .25s;
+    }
+    .card:hover {
+      box-shadow: var(--md-elevation-2);
+      transform: translateY(-2px);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .card-chip {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font: 500 .6875rem/1.4 'JetBrains Mono', monospace;
+      letter-spacing: .02em;
+    }
+    .chip-purple { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+    .chip-pink { background: var(--md-tertiary-container); color: var(--md-tertiary); }
+    .chip-green { background: #D0F0C0; color: #2E7D32; }
+    .chip-amber { background: #FFF3E0; color: #E65100; }
+    .chip-blue { background: #E3F2FD; color: #1565C0; }
+
+    .card h4 {
+      font: var(--md-type-title);
+      color: var(--md-on-surface);
+    }
+    .card p, .card li {
+      font: var(--md-type-body);
+      color: var(--md-on-surface-variant);
+    }
+    .card ul, .card ol {
+      padding-left: 20px;
+      margin-top: 8px;
+    }
+    .card li { margin-bottom: 6px; }
+    .card li strong { color: var(--md-on-surface); }
+
+    /* ─── Code Blocks ─── */
+    .code-block {
+      background: #1E1E2E;
+      border-radius: var(--md-shape-m);
+      overflow: hidden;
+      margin: 16px 0;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: #181825;
+      font: 500 .75rem/1 'JetBrains Mono', monospace;
+      color: #6C7086;
+    }
+    .code-header .lang { color: #CBA6F7; }
+    .code-block pre {
+      padding: 16px;
+      overflow-x: auto;
+      font: 400 .8125rem/1.7 'JetBrains Mono', monospace;
+      color: #CDD6F4;
+    }
+    .code-block .kw { color: #CBA6F7; }
+    .code-block .fn { color: #89B4FA; }
+    .code-block .str { color: #A6E3A1; }
+    .code-block .cm { color: #6C7086; font-style: italic; }
+    .code-block .num { color: #FAB387; }
+    .code-block .op { color: #89DCEB; }
+    .code-block .var { color: #F38BA8; }
+    .code-block .prop { color: #89B4FA; }
+    .code-block .type { color: #F9E2AF; }
+    .code-block .tag { color: #F38BA8; }
+    .code-block .attr { color: #FAB387; }
+    .code-block .punct { color: #9399B2; }
+
+    /* ─── Info Row ─── */
+    .info-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .info-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border-radius: var(--md-shape-m);
+      background: var(--md-surface-variant);
+    }
+    .info-item .material-icons-round {
+      font-size: 20px;
+      color: var(--md-primary);
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .info-item strong {
+      font: 500 .8125rem/1.4 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .info-item span {
+      font: 400 .75rem/1.5 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface-variant);
+    }
+
+    /* ─── Callout ─── */
+    .callout {
+      display: flex;
+      gap: 12px;
+      padding: 16px 20px;
+      border-radius: var(--md-shape-m);
+      margin: 16px 0;
+      font: 400 .875rem/1.6 'Noto Sans SC', sans-serif;
+    }
+    .callout .material-icons-round { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+    .callout.tip { background: #E8F5E9; color: #1B5E20; }
+    .callout.tip .material-icons-round { color: #2E7D32; }
+    .callout.warn { background: #FFF8E1; color: #E65100; }
+    .callout.warn .material-icons-round { color: #F57C00; }
+
+    /* ─── Flow Diagram ─── */
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px;
+      margin: 20px 0;
+      background: var(--md-surface-variant);
+      border-radius: var(--md-shape-l);
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      padding: 10px 20px;
+      border-radius: var(--md-shape-s);
+      font: 500 .8125rem/1.4 'Noto Sans SC', sans-serif;
+      white-space: nowrap;
+    }
+    .flow-step.s1 { background: var(--md-primary); color: var(--md-on-primary); }
+    .flow-step.s2 { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+    .flow-step.s3 { background: var(--md-tertiary-container); color: var(--md-tertiary); }
+    .flow-arrow {
+      font-family: 'Material Icons Round';
+      color: var(--md-outline);
+      font-size: 20px;
+    }
+
+    /* ─── Comparison Table ─── */
+    .compare-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: var(--md-shape-m);
+      overflow: hidden;
+      border: 1px solid var(--md-outline-variant);
+      margin: 16px 0;
+      font: 400 .8125rem/1.5 'Noto Sans SC', sans-serif;
+    }
+    .compare-table th {
+      background: var(--md-primary-container);
+      color: var(--md-on-primary-container);
+      padding: 12px 16px;
+      font-weight: 700;
+      text-align: left;
+    }
+    .compare-table td {
+      padding: 10px 16px;
+      border-top: 1px solid var(--md-outline-variant);
+    }
+    .compare-table tr:nth-child(even) td { background: rgba(231,224,236,.2); }
+    .compare-table code {
+      font: 500 .75rem/1.4 'JetBrains Mono', monospace;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--md-surface-variant);
+    }
+
+    /* ─── Divider ─── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--md-outline-variant);
+      margin: 48px 0;
+    }
+
+    /* ─── Animations ─── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .section:nth-child(1) { animation-delay: .05s; }
+    .section:nth-child(2) { animation-delay: .1s; }
+    .section:nth-child(3) { animation-delay: .15s; }
+    .section:nth-child(4) { animation-delay: .2s; }
+    .section:nth-child(5) { animation-delay: .25s; }
+
+    /* ─── Footer ─── */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--md-outline-variant);
+      font: 400 .75rem/1.6 'Noto Sans SC', sans-serif;
+      color: var(--md-on-surface-variant);
+    }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 3px; }
+
+    @media (max-width: 640px) {
+      .hero { padding: 56px 20px 48px; }
+      .hero h2 { font-size: 1.75rem; }
+      .content { padding: 32px 16px 64px; }
+      .card { padding: 20px; }
+      .flow { gap: 6px; padding: 16px; }
+      .flow-step { padding: 8px 12px; font-size: .75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <span class="material-icons-round" style="opacity:.5">menu</span>
+    <h1>Vue 3 核心能力完全指南</h1>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="material-icons-round" style="font-size:16px">auto_awesome</span>
+      Vue 3 + Composition API
+    </div>
+    <h2>深入理解 Vue 3 响应式原理与 Hooks 最佳实践</h2>
+    <p>从 Proxy 到 ref/reactive，从 composable 到性能优化——全面掌握 Vue 3 的核心能力</p>
+  </section>
+
+  <!-- Tabs -->
+  <nav class="tabs-wrap">
+    <div class="tabs">
+      <button
+        v-for="(tab, i) in tabs"
+        :key="i"
+        class="tab-btn"
+        :class="{ active: activeTab === i }"
+        @click="activeTab = i"
+      >
+        {{ tab }}
+      </button>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="content">
+
+    <!-- ==================== Section 0: Reactivity ==================== -->
+    <div class="section" v-show="activeTab === 0">
+
+      <div class="section-title">
+        <div class="section-icon purple">
+          <span class="material-icons-round">hub</span>
+        </div>
+        <h3>响应式原理：从 Proxy 到自动追踪</h3>
+      </div>
+
+      <p style="color:var(--md-on-surface-variant);margin-bottom:24px">
+        Vue 3 用 <strong>Proxy</strong> 替代了 Vue 2 的 <code>Object.defineProperty</code>，
+        实现了对任意嵌套对象的深度响应式追踪，无需递归遍历所有属性。
+      </p>
+
+      <!-- Architecture Flow -->
+      <div class="flow">
+        <div class="flow-step s1"> reactive() / ref() </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s2"> Proxy 拦截 get/set </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s3"> 依赖收集 (track) </div>
+        <span class="flow-arrow">arrow_forward</span>
+        <div class="flow-step s1"> 触发更新 (trigger) </div>
+      </div>
+
+      <!-- Card: reactive -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-purple">reactive()</span>
+          <h4>深层响应式对象</h4>
+        </div>
+        <p><code>reactive()</code> 接受一个对象并返回其响应式代理。支持嵌套、数组、Map、Set 等任意数据结构。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>reactive</span></div>
+          <pre><span class="kw">import</span> { reactive } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">const</span> <span class="var">state</span> = <span class="fn">reactive</span>({
+  <span class="prop">user</span>: { <span class="prop">name</span>: <span class="str">'Alice'</span>, <span class="prop">age</span>: <span class="num">28</span> },
+  <span class="prop">todos</span>: [<span class="str">'学习 Vue 3'</span>, <span class="str">'写单元测试'</span>]
+})
+
+<span class="cm">// ✅ 自动深度响应式，无需手动递归</span>
+state.user.name = <span class="str">'Bob'</span>       <span class="cm">// 触发更新</span>
+state.todos.push(<span class="str">'发布上线'</span>)  <span class="cm">// 触发更新</span></pre>
+        </div>
+        <div class="callout warn">
+          <span class="material-icons-round">warning</span>
+          <div><strong>注意：</strong> <code>reactive()</code> 有以下限制：<br>
+          1. 不能用于原始类型（string、number、boolean）<br>
+          2. 不能替换整个对象（会丢失响应式）<br>
+          3. 解构会丢失响应性（需用 <code>toRefs()</code>）</div>
+        </div>
+      </div>
+
+      <!-- Card: ref -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-pink">ref()</span>
+          <h4>单一值响应式引用</h4>
+        </div>
+        <p><code>ref()</code> 接受任意值并返回一个响应式对象，通过 <code>.value</code> 访问内部值。适合原始类型和需要整体替换的场景。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>ref</span></div>
+          <pre><span class="kw">import</span> { ref } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">const</span> <span class="var">count</span> = <span class="fn">ref</span>(<span class="num">0</span>)
+<span class="kw">const</span> <span class="var">user</span> = <span class="fn">ref</span>({ <span class="prop">name</span>: <span class="str">'Alice'</span> })
+
+<span class="cm">// 在 JS 中需要 .value</span>
+count.value++                   <span class="cm">// 触发更新</span>
+user.value = { <span class="prop">name</span>: <span class="str">'Bob'</span> } <span class="cm">// ✅ 可以整体替换</span>
+
+<span class="cm">// 在模板中自动解包，无需 .value</span>
+<span class="cm">// &lt;template&gt;&lt;p&gt;{{ count }}&lt;/p&gt;&lt;/template&gt;</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: Proxy 源码解析 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">源码解析</span>
+          <h4>Proxy 如何工作？</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>简化版源码</span></div>
+          <pre><span class="kw">function</span> <span class="fn">reactive</span>(<span class="var">target</span>) {
+  <span class="kw">return new</span> <span class="type">Proxy</span>(target, {
+    <span class="fn">get</span>(<span class="var">target</span>, <span class="var">key</span>, <span class="var">receiver</span>) {
+      <span class="cm">// 1. 收集依赖：记录哪个 effect 依赖了这个属性</span>
+      <span class="fn">track</span>(target, key)
+      <span class="kw">const</span> <span class="var">result</span> = <span class="type">Reflect</span>.<span class="fn">get</span>(target, key, receiver)
+      <span class="cm">// 2. 深层代理：如果值是对象，递归代理</span>
+      <span class="kw">if</span> (<span class="type">Object</span>.<span class="fn">isObj</span>(result)) <span class="kw">return</span> <span class="fn">reactive</span>(result)
+      <span class="kw">return</span> result
+    },
+    <span class="fn">set</span>(<span class="var">target</span>, <span class="var">key</span>, <span class="var">value</span>, <span class="var">receiver</span>) {
+      <span class="kw">const</span> <span class="var">ok</span> = <span class="type">Reflect</span>.<span class="fn">set</span>(target, key, value, receiver)
+      <span class="cm">// 3. 触发更新：通知所有依赖该属性的 effect 重新执行</span>
+      <span class="fn">trigger</span>(target, key)
+      <span class="kw">return</span> ok
+    }
+  })
+}
+
+<span class="cm">// 依赖存储结构：WeakMap&lt;target, Map&lt;key, Set&lt;effect&gt;&gt;&gt;</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: computed -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">computed()</span>
+          <h4>缓存计算属性</h4>
+        </div>
+        <p><code>computed()</code> 基于响应式依赖自动缓存，依赖不变则不重新计算。内部使用 <code>dirty</code> 标记实现惰性求值。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>computed</span></div>
+          <pre><span class="kw">import</span> { ref, computed } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">const</span> <span class="var">firstName</span> = <span class="fn">ref</span>(<span class="str">'John'</span>)
+<span class="kw">const</span> <span class="var">lastName</span> = <span class="fn">ref</span>(<span class="str">'Doe'</span>)
+
+<span class="cm">// 只读 computed</span>
+<span class="kw">const</span> <span class="var">fullName</span> = <span class="fn">computed</span>(() => firstName.value + <span class="str">' '</span> + lastName.value)
+
+<span class="cm">// 可写 computed（getter + setter）</span>
+<span class="kw">const</span> <span class="var">fullNameWritable</span> = <span class="fn">computed</span>({
+  <span class="fn">get</span>: () => firstName.value + <span class="str">' '</span> + lastName.value,
+  <span class="fn">set</span>: (<span class="var">val</span>) => {
+    [firstName.value, lastName.value] = val.<span class="fn">split</span>(<span class="str">' '</span>)
+  }
+})</pre>
+        </div>
+        <div class="callout tip">
+          <span class="material-icons-round">lightbulb</span>
+          <div><strong>最佳实践：</strong> 在模板中直接使用 <code>fullName</code>，不要写成 <code>fullName.value</code>——模板自动解包 ref。</div>
+        </div>
+      </div>
+
+      <!-- Card: watch & watchEffect -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-blue">watch / watchEffect</span>
+          <h4>侦听器对比</h4>
+        </div>
+        <table class="compare-table">
+          <thead>
+            <tr><th>特性</th><th>watch</th><th>watchEffect</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>依赖声明</td><td>显式指定侦听源</td><td>自动追踪回调中用到的响应式数据</td></tr>
+            <tr><td>旧值访问</td><td>✅ 提供 oldValue</td><td>❌ 不提供</td></tr>
+            <tr><td>懒执行</td><td>默认懒执行（可 immediate: true）</td><td>立即执行一次</td></tr>
+            <tr><td>适用场景</td><td>需要对比新旧值、条件性执行</td><td>副作用与多个响应式数据联动</td></tr>
+          </tbody>
+        </table>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>watch vs watchEffect</span></div>
+          <pre><span class="kw">import</span> { ref, watch, watchEffect } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">const</span> <span class="var">keyword</span> = <span class="fn">ref</span>(<span class="str">''</span>)
+<span class="kw">const</span> <span class="var">page</span> = <span class="fn">ref</span>(<span class="num">1</span>)
+
+<span class="cm">// watch：显式侦听，可获取旧值</span>
+<span class="fn">watch</span>(keyword, (<span class="var">newVal</span>, <span class="var">oldVal</span>) => {
+  <span class="fn">console</span>.<span class="fn">log</span>(`搜索词从 "${oldVal}" 变为 "${newVal}"`)
+  page.value = <span class="num">1</span> <span class="cm">// 重置分页</span>
+})
+
+<span class="cm">// watch：侦听多个源</span>
+<span class="fn">watch</span>([keyword, page], ([<span class="var">kw</span>, <span class="var">p</span>]) => {
+  <span class="fn">fetchData</span>(kw, p)
+})
+
+<span class="cm">// watchEffect：自动追踪依赖</span>
+<span class="fn">watchEffect</span>(() => {
+  <span class="fn">document</span>.title = <span class="str">`搜索: ${keyword.value} | 第${page.value}页`</span>
+})</pre>
+        </div>
+      </div>
+
+      <!-- Card: shallowRef / shallowReactive / toRef -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">性能优化</span>
+          <h4>shallow 与 toRef 系列</h4>
+        </div>
+        <div class="info-row">
+          <div class="info-item">
+            <span class="material-icons-round">filter_alt</span>
+            <div>
+              <strong>shallowRef()</strong>
+              <span>只追踪 .value 的引用变化，内部属性变更不触发更新。适合大型不可变数据结构。</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="material-icons-round">filter_alt</span>
+            <div>
+              <strong>shallowReactive()</strong>
+              <span>只在第一层属性变更时触发更新，嵌套对象不递归代理。</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="material-icons-round">link</span>
+            <div>
+              <strong>toRef() / toRefs()</strong>
+              <span>从 reactive 对象中提取单个/全部属性为 ref，保持响应式连接。</span>
+            </div>
+          </div>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>性能技巧</span></div>
+          <pre><span class="kw">import</span> { shallowRef, triggerRef, toRefs } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="cm">// shallowRef：适用于大型列表</span>
+<span class="kw">const</span> <span class="var">bigList</span> = <span class="fn">shallowRef</span>(<span class="fn">generateThousandItems</span>())
+bigList.value = [...bigList.value, newItem]  <span class="cm">// ✅ 触发更新</span>
+bigList.value[<span class="num">0</span>].name = <span class="str">'changed'</span>             <span class="cm">// ❌ 不触发（需手动）</span>
+<span class="fn">triggerRef</span>(bigList)                          <span class="cm">// ✅ 手动触发</span>
+
+<span class="cm">// toRefs：解构不丢失响应式</span>
+<span class="kw">const</span> <span class="var">state</span> = <span class="fn">reactive</span>({ <span class="prop">x</span>: <span class="num">1</span>, <span class="prop">y</span>: <span class="num">2</span> })
+<span class="kw">const</span> { x, y } = <span class="fn">toRefs</span>(state)  <span class="cm">// x 和 y 都是 ref</span>
+x.value++  <span class="cm">// ✅ 原对象同步更新</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Section 1: Composition API ==================== -->
+    <div class="section" v-show="activeTab === 1">
+
+      <div class="section-title">
+        <div class="section-icon pink">
+          <span class="material-icons-round">extension</span>
+        </div>
+        <h3>Composition API：逻辑复用的革命</h3>
+      </div>
+
+      <p style="color:var(--md-on-surface-variant);margin-bottom:24px">
+        Composition API 用 <strong>函数组合</strong> 替代 Options API 的 <strong>选项合并</strong>，
+        让同一功能的逻辑集中在一处，而非分散在 data、methods、computed、watch 中。
+      </p>
+
+      <!-- Card: Options vs Composition -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-purple">对比</span>
+          <h4>Options API vs Composition API</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Vue</span><span>两种写法对比</span></div>
+          <pre><span class="cm">&lt;!-- ❌ Options API：同一功能的逻辑分散在不同选项中 --&gt;</span>
+<span class="tag">&lt;script&gt;</span>
+<span class="kw">export default</span> {
+  <span class="fn">data</span>() { <span class="kw">return</span> { <span class="prop">count</span>: <span class="num">0</span>, <span class="prop">double</span>: <span class="num">0</span> } },
+  <span class="fn">computed</span>: {
+    <span class="fn">double</span>() { <span class="kw">return</span> <span class="kw">this</span>.count * <span class="num">2</span> }
+  },
+  <span class="fn">methods</span>: {
+    <span class="fn">increment</span>() { <span class="kw">this</span>.count++ }
+  },
+  <span class="fn">mounted</span>() { <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">'mounted'</span>) },
+  <span class="cm">// ← 如果有 3 个不相关的功能，全部混在一起</span>
+}
+<span class="tag">&lt;/script&gt;</span>
+
+<span class="cm">&lt;!-- ✅ Composition API：按功能组织 --&gt;</span>
+<span class="tag">&lt;script</span> <span class="attr">setup</span><span class="tag">&gt;</span>
+<span class="kw">import</span> { <span class="fn">useCounter</span> } <span class="kw">from</span> <span class="str">'./composables/useCounter'</span>
+<span class="kw">import</span> { <span class="fn">useFetch</span> } <span class="kw">from</span> <span class="str">'./composables/useFetch'</span>
+
+<span class="kw">const</span> { count, double, increment } = <span class="fn">useCounter</span>()
+<span class="kw">const</span> { data, loading } = <span class="fn">useFetch</span>(<span class="str">'/api/users'</span>)
+<span class="tag">&lt;/script&gt;</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: script setup -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">语法糖</span>
+          <h4>&lt;script setup&gt; 最佳实践</h4>
+        </div>
+        <p><code>&lt;script setup&gt;</code> 是 Vue 3.2+ 推荐的编写方式，编译时自动处理 <code>defineProps</code>、<code>defineEmits</code> 等编译器宏。</p>
+        <ul>
+          <li><strong>零样板代码</strong>：无需 <code>export default</code>、<code>return</code></li>
+          <li><strong>更好的 TypeScript</strong>：类型推断更自然</li>
+          <li><strong>顶级变量自动暴露</strong>给模板</li>
+          <li><strong>编译器宏</strong>（defineProps/Emits/Expose）无需 import</li>
+        </ul>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Vue</span><span>script setup</span></div>
+          <pre><span class="tag">&lt;script</span> <span class="attr">setup</span> <span class="attr">lang</span>=<span class="str">"ts"</span><span class="tag">&gt;</span>
+<span class="kw">import</span> { computed } <span class="kw">from</span> <span class="str">'vue'</span>
+<span class="kw">import</span> ChildComp <span class="kw">from</span> <span class="str">'./ChildComp.vue'</span>
+
+<span class="cm">// Props 类型安全声明</span>
+<span class="kw">const</span> <span class="var">props</span> = <span class="fn">defineProps</span>&lt;{
+  <span class="prop">title</span>: <span class="type">string</span>
+  <span class="prop">count</span>?: <span class="type">number</span>
+}&gt;()
+
+<span class="cm">// Emits 声明</span>
+<span class="kw">const</span> <span class="var">emit</span> = <span class="fn">defineEmits</span>&lt;{
+  (<span class="attr">e</span>: <span class="str">'update'</span>, <span class="attr">value</span>: <span class="type">number</span>): <span class="type">void</span>
+  (<span class="attr">e</span>: <span class="str">'delete'</span>): <span class="type">void</span>
+}&gt;()
+
+<span class="cm">// 顶层变量自动可用于模板</span>
+<span class="kw">const</span> <span class="var">doubled</span> = <span class="fn">computed</span>(() => props.count ?? <span class="num">0</span> * <span class="num">2</span>)
+<span class="tag">&lt;/script&gt;</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: Lifecycle Hooks -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">生命周期</span>
+          <h4>Composition API 生命周期钩子</h4>
+        </div>
+        <p>所有生命周期钩子都有对应的 <code>on*</code> 函数，需从 vue 导入。它们只能在 <code>setup()</code> 或 <code>&lt;script setup&gt;</code> 中同步调用。</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>lifecycle hooks</span></div>
+          <pre><span class="kw">import</span> {
+  onBeforeMount, onMounted,
+  onBeforeUpdate, onUpdated,
+  onBeforeUnmount, onUnmounted,
+  onActivated, onDeactivated,
+  onErrorCaptured
+} <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="fn">onMounted</span>(() => {
+  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">'组件已挂载，DOM 可访问'</span>)
+  <span class="fn">startPolling</span>()
+})
+
+<span class="fn">onUnmounted</span>(() => {
+  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">'组件即将销毁'</span>)
+  <span class="fn">stopPolling</span>()  <span class="cm">// ✅ 清理副作用</span>
+})
+
+<span class="cm">// ⚠️ setup 中没有 beforeCreate 和 created</span>
+<span class="cm">// setup() 本身就在这个阶段执行</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Section 2: Composables ==================== -->
+    <div class="section" v-show="activeTab === 2">
+
+      <div class="section-title">
+        <div class="section-icon green">
+          <span class="material-icons-round">psychology</span>
+        </div>
+        <h3>Composable 函数（Hooks）实战</h3>
+      </div>
+
+      <p style="color:var(--md-on-surface-variant);margin-bottom:24px">
+        Composable 是 Vue 3 逻辑复用的核心机制。以 <code>use</code> 开头命名，封装有状态的逻辑，
+        可在任意组件中组合使用。
+      </p>
+
+      <!-- Card: useCounter -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-purple">示例</span>
+          <h4>useCounter — 基础 Composable</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>composables/useCounter.ts</span></div>
+          <pre><span class="kw">import</span> { ref, computed } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">export function</span> <span class="fn">useCounter</span>(<span class="var">initialValue</span> = <span class="num">0</span>, <span class="var">options</span> = {}) {
+  <span class="kw">const</span> { <span class="prop">min</span> = -<span class="type">Infinity</span>, <span class="prop">max</span> = <span class="type">Infinity</span>, <span class="prop">step</span> = <span class="num">1</span> } = options
+
+  <span class="kw">const</span> <span class="var">count</span> = <span class="fn">ref</span>(initialValue)
+  <span class="kw">const</span> <span class="var">doubleCount</span> = <span class="fn">computed</span>(() => count.value * <span class="num">2</span>)
+
+  <span class="kw">function</span> <span class="fn">increment</span>() {
+    count.value = <span class="type">Math</span>.<span class="fn">min</span>(count.value + step, max)
+  }
+  <span class="kw">function</span> <span class="fn">decrement</span>() {
+    count.value = <span class="type">Math</span>.<span class="fn">max</span>(count.value - step, min)
+  }
+  <span class="kw">function</span> <span class="fn">reset</span>() { count.value = initialValue }
+
+  <span class="kw">return</span> { count, doubleCount, increment, decrement, reset }
+}
+
+<span class="cm">// 使用：每调用一次创建独立状态</span>
+<span class="cm">// const { count, increment } = useCounter(0, { min: 0, max: 10 })</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: useFetch -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-pink">实战</span>
+          <h4>useFetch — 数据请求</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>composables/useFetch.ts</span></div>
+          <pre><span class="kw">import</span> { ref, watchEffect, onUnmounted } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">export function</span> <span class="fn">useFetch</span>&lt;<span class="type">T</span>&gt;(<span class="var">url</span>: <span class="type">Ref</span>&lt;<span class="type">string</span>&gt; | <span class="type">string</span>) {
+  <span class="kw">const</span> <span class="var">data</span> = <span class="fn">ref</span>&lt;<span class="type">T</span> | <span class="type">null</span>&gt;(<span class="kw">null</span>) <span class="kw">as</span> <span class="type">Ref</span>&lt;<span class="type">T</span>&gt;
+  <span class="kw">const</span> <span class="var">error</span> = <span class="fn">ref</span>&lt;<span class="type">Error</span> | <span class="type">null</span>&gt;(<span class="kw">null</span>)
+  <span class="kw">const</span> <span class="var">loading</span> = <span class="fn">ref</span>(<span class="kw">false</span>)
+  <span class="kw">let</span> <span class="var">controller</span>: <span class="type">AbortController</span> | <span class="kw">null</span> = <span class="kw">null</span>
+
+  <span class="kw">async function</span> <span class="fn">fetchData</span>(<span class="var">target</span>: <span class="type">string</span>) {
+    controller?.<span class="fn">abort</span>()
+    controller = <span class="kw">new</span> <span class="type">AbortController</span>()
+    loading.value = <span class="kw">true</span>
+    error.value = <span class="kw">null</span>
+    <span class="kw">try</span> {
+      <span class="kw">const</span> <span class="var">res</span> = <span class="kw">await</span> <span class="fn">fetch</span>(target, { <span class="prop">signal</span>: controller.signal })
+      data.value = <span class="kw">await</span> res.<span class="fn">json</span>()
+    } <span class="kw">catch</span> (<span class="var">e</span>) {
+      <span class="kw">if</span> (e <span class="kw">instanceof</span> <span class="type">Error</span> && e.name !== <span class="str">'AbortError'</span>) error.value = e
+    } <span class="kw">finally</span> {
+      loading.value = <span class="kw">false</span>
+    }
+  }
+
+  <span class="fn">watchEffect</span>(() => <span class="fn">fetchData</span>(<span class="kw">typeof</span> url === <span class="str">'string'</span> ? url : url.value))
+  <span class="fn">onUnmounted</span>(() => controller?.<span class="fn">abort</span>())
+
+  <span class="kw">return</span> { data, error, loading }
+}</pre>
+        </div>
+      </div>
+
+      <!-- Card: useLocalStorage -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">持久化</span>
+          <h4>useLocalStorage — 状态持久化</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>composables/useLocalStorage.ts</span></div>
+          <pre><span class="kw">import</span> { ref, watch } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">export function</span> <span class="fn">useLocalStorage</span>&lt;<span class="type">T</span>&gt;(<span class="var">key</span>: <span class="type">string</span>, <span class="var">defaultValue</span>: <span class="type">T</span>) {
+  <span class="kw">const</span> <span class="var">stored</span> = localStorage.<span class="fn">getItem</span>(key)
+  <span class="kw">const</span> <span class="var">data</span> = <span class="fn">ref</span>&lt;<span class="type">T</span>&gt;(
+    stored ? <span class="type">JSON</span>.<span class="fn">parse</span>(stored) : defaultValue
+  )
+
+  <span class="fn">watch</span>(data, (<span class="var">val</span>) => {
+    localStorage.<span class="fn">setItem</span>(key, <span class="type">JSON</span>.<span class="fn">stringify</span>(val))
+  }, { <span class="prop">deep</span>: <span class="kw">true</span> })
+
+  <span class="kw">return</span> data
+}
+
+<span class="cm">// 使用：自动同步到 localStorage</span>
+<span class="cm">// const theme = useLocalStorage('theme', 'light')</span></pre>
+        </div>
+      </div>
+
+      <!-- Card: useEventListener -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">DOM</span>
+          <h4>useEventListener — 自动清理</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>composables/useEventListener.ts</span></div>
+          <pre><span class="kw">import</span> { onMounted, onUnmounted, isRef, watch } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">export function</span> <span class="fn">useEventListener</span>(
+  <span class="var">target</span>: <span class="type">EventTarget</span> | <span class="type">Ref</span>&lt;<span class="type">EventTarget</span> | <span class="type">null</span>&gt;,
+  <span class="var">event</span>: <span class="type">string</span>,
+  <span class="var">handler</span>: <span class="type">EventListener</span>,
+  <span class="var">options</span>?: <span class="type">AddEventListenerOptions</span>
+) {
+  <span class="kw">function</span> <span class="fn">attach</span>(<span class="var">el</span>: <span class="type">EventTarget</span>) {
+    el.<span class="fn">addEventListener</span>(event, handler, options)
+  }
+  <span class="kw">function</span> <span class="fn">detach</span>(<span class="var">el</span>: <span class="type">EventTarget</span>) {
+    el.<span class="fn">removeEventListener</span>(event, handler, options)
+  }
+
+  <span class="kw">if</span> (isRef(target)) {
+    <span class="fn">watch</span>(target, (<span class="var">newEl</span>, <span class="var">oldEl</span>) => {
+      oldEl && <span class="fn">detach</span>(oldEl)
+      newEl && <span class="fn">attach</span>(newEl)
+    }, { <span class="prop">immediate</span>: <span class="kw">true</span> })
+  } <span class="kw">else</span> {
+    <span class="fn">onMounted</span>(() => <span class="fn">attach</span>(target))
+  }
+  <span class="fn">onUnmounted</span>(() => {
+    <span class="kw">if</span> (!isRef(target)) <span class="fn">detach</span>(target)
+  })
+}
+
+<span class="cm">// 使用</span>
+<span class="cm">// useEventListener(window, 'scroll', onScroll)</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Section 3: Best Practices ==================== -->
+    <div class="section" v-show="activeTab === 3">
+
+      <div class="section-title">
+        <div class="section-icon purple">
+          <span class="material-icons-round">verified</span>
+        </div>
+        <h3>最佳实践与常见陷阱</h3>
+      </div>
+
+      <!-- Best Practice Cards -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">✅ 推荐</span>
+          <h4>Composable 设计原则</h4>
+        </div>
+        <ul>
+          <li><strong>始终以 <code>use*</code> 命名</strong>：让 composable 一目了然</li>
+          <li><strong>返回 ref 而非 reactive</strong>：方便调用方解构不丢失响应式</li>
+          <li><strong>处理边界情况</strong>：空值、加载态、错误态都要考虑</li>
+          <li><strong>清理副作用</strong>：在 <code>onUnmounted</code> 中清理定时器、事件监听、WebSocket</li>
+          <li><strong>支持 ref 参数</strong>：用 <code>isRef()</code> + <code>watch</code> 让参数可以是响应式的</li>
+          <li><strong>避免副作用在 composable 外泄漏</strong>：不要修改全局状态，除非明确设计</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">⚠️ 陷阱</span>
+          <h4>响应式丢失问题</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>解构陷阱</span></div>
+          <pre><span class="kw">const</span> <span class="var">state</span> = <span class="fn">reactive</span>({ <span class="prop">x</span>: <span class="num">1</span>, <span class="prop">y</span>: <span class="num">2</span> })
+
+<span class="cm">// ❌ 错误：解构后丢失响应式</span>
+<span class="kw">let</span> { x, y } = state
+x++  <span class="cm">// 不触发更新！</span>
+
+<span class="cm">// ✅ 正确：用 toRefs 保持引用</span>
+<span class="kw">const</span> { x, y } = <span class="fn">toRefs</span>(state)
+x.value++  <span class="cm">// ✅ 触发更新</span>
+
+<span class="cm">// ✅ 或直接用 ref 包裹整个对象</span>
+<span class="kw">const</span> <span class="var">state2</span> = <span class="fn">ref</span>({ <span class="prop">x</span>: <span class="num">1</span>, <span class="prop">y</span>: <span class="num">2</span> })
+<span class="kw">const</span> { x, y } = <span class="fn">toRefs</span>(state2.value)</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">⚠️ 陷阱</span>
+          <h4>响应式数据替换</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>替换陷阱</span></div>
+          <pre><span class="kw">let</span> <span class="var">obj</span> = <span class="fn">reactive</span>({ <span class="prop">count</span>: <span class="num">0</span> })
+
+<span class="cm">// ❌ 错误：重新赋值变量会丢失响应式</span>
+obj = { <span class="prop">count</span>: <span class="num">1</span> }  <span class="cm">// 原响应式断开</span>
+
+<span class="cm">// ✅ 正确：修改属性而非替换</span>
+obj.count = <span class="num">1</span>
+
+<span class="cm">// ✅ 或使用 ref（推荐）</span>
+<span class="kw">const</span> <span class="var">obj2</span> = <span class="fn">ref</span>({ <span class="prop">count</span>: <span class="num">0</span> })
+obj2.value = { <span class="prop">count</span>: <span class="num">1</span> }  <span class="cm">// ✅ ref 整体替换没问题</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-amber">⚠️ 陷阱</span>
+          <h4>watch 中的异步操作</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>watch 常见错误</span></div>
+          <pre><span class="kw">const</span> <span class="var">keyword</span> = <span class="fn">ref</span>(<span class="str">''</span>)
+
+<span class="cm">// ❌ 错误：异步回调中无法自动跟踪依赖</span>
+<span class="fn">watch</span>(keyword, <span class="kw">async</span> (<span class="var">val</span>) => {
+  <span class="kw">const</span> <span class="var">res</span> = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`/api?q=${val}`</span>)
+  <span class="cm">// 如果这里读取了其他 ref，它们的变化不会被追踪</span>
+})
+
+<span class="cm">// ✅ 正确：在同步部分读取所有响应式数据</span>
+<span class="fn">watch</span>(keyword, <span class="kw">async</span> (<span class="var">val</span>) => {
+  <span class="kw">const</span> <span class="var">baseUrl</span> = apiUrl.value  <span class="cm">// 同步读取</span>
+  <span class="kw">const</span> <span class="var">res</span> = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${baseUrl}?q=${val}`</span>)
+})</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-blue">🚀 性能</span>
+          <h4>响应式性能优化策略</h4>
+        </div>
+        <div class="info-row">
+          <div class="info-item">
+            <span class="material-icons-round">speed</span>
+            <div>
+              <strong>shallowRef / shallowReactive</strong>
+              <span>大数据量场景（万级列表、大型图形）避免深度代理</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="material-icons-round">view_column</span>
+            <div>
+              <strong>v-once / v-memo</strong>
+              <span>静态或极少变化的内容跳过 diff 检查</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="material-icons-round">tune</span>
+            <div>
+              <strong>computed 替代 watch</strong>
+              <span>计算属性惰性求值、自动缓存，通常优于 watch + 手动赋值</span>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="material-icons-round">check_circle</span>
+            <div>
+              <strong>markRaw</strong>
+              <span>标记不需要代理的纯 JS 对象（如第三方库实例、大型配置）</span>
+            </div>
+          </div>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Vue</span><span>模板性能技巧</span></div>
+          <pre><span class="cm">&lt;!-- 静态内容：跳过虚拟 DOM diff --&gt;</span>
+<span class="tag">&lt;div</span> <span class="attr">v-once</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;h1&gt;</span>{{ title }}<span class="tag">&lt;/h1&gt;</span>
+<span class="tag">&lt;/div&gt;</span>
+
+<span class="cm">&lt;!-- v-memo：只在依赖变化时重新渲染 --&gt;</span>
+<span class="tag">&lt;div</span> <span class="attr">v-memo</span>=<span class="str">"[item.id, item.selected]"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;p&gt;</span>{{ item.name }}<span class="tag">&lt;/p&gt;</span>
+<span class="tag">&lt;/div&gt;</span>
+
+<span class="cm">&lt;!-- 大型列表：配合虚拟滚动 --&gt;</span>
+<span class="tag">&lt;VirtualList</span>
+  <span class="attr">:items</span>=<span class="str">"bigList"</span>
+  <span class="attr">:item-height</span>=<span class="str">"48"</span>
+<span class="tag">/&gt;</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-green">📁 组织</span>
+          <h4>项目结构推荐</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Shell</span><span>推荐目录结构</span></div>
+          <pre>src/
+├── components/          <span class="cm"># 通用 UI 组件</span>
+│   ├── BaseButton.vue
+│   └── BaseDialog.vue
+├── composables/         <span class="cm"># 可复用的逻辑组合</span>
+│   ├── useCounter.ts
+│   ├── useFetch.ts
+│   ├── useLocalStorage.ts
+│   └── usePermission.ts
+├── features/            <span class="cm"># 按功能模块组织</span>
+│   ├── user/
+│   │   ├── UserCard.vue
+│   │   ├── useUser.ts
+│   │   └── user.api.ts
+│   └── dashboard/
+│       ├── DashboardView.vue
+│       └── useDashboard.ts
+├── stores/              <span class="cm"># Pinia 全局状态</span>
+│   ├── auth.ts
+│   └── app.ts
+└── utils/               <span class="cm"># 纯工具函数（无状态）</span>
+    ├── format.ts
+    └── validate.ts</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Section 4: provide/inject ==================== -->
+    <div class="section" v-show="activeTab === 4">
+
+      <div class="section-title">
+        <div class="section-icon pink">
+          <span class="material-icons-round">account_tree</span>
+        </div>
+        <h3>Provide / Inject 与跨层通信</h3>
+      </div>
+
+      <p style="color:var(--md-on-surface-variant);margin-bottom:24px">
+        <code>provide / inject</code> 让祖先组件向所有后代注入依赖，无需逐层传递 props。
+        配合 <code>ref</code> 或 <code>reactive</code> 可以实现响应式跨层通信。
+      </p>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-purple">跨层通信</span>
+          <h4>provide / inject 完整示例</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">JavaScript</span><span>ThemeContext 示例</span></div>
+          <pre><span class="cm">// ─── 祖先组件：提供主题 ───</span>
+<span class="tag">&lt;script</span> <span class="attr">setup</span><span class="tag">&gt;</span>
+<span class="kw">import</span> { ref, provide } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">const</span> <span class="var">theme</span> = <span class="fn">ref</span>(<span class="str">'light'</span>)
+
+<span class="kw">function</span> <span class="fn">toggleTheme</span>() {
+  theme.value = theme.value === <span class="str">'light'</span> ? <span class="str">'dark'</span> : <span class="str">'light'</span>
+}
+
+<span class="cm">// 提供响应式数据 + 方法</span>
+<span class="fn">provide</span>(<span class="str">'theme'</span>, { theme, toggleTheme })
+<span class="tag">&lt;/script&gt;</span>
+
+<span class="cm">// ─── 后代组件（任意深度）：注入使用 ───</span>
+<span class="tag">&lt;script</span> <span class="attr">setup</span><span class="tag">&gt;</span>
+<span class="kw">import</span> { inject } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="cm">// 注入带默认值</span>
+<span class="kw">const</span> { theme, toggleTheme } = <span class="fn">inject</span>(<span class="str">'theme'</span>, {
+  <span class="prop">theme</span>: <span class="fn">ref</span>(<span class="str">'light'</span>),
+  <span class="prop">toggleTheme</span>: () => {}
+})
+<span class="tag">&lt;/script&gt;</span>
+
+<span class="cm">&lt;!-- 模板中使用 --&gt;</span>
+<span class="tag">&lt;template&gt;</span>
+  <span class="tag">&lt;button</span> <span class="attr">@click</span>=<span class="str">"toggleTheme"</span><span class="tag">&gt;</span>
+    当前主题：{{ theme }}
+  <span class="tag">&lt;/button&gt;</span>
+<span class="tag">&lt;/template&gt;</span></pre>
+        </div>
+        <div class="callout tip">
+          <span class="material-icons-round">lightbulb</span>
+          <div><strong>何时用 provide/inject vs Pinia？</strong><br>
+          provide/inject 适合局部子树的依赖注入（如主题、表单上下文）。
+          全局共享状态、跨模块通信用 Pinia 更合适。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-chip chip-blue">类型安全</span>
+          <h4>TypeScript 类型化 Provide/Inject</h4>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">TypeScript</span><span>类型安全注入</span></div>
+          <pre><span class="cm">// 定义注入键的类型</span>
+<span class="kw">import</span> { <span class="type">InjectionKey</span>, <span class="type">Ref</span> } <span class="kw">from</span> <span class="str">'vue'</span>
+
+<span class="kw">interface</span> <span class="type">ThemeContext</span> {
+  <span class="prop">theme</span>: <span class="type">Ref</span>&lt;<span class="str">'light'</span> | <span class="str">'dark'</span>&gt;
+  <span class="fn">toggleTheme</span>(): <span class="type">void</span>
+}
+
+<span class="kw">export const</span> <span class="var">ThemeKey</span>: <span class="type">InjectionKey</span>&lt;<span class="type">ThemeContext</span>&gt; = <span class="type">Symbol</span>(<span class="str">'theme'</span>)
+
+<span class="cm">// 父组件 provide</span>
+<span class="fn">provide</span>(ThemeKey, { theme, toggleTheme })
+
+<span class="cm">// 子组件 inject（类型安全）</span>
+<span class="kw">const</span> { theme } = <span class="fn">inject</span>(ThemeKey)  <span class="cm">// 类型自动推断为 ThemeContext</span></pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    Vue 3 核心能力完全指南 · Vue 3.4+ · Composition API · 响应式原理 · Composables · 最佳实践
+  </footer>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch, watchEffect, toRefs } = Vue
+
+createApp({
+  setup() {
+    const activeTab = ref(0)
+    const tabs = ['响应式原理', 'Composition API', 'Composables', '最佳实践', 'Provide / Inject']
+    return { activeTab, tabs }
+  }
+}).mount('#app')
+</script>
+
+</body>
+</html>
