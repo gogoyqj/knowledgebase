@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MultiCA - 多Agent多人协作最佳实践</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    :root {
+      --md-primary: #1565C0;
+      --md-primary-light: #1E88E5;
+      --md-primary-dark: #0D47A1;
+      --md-accent: #FF6D00;
+      --md-surface: #FFFFFF;
+      --md-background: #F5F5F5;
+      --md-on-surface: #212121;
+      --md-on-surface-medium: #666666;
+      --md-on-surface-light: #9E9E9E;
+      --md-error: #D32F2F;
+      --md-success: #388E3C;
+      --md-warning: #F57F17;
+      --md-divider: rgba(0,0,0,0.12);
+      --md-shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+      --md-shadow-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+      --md-shadow-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+      --md-radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--md-background);
+      color: var(--md-on-surface);
+      line-height: 1.6;
+    }
+
+    /* App Bar */
+    .app-bar {
+      background: linear-gradient(135deg, #1a237e, #283593);
+      color: white;
+      padding: 20px 24px;
+      box-shadow: var(--md-shadow-2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .app-bar h1 {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-bar .subtitle {
+      font-size: 14px;
+      opacity: 0.87;
+      margin-top: 6px;
+      font-weight: 300;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+    }
+
+    /* Side Navigation */
+    .side-nav {
+      position: sticky;
+      top: 90px;
+      height: fit-content;
+      max-height: calc(100vh - 110px);
+      overflow-y: auto;
+    }
+    .nav-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      padding: 16px;
+    }
+    .nav-card h3 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--md-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--md-divider);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 9px 12px;
+      color: var(--md-on-surface-medium);
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 13px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .nav-item:hover {
+      background: rgba(21, 101, 192, 0.08);
+      color: var(--md-primary);
+    }
+    .nav-item .material-icons {
+      font-size: 18px;
+      margin-right: 10px;
+    }
+
+    /* Main Content */
+    .main-content { min-width: 0; }
+
+    /* Cards */
+    .card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--md-divider);
+    }
+    .card-header h2 {
+      font-size: 22px;
+      font-weight: 400;
+      color: var(--md-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-header h2 .material-icons { color: var(--md-primary); }
+    .card-content { padding: 24px; }
+
+    /* Concept Grid */
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .concept-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      padding: 20px;
+      transition: all 0.2s;
+      border-top: 3px solid var(--md-primary-light);
+    }
+    .concept-card:hover {
+      box-shadow: var(--md-shadow-2);
+      transform: translateY(-2px);
+    }
+    .concept-card h4 {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .concept-card p {
+      font-size: 14px;
+      color: var(--md-on-surface-medium);
+      line-height: 1.6;
+    }
+
+    /* Step Cards */
+    .step-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      margin-bottom: 16px;
+      border-left: 4px solid var(--md-primary);
+      transition: box-shadow 0.2s;
+    }
+    .step-card:hover { box-shadow: var(--md-shadow-2); }
+    .step-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .step-number {
+      width: 36px;
+      height: 36px;
+      background: var(--md-primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      font-size: 16px;
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+    }
+    .step-content {
+      padding: 0 20px 20px 72px;
+      color: var(--md-on-surface-medium);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    /* Tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .data-table thead {
+      background: var(--md-primary);
+      color: white;
+    }
+    .data-table th {
+      padding: 14px 16px;
+      text-align: left;
+      font-weight: 500;
+    }
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-divider);
+    }
+    .data-table tbody tr:hover {
+      background: rgba(21, 101, 192, 0.04);
+    }
+
+    /* Code Blocks */
+    code {
+      font-family: 'Roboto Mono', monospace;
+      background: #E3F2FD;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    pre {
+      background: #263238;
+      color: #ECEFF1;
+      padding: 16px 20px;
+      border-radius: 0 0 var(--md-radius) var(--md-radius);
+      overflow-x: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    /* Lists */
+    .md-list {
+      list-style: none;
+    }
+    .md-list li {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-divider);
+      display: flex;
+      align-items: flex-start;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .md-list li:last-child { border-bottom: none; }
+    .md-list li .material-icons {
+      color: var(--md-primary);
+      margin-right: 12px;
+      font-size: 20px;
+      margin-top: 2px;
+    }
+
+    /* Diagram */
+    .arch-diagram {
+      background: #fafafa;
+      border: 1px solid var(--md-divider);
+      border-radius: var(--md-radius);
+      padding: 32px 24px;
+      margin: 16px 0;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+      color: #37474f;
+    }
+
+    /* Callout */
+    .callout {
+      display: flex;
+      gap: 12px;
+      padding: 16px 20px;
+      border-radius: var(--md-radius);
+      margin: 16px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .callout .material-icons {
+      font-size: 22px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .callout-info {
+      background: #E3F2FD;
+      color: #1565C0;
+    }
+    .callout-warn {
+      background: #FFF8E1;
+      color: #F57F17;
+    }
+    .callout-success {
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-primary { background: #E3F2FD; color: #1565C0; }
+    .badge-accent { background: #FFF3E0; color: #E65100; }
+    .badge-success { background: #E8F5E9; color: #2E7D32; }
+
+    /* Paragraph */
+    .card-content p {
+      font-size: 14px;
+      color: var(--md-on-surface-medium);
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+    .card-content p:last-child { margin-bottom: 0; }
+    .card-content h3 {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+      margin: 24px 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-content h3:first-child { margin-top: 0; }
+    .card-content h3 .material-icons {
+      font-size: 20px;
+      color: var(--md-primary);
+    }
+
+    /* Architecture layers */
+    .layer {
+      border: 2px solid var(--md-primary-light);
+      border-radius: var(--md-radius);
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      position: relative;
+      background: #f8f9ff;
+    }
+    .layer-label {
+      position: absolute;
+      top: -10px;
+      left: 16px;
+      background: var(--md-primary);
+      color: white;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 12px;
+      border-radius: 10px;
+      letter-spacing: 0.5px;
+    }
+    .layer-content {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .layer-item {
+      background: white;
+      border: 1px solid #c5cae9;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #283593;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      .side-nav {
+        position: static;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-bar">
+  <h1>
+    <span class="material-icons">hub</span>
+    MultiCA 最佳实践
+  </h1>
+  <div class="subtitle">多 Agent · 多人协作 · 知识库管理 · 架构设计</div>
+</div>
+
+<div class="container">
+  <!-- Side Navigation -->
+  <div class="side-nav">
+    <div class="nav-card">
+      <h3>目录</h3>
+      <a class="nav-item" href="#overview"><span class="material-icons">visibility</span>概述</a>
+      <a class="nav-item" href="#architecture"><span class="material-icons">architecture</span>系统架构</a>
+      <a class="nav-item" href="#agent-collab"><span class="material-icons">smart_toy</span>多Agent协作</a>
+      <a class="nav-item" href="#human-collab"><span class="material-icons">groups</span>多人协作</a>
+      <a class="nav-item" href="#kb-mgmt"><span class="material-icons">library_books</span>知识库管理</a>
+      <a class="nav-item" href="#workflow"><span class="material-icons">account_tree</span>工作流模式</a>
+      <a class="nav-item" href="#conflict"><span class="material-icons">merge_type</span>冲突解决</a>
+      <a class="nav-item" href="#security"><span class="material-icons">security</span>安全与权限</a>
+      <a class="nav-item" href="#monitor"><span class="material-icons">monitoring</span>监控与可观测</a>
+      <a class="nav-item" href="#cases"><span class="material-icons">cases</span>实践案例</a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <!-- 1. 概述 -->
+    <div class="card" id="overview">
+      <div class="card-header">
+        <h2><span class="material-icons">visibility</span>概述</h2>
+      </div>
+      <div class="card-content">
+        <p>MultiCA（Multi-Agent Collaboration Architecture）是一种面向多 Agent 和多人团队协同工作的架构范式。它解决了以下核心问题：</p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4><span class="material-icons">smart_toy</span>Agent 间协作</h4>
+            <p>多个专业化 Agent 如何分工、通信、共享上下文，避免重复劳动和信息丢失。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">groups</span>人机协同</h4>
+            <p>人类开发者与 AI Agent 如何在同一工作流中无缝配合，明确职责边界和审批机制。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">library_books</span>知识管理</h4>
+            <p>团队知识、上下文、决策记录如何结构化存储并在 Agent 间高效传递。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">sync_alt</span>状态同步</h4>
+            <p>多人并行工作时如何保持一致性，避免冲突并实现增量合并。</p>
+          </div>
+        </div>
+
+        <div class="callout callout-info" style="margin-top:20px;">
+          <span class="material-icons">info</span>
+          <div>MultiCA 不是某个具体产品，而是一套<strong>设计原则和协作模式</strong>，适用于任何需要多 Agent 或多人协同的 AI-native 工作场景。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 系统架构 -->
+    <div class="card" id="architecture">
+      <div class="card-header">
+        <h2><span class="material-icons">architecture</span>系统架构</h2>
+      </div>
+      <div class="card-content">
+        <p>MultiCA 采用分层架构设计，每层职责清晰，通过标准化接口通信：</p>
+
+        <div style="margin:20px 0;">
+          <div class="layer">
+            <span class="layer-label">交互层 Interaction</span>
+            <div class="layer-content">
+              <div class="layer-item">Web UI / IDE 插件</div>
+              <div class="layer-item">CLI 终端</div>
+              <div class="layer-item">API Gateway</div>
+              <div class="layer-item">Webhook 入口</div>
+            </div>
+          </div>
+          <div class="layer">
+            <span class="layer-label">编排层 Orchestration</span>
+            <div class="layer-content">
+              <div class="layer-item">任务分解器</div>
+              <div class="layer-item">Agent 调度器</div>
+              <div class="layer-item">工作流引擎</div>
+              <div class="layer-item">冲突仲裁器</div>
+            </div>
+          </div>
+          <div class="layer">
+            <span class="layer-label">Agent 层</span>
+            <div class="layer-content">
+              <div class="layer-item">编码 Agent</div>
+              <div class="layer-item">审查 Agent</div>
+              <div class="layer-item">测试 Agent</div>
+              <div class="layer-item">文档 Agent</div>
+              <div class="layer-item">搜索 Agent</div>
+              <div class="layer-item">自定义 Agent</div>
+            </div>
+          </div>
+          <div class="layer">
+            <span class="layer-label">知识层 Knowledge</span>
+            <div class="layer-content">
+              <div class="layer-item">向量数据库</div>
+              <div class="layer-item">结构化知识图谱</div>
+              <div class="layer-item">文件/代码仓库</div>
+              <div class="layer-item">会话历史</div>
+            </div>
+          </div>
+          <div class="layer">
+            <span class="layer-label">基础设施层 Infrastructure</span>
+            <div class="layer-content">
+              <div class="layer-item">消息队列</div>
+              <div class="layer-item">事件总线</div>
+              <div class="layer-item">状态存储</div>
+              <div class="layer-item">日志/追踪</div>
+            </div>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">device_hub</span>核心组件职责</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>组件</th><th>职责</th><th>关键设计点</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Agent Registry</strong></td>
+              <td>注册、发现、管理所有可用 Agent</td>
+              <td>能力声明、版本管理、健康检查</td>
+            </tr>
+            <tr>
+              <td><strong>Message Bus</strong></td>
+              <td>Agent 间异步消息传递</td>
+              <td>发布/订阅模式、消息持久化、重试机制</td>
+            </tr>
+            <tr>
+              <td><strong>Context Store</strong></td>
+              <td>共享上下文和知识的存储</td>
+              <td>分层缓存、向量检索、权限隔离</td>
+            </tr>
+            <tr>
+              <td><strong>Workflow Engine</strong></td>
+              <td>编排复杂多步骤任务</td>
+              <td>DAG 定义、断点恢复、人工介入点</td>
+            </tr>
+            <tr>
+              <td><strong>Consensus Module</strong></td>
+              <td>多 Agent 输出的合并与仲裁</td>
+              <td>投票机制、置信度加权、人工裁决</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. 多Agent协作 -->
+    <div class="card" id="agent-collab">
+      <div class="card-header">
+        <h2><span class="material-icons">smart_toy</span>多Agent协作最佳实践</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">tune</span>Agent 设计原则</h3>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">1</div>
+            <div class="step-title">单一职责（Single Responsibility）</div>
+          </div>
+          <div class="step-content">
+            <p>每个 Agent 只负责一类明确的任务。<span class="badge badge-primary">编码</span> <span class="badge badge-accent">审查</span> <span class="badge badge-success">测试</span> 等职责由不同 Agent 承担。避免出现"万能 Agent"，它会导致上下文膨胀、质量下降、难以调试。</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">2</div>
+            <div class="step-title">显式通信协议</div>
+          </div>
+          <div class="step-content">
+            <p>Agent 之间通过结构化消息通信，而非隐式共享状态。消息应包含：</p>
+            <ul class="md-list">
+              <li><span class="material-icons">label</span><code>task_id</code> — 任务唯一标识，用于追踪和关联</li>
+              <li><span class="material-icons">label</span><code>from_agent</code> / <code>to_agent</code> — 发送方和接收方</li>
+              <li><span class="material-icons">label</span><code>payload</code> — 结构化数据，遵循预定义 schema</li>
+              <li><span class="material-icons">label</span><code>context_refs</code> — 引用而非内联大量上下文，减少 token 消耗</li>
+              <li><span class="material-icons">label</span><code>priority</code> / <code>deadline</code> — 用于调度决策</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">3</div>
+            <div class="step-title">上下文隔离与按需注入</div>
+          </div>
+          <div class="step-content">
+            <p>不要把全部知识灌入每个 Agent 的 prompt。采用<strong>上下文隔离</strong>策略：每个 Agent 只接收与其任务相关的上下文片段。通过 <code>context_refs</code> 引用，Agent 可按需拉取更深层信息，避免上下文窗口浪费。</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">4</div>
+            <div class="step-title">结果校验与对抗验证</div>
+          </div>
+          <div class="step-content">
+            <p>关键输出不应由单一 Agent 直接生效。引入<strong>对抗验证</strong>模式：生成 Agent 产出结果后，由独立的验证 Agent 从反面审查。多个独立验证者的投票结果比单一输出更可靠。</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">compare_arrows</span>协作模式对比</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>模式</th><th>适用场景</th><th>优点</th><th>缺点</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Pipeline（流水线）</strong></td>
+              <td>顺序依赖任务</td>
+              <td>简单、可预测、易调试</td>
+              <td>延迟高，不能并行</td>
+            </tr>
+            <tr>
+              <td><strong>Fan-out/Fan-in（扇出扇入）</strong></td>
+              <td>可并行的独立子任务</td>
+              <td>低延迟、充分利用并行</td>
+              <td>需要汇聚合并逻辑</td>
+            </tr>
+            <tr>
+              <td><strong>Debate（辩论）</strong></td>
+              <td>需要多角度分析的决策</td>
+              <td>减少偏见、提高质量</td>
+              <td>token 消耗高、需裁决机制</td>
+            </tr>
+            <tr>
+              <td><strong>Supervisor（主管模式）</strong></td>
+              <td>复杂项目管理</td>
+              <td>灵活调度、可人工介入</td>
+              <td>主管 Agent 成为瓶颈</td>
+            </tr>
+            <tr>
+              <td><strong>Swarm（群体智能）</strong></td>
+              <td>探索性、开放式任务</td>
+              <td>高度并行、发现意外解</td>
+              <td>结果不确定、需强收敛逻辑</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 4. 多人协作 -->
+    <div class="card" id="human-collab">
+      <div class="card-header">
+        <h2><span class="material-icons">groups</span>多人协作最佳实践</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">supervisor_account</span>角色与权限模型</h3>
+        <p>在多人 + 多 Agent 混合环境中，需要清晰定义角色：</p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4><span class="material-icons">engineering</span>架构师</h4>
+            <p>定义任务拆分策略、审批关键决策、维护全局知识库。拥有最高权限，可覆盖 Agent 输出。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">code</span>开发者</h4>
+            <p>与编码 Agent 协同工作，审查 Agent 产出的代码，处理 Agent 无法解决的边缘情况。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">rate_review</span>审查者</h4>
+            <p>审核 Agent 和开发者的工作产出，确保质量标准。可配置自动审查 Agent 辅助。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">admin_panel_settings</span>运维</h4>
+            <p>管理 Agent 注册、监控系统健康、处理异常和回滚。负责基础设施层的稳定性。</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">handshake</span>人机协作关键原则</h3>
+        <ul class="md-list">
+          <li>
+            <span class="material-icons">check_circle</span>
+            <div><strong>人在回路（Human-in-the-Loop）</strong>：关键决策点必须有人工审批环节。Agent 可以推荐方案，但最终决策权归人类。设置明确的"自动执行"和"需要审批"阈值。</div>
+          </li>
+          <li>
+            <span class="material-icons">check_circle</span>
+            <div><strong>透明可追溯</strong>：每个 Agent 的推理过程、输入输出都应可查看。人类开发者需要能够理解"为什么 Agent 做了这个决定"，才能有效审查和纠偏。</div>
+          </li>
+          <li>
+            <span class="material-icons">check_circle</span>
+            <div><strong>渐进式信任</strong>：新 Agent 或新团队成员从低风险任务开始，逐步获得更多自主权。通过历史表现数据动态调整自动化边界。</div>
+          </li>
+          <li>
+            <span class="material-icons">check_circle</span>
+            <div><strong>异步优先</strong>：多人协作应优先采用异步工作模式。任务分配、代码审查、反馈循环都应支持异步操作，避免阻塞等待。</div>
+          </li>
+          <li>
+            <span class="material-icons">check_circle</span>
+            <div><strong>统一工作台</strong>：所有参与者（人和 Agent）在同一个平台上查看任务状态、上下文、产出物。避免信息散落在多个工具中。</div>
+          </li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <span class="material-icons">warning</span>
+          <div><strong>常见陷阱</strong>：不要让 Agent 成为"黑箱工人"。如果开发者不理解 Agent 的工作方式，就无法有效协作，最终会失去信任并回到纯手动模式。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 知识库管理 -->
+    <div class="card" id="kb-mgmt">
+      <div class="card-header">
+        <h2><span class="material-icons">library_books</span>知识库管理</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">folder_special</span>知识分层架构</h3>
+        <p>知识库是 MultiCA 的核心基础设施。按生命周期和访问频率分为三层：</p>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">L1</div>
+            <div class="step-title">即时上下文（Session Context）</div>
+          </div>
+          <div class="step-content">
+            <p>当前会话/任务的工作记忆。包含正在进行的对话、临时文件、中间结果。<strong>生命周期</strong>：单次会话。<strong>存储</strong>：内存/会话缓存。<strong>访问</strong>：仅当前 Agent 和参与者。</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">L2</div>
+            <div class="step-title">项目知识（Project Knowledge）</div>
+          </div>
+          <div class="step-content">
+            <p>项目级别的持久知识。包含代码规范、架构决策记录（ADR）、API 文档、团队约定。<strong>生命周期</strong>：项目存续期。<strong>存储</strong>：结构化文件 + 向量索引。<strong>访问</strong>：项目成员和关联 Agent。</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">L3</div>
+            <div class="step-title">组织记忆（Organizational Memory）</div>
+          </div>
+          <div class="step-content">
+            <p>跨项目的长期知识。包含最佳实践库、故障处理手册、通用模式库。<strong>生命周期</strong>：长期。<strong>存储</strong>：知识图谱 + 全文检索。<strong>访问</strong>：全组织，按权限过滤。</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">build</span>知识管理实践</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>实践</th><th>说明</th><th>工具/方法</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>结构化写入</strong></td>
+              <td>所有知识条目遵循统一 schema（标题、标签、关联、置信度）</td>
+              <td>JSON Schema、Markdown frontmatter</td>
+            </tr>
+            <tr>
+              <td><strong>自动索引</strong></td>
+              <td>新知识写入后自动触发向量化和索引更新</td>
+              <td>Embedding pipeline、增量索引</td>
+            </tr>
+            <tr>
+              <td><strong>知识图谱</strong></td>
+              <td>建立实体间关系网络，支持多跳推理</td>
+              <td>Neo4j、RDF triple store</td>
+            </tr>
+            <tr>
+              <td><strong>版本控制</strong></td>
+              <td>知识条目的修改历史可追溯、可回滚</td>
+              <td>Git-like diff、时间线视图</td>
+            </tr>
+            <tr>
+              <td><strong>衰减与清理</strong></td>
+              <td>过期知识自动降权或归档，避免噪音</td>
+              <td>访问频率统计、TTL 策略</td>
+            </tr>
+            <tr>
+              <td><strong>权限隔离</strong></td>
+              <td>不同团队/项目的知识相互隔离，按需共享</td>
+              <td>RBAC、命名空间隔离</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3><span class="material-icons">memory</span>Agent 上下文管理策略</h3>
+        <pre><code>// 上下文注入示例
+{
+  "agent": "code-reviewer",
+  "task": "Review PR #142",
+  "context": {
+    "required": [
+      "project/coding-standards.md",     // 必须注入
+      "pr/142-diff.patch"                 // 必须注入
+    ],
+    "optional": [
+      "project/architecture.md",          // 按需拉取
+      "history/similar-prs.json"          // 按需拉取
+    ],
+    "max_tokens": 8000,                   // 上下文预算
+    "strategy": "truncate-oldest"         // 超预算策略
+  },
+  "memory": {
+    "short_term": "session",              // 当前会话
+    "long_term": "project"                // 项目持久记忆
+  }
+}</code></pre>
+      </div>
+    </div>
+
+    <!-- 6. 工作流模式 -->
+    <div class="card" id="workflow">
+      <div class="card-header">
+        <h2><span class="material-icons">account_tree</span>工作流模式</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">schema</span>典型工作流 DAG</h3>
+        <p>以下是一个完整的"功能开发"工作流，展示了 Agent 和人类如何在各阶段配合：</p>
+
+        <div class="arch-diagram">┌─────────────┐
+│  需求分析     │  ← 人类提出需求
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  任务拆解     │  ← Supervisor Agent 自动拆分
+└──────┬──────┘
+       ▼
+┌──────┴──────┐
+│             │
+▼             ▼
+┌─────┐   ┌─────┐
+│编码A │   │编码B │   ← 并行编码 Agent（Fan-out）
+└──┬──┘   └──┬──┘
+   │         │
+   ▼         ▼
+┌─────┐   ┌─────┐
+│测试A │   │测试B │   ← 并行测试 Agent
+└──┬──┘   └──┬──┘
+   │         │
+   ▼         ▼
+┌─────────────┐
+│  代码合并     │  ← 自动合并 + 冲突检测
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  人工审查     │  ← 人类审查者审核（Human Gate）
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  集成测试     │  ← E2E 测试 Agent
+└──────┬──────┘
+       ▼
+┌─────────────┐
+│  部署发布     │  ← 需人工确认（Human Gate）
+└─────────────┘</div>
+
+        <h3><span class="material-icons">alt_route</span>常用工作流模式</h3>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4><span class="material-icons">linear_scale</span>Sequential</h4>
+            <p>A → B → C 顺序执行。适合有强依赖的任务链。每个步骤的输出是下一步的输入。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">call_split</span>Parallel + Merge</h4>
+            <p>独立子任务并行执行，结果汇聚合并。适合大任务拆分后并行处理再整合。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">loop</span>Iterative Refine</h4>
+            <p>生成 → 评估 → 改进循环。Agent 产出经评估后反馈改进，直到满足质量阈值。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">gavel</span>Judge Panel</h4>
+            <p>多个 Agent 独立产出方案，由评审 Agent 或人类选择最优。减少单一视角偏差。</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">settings</span>工作流定义示例</h3>
+        <pre><code>// 工作流定义（伪代码）
+workflow("feature-dev") {
+  // 阶段1: 需求分析（人工触发）
+  stage("analyze") {
+    input: human_requirement
+    agent: "supervisor"
+    action: decompose_tasks
+    output: task_list
+  }
+
+  // 阶段2: 并行开发
+  stage("develop") {
+    parallel(task_list) { task ->
+      agent("coder", context: [task, project_kb])
+      then { code ->
+        agent("tester", context: [code, test_specs])
+        then { result ->
+          gate("review") {           // 人工审批门
+            approvers: ["tech-lead"]
+            timeout: "4h"
+          }
+        }
+      }
+    }
+  }
+
+  // 阶段3: 集成
+  stage("integrate") {
+    merge: all_code_changes
+    agent: "integrator"
+    conflict_strategy: "human-arbitrate"
+  }
+}</code></pre>
+      </div>
+    </div>
+
+    <!-- 7. 冲突解决 -->
+    <div class="card" id="conflict">
+      <div class="card-header">
+        <h2><span class="material-icons">merge_type</span>冲突解决策略</h2>
+      </div>
+      <div class="card-content">
+        <p>多人多 Agent 并行工作时，冲突不可避免。关键是有预定义的解决机制：</p>
+
+        <h3><span class="material-icons">warning</span>冲突类型</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>冲突类型</th><th>场景</th><th>解决策略</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>代码冲突</strong></td>
+              <td>多人/Agent 修改同一文件</td>
+              <td>自动三路合并 → 语义合并 → 人工裁决</td>
+            </tr>
+            <tr>
+              <td><strong>知识冲突</strong></td>
+              <td>不同 Agent 对同一事实有不同理解</td>
+              <td>来源可信度排序 → 最新优先 → 人工验证</td>
+            </tr>
+            <tr>
+              <td><strong>策略冲突</strong></td>
+              <td>Agent 给出矛盾的建议</td>
+              <td>多轮辩论 → 投票 → 人类仲裁</td>
+            </tr>
+            <tr>
+              <td><strong>资源冲突</strong></td>
+              <td>多个任务竞争同一 Agent/资源</td>
+              <td>优先级队列 → 公平调度 → 超时抢占</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-success">
+          <span class="material-icons">lightbulb</span>
+          <div><strong>最佳实践</strong>：80% 的冲突应通过预定义规则自动解决，只有 20% 需要人类介入。如果人类介入比例过高，说明规则设计需要优化。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. 安全与权限 -->
+    <div class="card" id="security">
+      <div class="card-header">
+        <h2><span class="material-icons">security</span>安全与权限</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">shield</span>安全原则</h3>
+        <ul class="md-list">
+          <li>
+            <span class="material-icons">lock</span>
+            <div><strong>最小权限原则</strong>：每个 Agent 只获得完成其任务所需的最小权限。编码 Agent 不应有部署权限，测试 Agent 不应有生产数据访问权限。</div>
+          </li>
+          <li>
+            <span class="material-icons">lock</span>
+            <div><strong>输入验证</strong>：所有 Agent 间传递的消息和数据都需验证。防止注入攻击、数据越界、格式异常。</div>
+          </li>
+          <li>
+            <span class="material-icons">lock</span>
+            <div><strong>审计日志</strong>：记录所有 Agent 操作、权限变更、人工干预。支持事后审查和合规检查。</div>
+          </li>
+          <li>
+            <span class="material-icons">lock</span>
+            <div><strong>数据隔离</strong>：不同项目/团队的 Agent 数据严格隔离。共享知识需通过明确的授权流程。</div>
+          </li>
+          <li>
+            <span class="material-icons">lock</span>
+            <div><strong>速率限制</strong>：防止 Agent 失控消耗资源（token、API 调用、计算资源）。设置每 Agent 和每任务的预算上限。</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 9. 监控与可观测 -->
+    <div class="card" id="monitor">
+      <div class="card-header">
+        <h2><span class="material-icons">monitoring</span>监控与可观测</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">analytics</span>关键指标</h3>
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4><span class="material-icons">timer</span>任务延迟</h4>
+            <p>端到端完成时间、各阶段耗时。识别瓶颈 Agent 或阻塞点。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">verified</span>质量指标</h4>
+            <p>Agent 产出的一次通过率、人工修改率、回滚率。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">token</span>资源消耗</h4>
+            <p>Token 使用量、API 调用次数、计算成本。按 Agent/任务归因。</p>
+          </div>
+          <div class="concept-card">
+            <h4><span class="material-icons">people</span>协作效率</h4>
+            <p>人工介入频率、等待时间、冲突率。衡量人机协作流畅度。</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">visibility</span>可观测性架构</h3>
+        <pre><code>// 分布式追踪示例
+trace {
+  trace_id: "task-142-feature-auth"
+  spans: [
+    {
+      agent: "supervisor",
+      action: "decompose",
+      duration: "2.3s",
+      tokens: { input: 1200, output: 800 }
+    },
+    {
+      agent: "coder-A",
+      action: "implement-login",
+      duration: "45s",
+      tokens: { input: 3500, output: 2100 },
+      parent: "supervisor"
+    },
+    {
+      agent: "reviewer",
+      action: "review-code",
+      duration: "8s",
+      tokens: { input: 2800, output: 600 },
+      findings: ["missing-error-handling"],
+      parent: "coder-A"
+    }
+  ]
+}</code></pre>
+      </div>
+    </div>
+
+    <!-- 10. 实践案例 -->
+    <div class="card" id="cases">
+      <div class="card-header">
+        <h2><span class="material-icons">cases</span>实践案例</h2>
+      </div>
+      <div class="card-content">
+        <h3><span class="material-icons">auto_awesome</span>案例一：大型代码重构</h3>
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">1</div>
+            <div class="step-title">需求：将 Monolith 拆分为微服务</div>
+          </div>
+          <div class="step-content">
+            <p><strong>团队</strong>：3 名开发者 + 5 个 Agent（架构分析、代码拆分、测试生成、文档更新、迁移验证）</p>
+            <p><strong>协作模式</strong>：架构师定义拆分策略 → Supervisor Agent 拆分任务 → 并行编码 Agent 处理各模块 → 人工审查 → 集成测试 Agent 验证</p>
+            <p><strong>知识库</strong>：架构依赖图（L2）、服务边界定义（L2）、迁移检查清单（L2）、历史故障记录（L3）</p>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">auto_awesome</span>案例二：多人知识库共建</h3>
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">2</div>
+            <div class="step-title">需求：团队共建技术知识库</div>
+          </div>
+          <div class="step-content">
+            <p><strong>挑战</strong>：多人同时编辑、知识质量参差、过时内容积累</p>
+            <p><strong>方案</strong>：</p>
+            <ul class="md-list">
+              <li><span class="material-icons">check</span>每个成员编辑后，审查 Agent 自动检查格式、一致性、准确性</li>
+              <li><span class="material-icons">check</span>冲突通过 CRDT 或 OT 算法自动合并，语义冲突触发人工审核</li>
+              <li><span class="material-icons">check</span>定期由"清理 Agent"扫描过时条目，标记给相关作者确认</li>
+              <li><span class="material-icons">check</span>搜索 Agent 负责跨条目的关联推荐和知识图谱更新</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3><span class="material-icons">auto_awesome</span>案例三：CI/CD 中的 Agent 集成</h3>
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">3</div>
+            <div class="step-title">需求：智能 CI/CD 流水线</div>
+          </div>
+          <div class="step-content">
+            <p><strong>流程</strong>：PR 提交 → 代码分析 Agent 评估变更范围 → 自动选择测试策略 → 测试 Agent 执行 → 安全扫描 Agent → 性能分析 Agent → 汇总报告给人工审查者</p>
+            <p><strong>收益</strong>：测试时间减少 60%（智能选择相关测试）、安全问题发现率提升 3x、人工审查效率提升 2x（Agent 预筛低风险变更）</p>
+          </div>
+        </div>
+
+        <div class="callout callout-info">
+          <span class="material-icons">tips_and_updates</span>
+          <div><strong>总结</strong>：MultiCA 的核心价值不在于用 Agent 替代人类，而在于建立<strong>人机协作的高效工作流</strong>。好的架构让 Agent 处理重复性、机械性工作，人类专注于创造性决策和质量把控。</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Smooth scroll for nav
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(item.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Highlight active nav on scroll
+const sections = document.querySelectorAll('.card[id]');
+const navItems = document.querySelectorAll('.nav-item');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navItems.forEach(n => n.style.color = '');
+      const active = document.querySelector(`.nav-item[href="#${entry.target.id}"]`);
+      if (active) active.style.color = 'var(--md-primary)';
+    }
+  });
+}, { rootMargin: '-80px 0px -70% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

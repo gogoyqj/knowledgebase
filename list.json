@@ -3,6 +3,7 @@
   { "name": "electron", "src": "electron.html" },
   { "name": "log", "src": "log.html" },
   { "name": "mongodb", "src": "mongodb.html" },
+  { "name": "multica", "src": "multica.html" },
   { "name": "nest", "src": "nest.html" },
   { "name": "next", "src": "next.html" },
   { "name": "p", "src": "p.html" },
