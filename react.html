@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>React 深度解析 — Fiber · Hooks · React 19</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #6750A4;
+    --md-on-primary: #fff;
+    --md-primary-container: #EADDFF;
+    --md-on-primary-container: #21005D;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F7F2FA;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 18px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, var(--md-primary) 0%, #9A82DB 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 560px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(103,80,164,.06); }
+  .tab-btn.active {
+    color: var(--md-primary);
+  }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.purple { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.pink   { background: var(--md-tertiary-container); color: #4A2532; }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.tertiary {
+    background: var(--md-tertiary-container);
+    color: #4A2532;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+
+  /* ── Diagram (ASCII-art style) ── */
+  .diagram {
+    background: #F5F0FF;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Accent Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--md-outline-variant);
+    margin: 16px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  /* ── Comparison Table ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">R</div>
+  <h1>React <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>Fiber · Hooks · React 19</h2>
+  <p>深入理解 React 核心架构、Hooks 设计哲学与最新版本特性</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="fiber">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">hub</span>
+    Fiber 架构
+  </button>
+  <button class="tab-btn" data-tab="hooks">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">link</span>
+    Hooks 规则
+  </button>
+  <button class="tab-btn" data-tab="react19">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">rocket_launch</span>
+    React 19
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== FIBER ==================== -->
+  <section class="section active" id="fiber">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">account_tree</span></div>
+        <h3>什么是 React Fiber？</h3>
+      </div>
+      <p>
+        <strong>React Fiber</strong> 是 React 16 引入的全新协调引擎（Reconciliation Engine），是对 React 核心算法的完全重写。
+        它的得名来自于 <strong>Fiber Tree</strong>（纤程树）— 每个 React 元素被表示为一个 <span class="inline-code">FiberNode</span>，
+        它们组成了一棵链表树，取代了旧版的递归 Virtual DOM diff。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Stack Reconciler vs Fiber Reconciler</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4><span class="material-icons-outlined" style="font-size:16px">close</span> Stack Reconciler（React ≤15）</h4>
+          <ul>
+            <li>使用<strong>递归</strong>遍历 Virtual DOM</li>
+            <li>一旦开始就<strong>无法中断</strong></li>
+            <li>大型更新会<strong>阻塞主线程</strong>数十毫秒</li>
+            <li>导致动画卡顿、输入延迟</li>
+            <li>调度粒度：整个组件子树</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4><span class="material-icons-outlined" style="font-size:16px">check</span> Fiber Reconciler（React ≥16）</h4>
+          <ul>
+            <li>使用<strong>链表</strong>遍历，支持遍历暂停</li>
+            <li>可将工作拆分为<strong>多个时间片</strong></li>
+            <li>利用 <span class="inline-code">requestIdleCallback</span> 空闲调度</li>
+            <li>支持<strong>优先级</strong>：高优任务可打断低优</li>
+            <li>调度粒度：单个 Fiber 节点</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">schema</span></div>
+        <h3>Fiber 节点数据结构</h3>
+      </div>
+      <p>每个 FiberNode 是一个 JavaScript 对象，包含三个核心指针构成链表树：</p>
+      <pre><span class="cm">// 简化的 FiberNode 结构</span>
+<span class="kw">type</span> <span class="typ">FiberNode</span> = {
+  <span class="cm">// 身份标识</span>
+  tag:         <span class="typ">FiberTag</span>,       <span class="cm">// FunctionComponent | ClassComponent | HostComponent ...</span>
+  type:        <span class="typ">any</span>,            <span class="cm">// 组件函数/类 或 DOM 标签名 "div"</span>
+  key:         <span class="typ">string</span> | <span class="typ">null</span>,
+
+  <span class="cm">// 链表指针 — 这就是 "Fiber" 的核心结构</span>
+  child:       <span class="typ">FiberNode</span> | <span class="typ">null</span>,   <span class="cm">// → 第一个子节点</span>
+  sibling:     <span class="typ">FiberNode</span> | <span class="typ">null</span>,   <span class="cm">// → 下一个兄弟节点</span>
+  return:      <span class="typ">FiberNode</span> | <span class="typ">null</span>,   <span class="cm">// → 父节点</span>
+
+  <span class="cm">// 状态</span>
+  pendingProps:  <span class="typ">Props</span>,
+  memoizedProps: <span class="typ">Props</span>,         <span class="cm">// 上一次渲染的 props</span>
+  memoizedState: <span class="typ">any</span>,           <span class="cm">// 上一次渲染的 state / hook 链表</span>
+  updateQueue:   <span class="typ">UpdateQueue</span>,    <span class="cm">// 待处理的更新队列</span>
+
+  <span class="cm">// 副作用</span>
+  flags:         <span class="typ">Flags</span>,          <span class="cm">// Placement | Update | Deletion ...</span>
+  lanes:         <span class="typ">Lanes</span>,          <span class="cm">// 优先级车道（Scheduler 优先级模型）</span>
+  alternate:     <span class="typ">FiberNode</span>,      <span class="cm">// 双缓冲：current ↔ workInProgress</span>
+}</pre>
+
+      <div class="diagram">                    ┌──────────┐
+                    │  App     │  ← Root Fiber
+                    │ (Fiber)  │
+                    └────┬─────┘
+                         │ child
+                    ┌────▼─────┐
+                    │  Header  │
+                    │ (Fiber)  │
+                    └────┬─────┘
+                ┌────────┼────────┐
+           child│        │sibling │
+          ┌─────▼──┐  ┌──▼─────┐
+          │  Logo  │  │  Nav   │
+          │(Fiber) │  │(Fiber) │
+          └────────┘  └──┬─────┘
+                    ┌────┼────┐
+               child│    │    │sibling
+              ┌─────▼┐ ┌▼────┐ ┌──────┐
+              │ Link │ │Link │ │ Link │
+              └──────┘ └─────┘ └──────┘
+
+  child → sibling → sibling 形成链表遍历
+  DFS 深度优先：child 优先，无 child 则 sibling，无 sibling 则 return</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">schedule</span></div>
+        <h3>双缓冲（Double Buffering）与时间切片</h3>
+      </div>
+      <p>Fiber 引入了两棵 Fiber 树交替工作，类似图形学中的双缓冲：</p>
+      <ul>
+        <li><strong>current tree</strong> — 当前屏幕上显示的 Fiber 树</li>
+        <li><strong>workInProgress tree</strong> — 正在后台构建的新 Fiber 树</li>
+        <li>更新完成后，<span class="inline-code">workInProgress</span> 变成 <span class="inline-code">current</span>，旧的 <span class="inline-code">current</span> 被回收</li>
+        <li><span class="inline-code">alternate</span> 指针在两棵树的对应节点之间建立映射</li>
+      </ul>
+      <div class="divider"></div>
+      <p><strong>时间切片（Time Slicing）</strong> 工作流程：</p>
+      <pre><span class="cm">// React 的工作循环（简化）</span>
+<span class="kw">function</span> <span class="fn">workLoop</span>(deadline: <span class="typ">Deadline</span>) {
+  <span class="cm">// 1. 有下一个工作单元 && 当前帧还有剩余时间</span>
+  <span class="kw">while</span> (nextUnitOfWork !== <span class="kw">null</span> && !shouldYield()) {
+    nextUnitOfWork = <span class="fn">performUnitOfWork</span>(nextUnitOfWork);
+  }
+
+  <span class="cm">// 2. 时间用尽，让出主线程（让浏览器处理用户输入、动画）</span>
+  <span class="kw">if</span> (nextUnitOfWork !== <span class="kw">null</span>) {
+    requestIdleCallback(workLoop);  <span class="cm">// 空闲时继续</span>
+  } <span class="kw">else</span> {
+    <span class="fn">commitRoot</span>();                   <span class="cm">// 3. 全部完成，一次性提交到 DOM</span>
+  }
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>
+          <strong>关键点：</strong>Fiber 把渲染分为两个阶段 ——
+          <strong>Render 阶段</strong>（可中断，构建 workInProgress 树 + Diff）和
+          <strong>Commit 阶段</strong>（不可中断，一次性应用 DOM 变更）。
+          这就是为什么 <span class="inline-code">useEffect</span> 的执行时机在 DOM 更新之后。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">priority_high</span></div>
+        <h3>优先级调度（Lane 模型）</h3>
+      </div>
+      <p>React 使用 <strong>Lane（车道）</strong> 位掩码模型来管理优先级，取代了早期的 <span class="inline-code">expirationTime</span>：</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">
+        <span class="chip primary">SyncLane — 同步（点击事件）</span>
+        <span class="chip">InputContinuousLane — 连续输入（拖拽）</span>
+        <span class="chip">DefaultLane — 默认（setState）</span>
+        <span class="chip tertiary">TransitionLane — 过渡（useTransition）</span>
+        <span class="chip">IdleLane — 空闲（离屏更新）</span>
+      </div>
+      <p>高优先级的 Lane 可以<strong>打断</strong>正在处理的低优先级工作，这就是 React 18 并发特性的底层基础。</p>
+    </div>
+
+  </section>
+
+  <!-- ==================== HOOKS ==================== -->
+  <section class="section" id="hooks">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">rule</span></div>
+        <h3>为什么 Hooks 不能在循环或条件中调用？</h3>
+      </div>
+      <p>
+        核心原因：React 依靠 <strong>Hook 的调用顺序</strong> 来将每个 Hook 与正确的 state 关联。
+        这不是任意规定，而是由 Hooks 的底层数据结构决定的。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">data_object</span></div>
+        <h3>底层数据结构：链表</h3>
+      </div>
+      <p>每个函数组件的 Fiber 节点上有一个 <span class="inline-code">memoizedState</span> 字段，
+        它指向一个 <strong>单向链表</strong>，链表的每个节点代表一次 Hook 调用：</p>
+      <pre><span class="cm">// Fiber 上的 Hook 链表</span>
+fiber.memoizedState →
+  ┌─────────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
+  │ useState('Alice')   │     │ useEffect(fn)       │     │ useState(0)      │
+  │                     │     │                     │     │                  │
+  │ memoizedState:      │ ──▶ │ memoizedState:      │ ──▶ │ memoizedState:   │
+  │   'Alice'           │     │   { deps, effect }  │     │   0              │
+  │ next: ──────────────│────▶│ next: ──────────────│────▶│ next: null       │
+  └─────────────────────┘     └─────────────────────┘     └──────────────────┘
+         Hook #1                     Hook #2                     Hook #3</pre>
+      <p>React 通过<strong>按调用顺序</strong>逐一匹配链表节点，为每次 <span class="inline-code">useState</span> / <span class="inline-code">useEffect</span> 分配对应的节点。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">bug_report</span></div>
+        <h3>如果在条件中调用会怎样？</h3>
+      </div>
+      <pre><span class="cm">// ❌ 错误示例 — 条件调用 Hook</span>
+<span class="kw">function</span> <span class="fn">Form</span>({ showName }) {
+  <span class="kw">const</span> [email, setEmail] = <span class="fn">useState</span>(<span class="str">''</span>);   <span class="cm">// Hook #1</span>
+
+  <span class="kw">if</span> (showName) {
+    <span class="kw">const</span> [name, setName] = <span class="fn">useState</span>(<span class="str">''</span>); <span class="cm">// Hook #2 — 条件性!</span>
+  }
+
+  <span class="kw">const</span> [age, setAge] = <span class="fn">useState</span>(<span class="num">0</span>);     <span class="cm">// Hook #3</span>
+}</pre>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>首次渲染 showName = true</h4>
+          <div class="diagram" style="font-size:12px;margin:8px 0">链表: [email] → [name] → [age]
+                 #1         #2       #3</div>
+        </div>
+        <div class="compare-box old">
+          <h4>重渲染 showName = false</h4>
+          <div class="diagram" style="font-size:12px;margin:8px 0">链表: [email] → [name] → [age]
+                 #1         #2       #3
+
+  但 useState 调用只有 2 次:
+  调用 #1 → 匹配节点 [email]  ✅
+  调用 #2 → 匹配节点 [name]  ❌ 期望 age!</div>
+        </div>
+      </div>
+      <div class="banner">
+        <span class="material-icons-outlined">warning</span>
+        <div>
+          <strong>结果：</strong><span class="inline-code">useState(0)</span> 拿到了 <span class="inline-code">name</span> 的 state！
+          <span class="inline-code">setName</span> 更新的是 <span class="inline-code">age</span> 的位置。
+          整个组件状态<strong>全面错乱</strong>，且极难调试。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">check_circle</span></div>
+        <h3>正确的替代方案</h3>
+      </div>
+      <pre><span class="cm">// ✅ 正确：Hook 始终调用，内部做条件判断</span>
+<span class="kw">function</span> <span class="fn">Form</span>({ showName }) {
+  <span class="kw">const</span> [email, setEmail] = <span class="fn">useState</span>(<span class="str">''</span>);
+  <span class="kw">const</span> [name, setName]     = <span class="fn">useState</span>(<span class="str">''</span>);   <span class="cm">// 始终调用</span>
+  <span class="kw">const</span> [age, setAge]       = <span class="fn">useState</span>(<span class="num">0</span>);     <span class="cm">// 始终调用</span>
+
+  <span class="cm">// 在 effect 内部做条件</span>
+  <span class="fn">useEffect</span>(() => {
+    <span class="kw">if</span> (showName) {
+      <span class="fn">syncNameToServer</span>(name);
+    }
+  }, [showName, name]);
+
+  <span class="kw">return</span> showName
+    ? &lt;<span class="fn">NameField</span> value={name} onChange={setName} /&gt;
+    : <span class="kw">null</span>;
+}
+
+<span class="cm">// ✅ 或者将条件逻辑提取为子组件</span>
+<span class="kw">function</span> <span class="fn">NameSection</span>() {
+  <span class="kw">const</span> [name, setName] = <span class="fn">useState</span>(<span class="str">''</span>);  <span class="cm">// 独立组件，独立链表</span>
+  <span class="kw">return</span> &lt;input value={name} onChange={e =&gt; <span class="fn">setName</span>(e.target.value)} /&gt;
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">quiz</span></div>
+        <h3>ESLint 规则的必要性</h3>
+      </div>
+      <p>
+        <span class="inline-code">eslint-plugin-react-hooks</span> 中的
+        <strong><span class="inline-code">rules-of-hooks</span></strong> 规则会静态分析代码，
+        检测并报错任何在条件、循环或嵌套函数中调用 Hook 的行为。
+      </p>
+      <ul>
+        <li><strong>顶层调用</strong> — Hook 必须在函数组件或自定义 Hook 的最顶层调用</li>
+        <li><strong>无条件</strong> — 不要在 <span class="inline-code">if</span> / <span class="inline-code">for</span> / <span class="inline-code">while</span> 中调用</li>
+        <li><strong>无循环</strong> — 不要在 <span class="inline-code">for</span> / <span class="inline-code">map</span> 回调中调用（除非数组长度永远不变）</li>
+        <li><strong>仅限组件</strong> — 只在 React 函数组件或自定义 Hook 中调用</li>
+      </ul>
+      <div class="banner">
+        <span class="material-icons-outlined">info</span>
+        <div>
+          <strong>注意：</strong> <span class="inline-code">useId</span> 在 React 18+ 中也遵循此规则。
+          虽然它不依赖调用顺序，但为了规则一致性仍然要求顶层调用。
+          <span class="inline-code">useSyncExternalStore</span> 同理。
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ==================== REACT 19 ==================== -->
+  <section class="section" id="react19">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">new_releases</span></div>
+        <h3>React 19 概览</h3>
+      </div>
+      <p>
+        React 19（2024 年 12 月正式发布）是一次重大版本升级，聚焦于<strong>异步状态管理</strong>、<strong>服务端组件</strong>、
+        <strong>编译器优化</strong>和<strong>开发者体验</strong>的全面改善。以下是最核心的更新：
+      </p>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">bolt</span></div>
+        <h3>1. Actions & 异步表单</h3>
+      </div>
+      <p>React 19 将<strong>异步操作</strong>作为一等公民引入，新增 <span class="inline-code">useActionState</span> 和 <span class="inline-code">useFormStatus</span>：</p>
+      <pre><span class="str">'use client'</span>;
+<span class="kw">import</span> { useActionState } <span class="kw">from</span> <span class="str">'react'</span>;
+<span class="kw">import</span> { useFormStatus } <span class="kw">from</span> <span class="str">'react-dom'</span>;
+
+<span class="kw">function</span> <span class="fn">SubmitButton</span>() {
+  <span class="kw">const</span> { pending } = <span class="fn">useFormStatus</span>();  <span class="cm">// 获取表单提交状态</span>
+  <span class="kw">return</span> (
+    &lt;button disabled={pending}&gt;
+      {pending ? <span class="str">'提交中...'</span> : <span class="str">'提交'</span>}
+    &lt;/button&gt;
+  );
+}
+
+<span class="kw">function</span> <span class="fn">Form</span>() {
+  <span class="kw">const</span> [state, formAction, isPending] = <span class="fn">useActionState</span>(
+    <span class="kw">async</span> (prevState, formData) => {
+      <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">updateUser</span>(formData);
+      <span class="kw">if</span> (result.error) <span class="kw">return</span> { error: result.error };
+      <span class="kw">return</span> { success: <span class="kw">true</span> };
+    },
+    { error: <span class="kw">null</span> }  <span class="cm">// 初始状态</span>
+  );
+
+  <span class="kw">return</span> (
+    &lt;form action={formAction}&gt;
+      &lt;input name=<span class="str">"name"</span> /&gt;
+      &lt;SubmitButton /&gt;
+      {state.error && &lt;p&gt;{state.error}&lt;/p&gt;}
+    &lt;/form&gt;
+  );
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>核心变化：</strong><span class="inline-code">&lt;form action&gt;</span> 不再只是 URL，可以传入异步函数。
+          这意味着表单提交、乐观更新、错误处理都可以用声明式方式完成。</div>
+      </div>
+    </div>
+
+    <!-- use() -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">auto_awesome</span></div>
+        <h3>2. use() — 在渲染中读取资源</h3>
+      </div>
+      <p><span class="inline-code">use()</span> 是 React 19 最具革命性的新 API，它可以在<strong>渲染期间</strong>读取 Promise 和 Context：</p>
+      <pre><span class="kw">import</span> { use } <span class="kw">from</span> <span class="str">'react'</span>;
+
+<span class="cm">// ✅ 直接在组件渲染中 await — 不需要 useEffect + useState</span>
+<span class="kw">function</span> <span class="fn">UserProfile</span>({ userPromise }) {
+  <span class="kw">const</span> user = <span class="fn">use</span>(userPromise);  <span class="cm">// 挂起直到 Promise resolve</span>
+
+  <span class="kw">return</span> (
+    &lt;div&gt;
+      &lt;h2&gt;{user.name}&lt;/h2&gt;
+      &lt;p&gt;{user.email}&lt;/p&gt;
+    &lt;/div&gt;
+  );
+}
+
+<span class="cm">// ✅ 条件读取 Context — 这是普通 useContext 做不到的</span>
+<span class="kw">function</span> <span class="fn">ThemeText</span>({ themePromise }) {
+  <span class="kw">if</span> (condition) {
+    <span class="kw">const</span> theme = <span class="fn">use</span>(ThemeContext);  <span class="cm">// 可以在条件中调用！</span>
+    <span class="kw">return</span> &lt;span style={{ color: theme.primary }}&gt;Text&lt;/span&gt;;
+  }
+  <span class="kw">return</span> &lt;span&gt;Default&lt;/span&gt;;
+}</pre>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>React 18 模式</h4>
+          <pre style="font-size:12px;background:transparent;padding:0;margin:0"><span class="kw">const</span> [data, setData] = <span class="fn">useState</span>(<span class="kw">null</span>);
+<span class="fn">useEffect</span>(() => {
+  <span class="fn">fetch</span>(url).then(<span class="fn">setData</span>);
+}, [url]);</pre>
+        </div>
+        <div class="compare-box new">
+          <h4>React 19 模式</h4>
+          <pre style="font-size:12px;background:transparent;padding:0;margin:0"><span class="kw">const</span> data = <span class="fn">use</span>(promise);
+<span class="cm">// 简洁！没有样板代码</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ref as prop -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">input</span></div>
+        <h3>3. ref 作为普通 prop</h3>
+      </div>
+      <p>终于！<span class="inline-code">ref</span> 不再需要 <span class="inline-code">forwardRef</span>：</p>
+      <pre><span class="cm">// ✅ React 19：ref 就是一个普通 prop</span>
+<span class="kw">function</span> <span class="fn">Input</span>({ placeholder, ref }) {
+  <span class="kw">return</span> &lt;input ref={ref} placeholder={placeholder} /&gt;;
+}
+
+<span class="cm">// 父组件直接传</span>
+<span class="kw">function</span> <span class="fn">Parent</span>() {
+  <span class="kw">const</span> inputRef = <span class="fn">useRef</span>(<span class="kw">null</span>);
+  <span class="kw">return</span> &lt;Input ref={inputRef} placeholder=<span class="str">"输入..."</span> /&gt;;
+}
+
+<span class="cm">// ❌ React 18：需要 forwardRef 包裹（繁琐）</span>
+<span class="kw">const</span> Input = <span class="fn">forwardRef</span>((props, ref) => {
+  <span class="kw">return</span> &lt;input ref={ref} {...props} /&gt;;
+});</pre>
+    </div>
+
+    <!-- useOptimistic & use -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">speed</span></div>
+        <h3>4. useOptimistic — 乐观更新</h3>
+      </div>
+      <pre><span class="kw">import</span> { useOptimistic } <span class="kw">from</span> <span class="str">'react'</span>;
+
+<span class="kw">function</span> <span class="fn">TodoList</span>({ todos, onAdd }) {
+  <span class="kw">const</span> [optimisticTodos, addOptimistic] = <span class="fn">useOptimistic</span>(
+    todos,
+    (currentTodos, newTodo) => [...currentTodos, { ...newTodo, pending: <span class="kw">true</span> }]
+  );
+
+  <span class="kw">async function</span> <span class="fn">handleAdd</span>(formData) {
+    <span class="kw">const</span> text = formData.get(<span class="str">'text'</span>);
+    <span class="fn">addOptimistic</span>({ text });     <span class="cm">// 立刻显示在 UI 上</span>
+    <span class="kw">await</span> <span class="fn">onAdd</span>(text);             <span class="cm">// 后台保存，失败自动回滚</span>
+  }
+
+  <span class="kw">return</span> (
+    &lt;&gt;
+      &lt;form action={handleAdd}&gt;
+        &lt;input name=<span class="str">"text"</span> /&gt;
+        &lt;button&gt;添加&lt;/button&gt;
+      &lt;/form&gt;
+      &lt;ul&gt;
+        {optimisticTodos.map((t, i) => (
+          &lt;li key={i} style={{ opacity: t.pending ? <span class="num">0.6</span> : <span class="num">1</span> }}&gt;
+            {t.text}
+          &lt;/li&gt;
+        ))}
+      &lt;/ul&gt;
+    &lt;/&gt;
+  );
+}</pre>
+    </div>
+
+    <!-- More features grid -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon pink"><span class="material-icons-outlined">grid_view</span></div>
+        <h3>5. 更多重要更新</h3>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">dns</span> Server Components</h4>
+          <p>RSC 正式稳定。组件可在服务端运行，零 JS bundle 发送到客户端，与客户端组件无缝组合。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">cached</span> 缓存改进</h4>
+          <p>移除了 <span class="inline-code">useMemo</span> / <span class="inline-code">useCallback</span> / <span class="inline-code">memo</span> 的缓存保证，React Compiler 自动处理。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">style</span> 样式支持</h4>
+          <p>原生支持 <span class="inline-code">&lt;style&gt;</span> 和 <span class="inline-code">StyleSheet</span>，SSR 时自动提取到 <span class="inline-code">&lt;head&gt;</span>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">script</span> 脚本加载</h4>
+          <p>新增 <span class="inline-code">&lt;Script&gt;</span> 组件和 <span class="inline-code">preinit</span> / <span class="inline-code">preload</span> API，智能管理第三方脚本。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">title</span> Metadata</h4>
+          <p>原生支持 <span class="inline-code">&lt;title&gt;</span> / <span class="inline-code">&lt;meta&gt;</span> / <span class="inline-code">&lt;link&gt;</span> 在组件中声明，自动提升到 <span class="inline-code">&lt;head&gt;</span>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">error</span> 错误改进</h4>
+          <p>错误信息更精确，新增 <span class="inline-code">onCaughtError</span> / <span class="inline-code">onUncaughtError</span> 回调，控制台不再重复打印。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">cleanup</span> Cleanup 函数</h4>
+          <p><span class="inline-code">ref</span> 回调现在支持返回清理函数，替代之前的 <span class="inline-code">useCallback</span> hack。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">compiler</span> React Compiler</h4>
+          <p>自动记忆化编译器（原 React Forget），无需手动 memo/useMemo/useCallback，编译器自动优化。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Migration -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">upgrade</span></div>
+        <h3>迁移建议</h3>
+      </div>
+      <ul>
+        <li><strong>codemod 工具</strong> — 使用 <span class="inline-code">npx @react-codemod/jscodeshift</span> 自动迁移 <span class="inline-code">forwardRef</span>、废弃 API 等</li>
+        <li><strong>逐步采用</strong> — Server Components 和 Actions 可以按页面逐步迁移</li>
+        <li><strong>类型更新</strong> — <span class="inline-code">ref</span> 作为 prop 后，组件类型签名更简洁</li>
+        <li><strong>移除手动 memo</strong> — 等 React Compiler 稳定后，逐步移除 <span class="inline-code">useMemo</span> / <span class="inline-code">memo</span></li>
+      </ul>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>
+  <p>基于 React 官方文档与源码分析 · Material Design 3 风格</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
