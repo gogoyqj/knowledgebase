@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP4 视频格式与流式播放</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #6200EE;
+    --md-primary-light: #BB86FC;
+    --md-primary-dark: #3700B3;
+    --md-secondary: #03DAC6;
+    --md-surface: #FFFFFF;
+    --md-background: #F5F5F5;
+    --md-on-surface: #212121;
+    --md-on-surface-medium: #666666;
+    --md-on-surface-light: #9E9E9E;
+    --md-error: #CF6679;
+    --md-success: #4CAF50;
+    --md-warning: #FF9800;
+    --md-info: #2196F3;
+    --md-divider: rgba(0,0,0,0.12);
+    --md-shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    --md-shadow-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+    --md-shadow-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+    --md-radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+
+  /* App Bar */
+  .app-bar {
+    background: var(--md-primary);
+    color: white;
+    padding: 16px 24px;
+    box-shadow: var(--md-shadow-2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .app-bar h1 { font-size: 20px; font-weight: 500; }
+  .app-bar .subtitle { font-size: 14px; opacity: 0.87; }
+
+  /* Layout */
+  .layout {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+  }
+
+  /* Side Nav */
+  .side-nav {
+    position: sticky;
+    top: 80px;
+    height: fit-content;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+  .nav-card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px;
+  }
+  .nav-card h3 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--md-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 14px;
+    color: var(--md-on-surface-medium);
+    text-decoration: none;
+  }
+  .nav-item:hover { background: #F3E8FD; color: var(--md-primary); }
+  .nav-item .material-icons { font-size: 18px; }
+
+  /* Main Content */
+  .main { min-width: 0; }
+
+  /* Card */
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 20px 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-header .material-icons {
+    color: var(--md-primary);
+    font-size: 28px;
+  }
+  .card-header h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .card-body { padding: 16px 24px 24px; overflow-x: auto; }
+  .card-body p { margin-bottom: 12px; color: var(--md-on-surface-medium); }
+
+  /* Section Title */
+  .section-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--md-primary);
+    margin: 20px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .material-icons { font-size: 20px; }
+
+  /* Table */
+  .md-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .md-table th {
+    background: var(--md-primary);
+    color: white;
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .md-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--md-divider);
+    vertical-align: top;
+  }
+  .md-table tr:hover td { background: #FAFAFA; }
+  .md-table code {
+    background: #EDE7F6;
+    color: #6200EE;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* Code Block */
+  .code-block {
+    background: #1E1E2E;
+    border-radius: var(--md-radius);
+    overflow: hidden;
+    margin: 16px 0;
+    box-shadow: var(--md-shadow-1);
+    min-width: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .code-header {
+    background: #313244;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .code-header span {
+    color: #CDD6F4;
+    font-size: 13px;
+    font-family: 'Roboto Mono', monospace;
+  }
+  .code-header .material-icons {
+    color: #A6ADC8;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .code-header .material-icons:hover { color: #CDD6F4; }
+  pre {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #CDD6F4;
+    white-space: pre;
+    min-width: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  pre .keyword { color: #CBA6F7; }
+  pre .string { color: #A6E3A1; }
+  pre .comment { color: #6C7086; font-style: italic; }
+  pre .type { color: #89B4FA; }
+  pre .func { color: #89DCEB; }
+  pre .number { color: #FAB387; }
+  pre .prop { color: #F38BA8; }
+  pre .tag { color: #F38BA8; }
+  pre .attr { color: #FAB387; }
+  pre .punct { color: #BAC2DE; }
+
+  /* Inline Code */
+  code {
+    background: #EDE7F6;
+    color: #6200EE;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9em;
+  }
+
+  /* Chip */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 2px;
+  }
+  .chip-primary { background: #EDE7F6; color: #6200EE; }
+  .chip-success { background: #E8F5E9; color: #2E7D32; }
+  .chip-warning { background: #FFF3E0; color: #E65100; }
+  .chip-info { background: #E3F2FD; color: #1565C0; }
+
+  /* Callout */
+  .callout {
+    border-radius: var(--md-radius);
+    padding: 16px 20px;
+    margin: 16px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .callout .material-icons { flex-shrink: 0; font-size: 24px; margin-top: 2px; }
+  .callout-info { background: #E3F2FD; border-left: 4px solid #2196F3; }
+  .callout-info .material-icons { color: #2196F3; }
+  .callout-warning { background: #FFF3E0; border-left: 4px solid #FF9800; }
+  .callout-warning .material-icons { color: #FF9800; }
+  .callout-success { background: #E8F5E9; border-left: 4px solid #4CAF50; }
+  .callout-success .material-icons { color: #4CAF50; }
+  .callout-content { font-size: 14px; color: var(--md-on-surface-medium); }
+  .callout-content strong { color: var(--md-on-surface); }
+
+  /* Box Diagram */
+  .box-diagram {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    background: #1E1E2E;
+    color: #CDD6F4;
+    padding: 20px;
+    border-radius: var(--md-radius);
+    overflow-x: auto;
+    margin: 16px 0;
+    white-space: pre;
+    min-width: 0;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  /* Visual Box Structure */
+  .box-visual {
+    display: flex;
+    gap: 4px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .box-segment {
+    border: 2px solid;
+    border-radius: 6px;
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 60px;
+    position: relative;
+  }
+  .box-segment .label {
+    font-family: 'Roboto Mono', monospace;
+    font-weight: 700;
+  }
+  .box-segment .size {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+  .box-ftyp { border-color: #4CAF50; background: #E8F5E9; color: #2E7D32; }
+  .box-moov { border-color: #2196F3; background: #E3F2FD; color: #1565C0; }
+  .box-moof { border-color: #9C27B0; background: #F3E5F5; color: #7B1FA2; }
+  .box-mdat { border-color: #FF9800; background: #FFF3E0; color: #E65100; }
+  .box-free { border-color: #9E9E9E; background: #F5F5F5; color: #616161; }
+
+  /* Flow Diagram */
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    position: relative;
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: 23px;
+    top: 48px;
+    bottom: -16px;
+    width: 2px;
+    background: var(--md-divider);
+  }
+  .flow-step:last-child::before { display: none; }
+  .flow-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .flow-icon .material-icons { font-size: 24px; color: white; }
+  .flow-content {
+    flex: 1;
+    padding-bottom: 24px;
+  }
+  .flow-content h4 {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .flow-content p {
+    font-size: 14px;
+    color: var(--md-on-surface-medium);
+    margin: 0;
+  }
+
+  /* Nested Box Hierarchy */
+  .box-hierarchy {
+    border: 2px solid var(--md-divider);
+    border-radius: var(--md-radius);
+    margin: 8px 0;
+    overflow: hidden;
+  }
+  .box-hierarchy-header {
+    padding: 10px 16px;
+    font-weight: 500;
+    font-size: 14px;
+    font-family: 'Roboto Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .box-hierarchy-children {
+    padding: 8px 16px 12px 32px;
+    border-top: 1px dashed var(--md-divider);
+  }
+  .box-hierarchy .bh-moov { border-color: #2196F3; }
+  .box-hierarchy .bh-moov > .box-hierarchy-header { background: #E3F2FD; color: #1565C0; }
+  .box-hierarchy .bh-trak { border-color: #4CAF50; }
+  .box-hierarchy .bh-trak > .box-hierarchy-header { background: #E8F5E9; color: #2E7D32; }
+  .box-hierarchy .bh-mdia { border-color: #FF9800; }
+  .box-hierarchy .bh-mdia > .box-hierarchy-header { background: #FFF3E0; color: #E65100; }
+  .box-hierarchy .bh-minf { border-color: #9C27B0; }
+  .box-hierarchy .bh-minf > .box-hierarchy-header { background: #F3E5F5; color: #7B1FA2; }
+  .box-hierarchy .bh-stbl { border-color: #F44336; }
+  .box-hierarchy .bh-stbl > .box-hierarchy-header { background: #FFEBEE; color: #C62828; }
+
+  /* Timeline Bar */
+  .timeline-bar {
+    display: flex;
+    height: 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 12px 0;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .timeline-bar div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    white-space: nowrap;
+  }
+
+  /* Grid */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    .side-nav { display: none; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* Scroll smooth */
+  html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<!-- App Bar -->
+<div class="app-bar">
+  <span class="material-icons">movie</span>
+  <div>
+    <h1>MP4 视频格式与流式播放</h1>
+    <div class="subtitle">ISO Base Media File Format · Box 结构 · MSE 流式播放</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Side Navigation -->
+  <nav class="side-nav">
+    <div class="nav-card">
+      <h3>目录</h3>
+      <a class="nav-item" href="#overview"><span class="material-icons">info</span>概述</a>
+      <a class="nav-item" href="#box-structure"><span class="material-icons">view_quilt</span>Box 结构</a>
+      <a class="nav-item" href="#file-layout"><span class="material-icons">grid_on</span>文件布局</a>
+      <a class="nav-item" href="#ftyp"><span class="material-icons">badge</span>ftyp</a>
+      <a class="nav-item" href="#moov"><span class="material-icons">account_tree</span>moov</a>
+      <a class="nav-item" href="#trak"><span class="material-icons">theaters</span>trak</a>
+      <a class="nav-item" href="#stbl"><span class="material-icons">table_chart</span>stbl</a>
+      <a class="nav-item" href="#mdat"><span class="material-icons">sd_card</span>mdat</a>
+      <a class="nav-item" href="#moov-position"><span class="material-icons">compare_arrows</span>moov 位置</a>
+      <a class="nav-item" href="#fragmented"><span class="material-icons">movie_creation</span>fMP4 分段</a>
+      <a class="nav-item" href="#mse"><span class="material-icons">stream</span>MSE 流式 API</a>
+      <a class="nav-item" href="#code"><span class="material-icons">code</span>代码示例</a>
+      <a class="nav-item" href="#ffmpeg"><span class="material-icons">terminal</span>FFmpeg 命令</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main">
+
+    <!-- Overview -->
+    <div class="card" id="overview">
+      <div class="card-header">
+        <span class="material-icons">info</span>
+        <h2>MP4 文件格式概述</h2>
+      </div>
+      <div class="card-body">
+        <p>MP4（MPEG-4 Part 14）基于 <strong>ISO Base Media File Format (ISOBMFF)</strong>，是一种容器格式，用于存储视频、音频、字幕和元数据。其核心设计思想是将文件组织为一系列嵌套的 <strong>Box（也称 Atom）</strong>。</p>
+
+        <div class="callout callout-info">
+          <span class="material-icons">lightbulb</span>
+          <div class="callout-content">
+            <strong>关键特性：</strong>MP4 的 Box 结构允许随机访问——播放器可以跳转到任意时间点，因为 <code>moov</code> Box 中包含了所有采样的位置索引。这也是 MP4 适合流式播放的基础。
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <h4>支持的编码</h4>
+            <p>
+              <span class="chip chip-primary">H.264 / AVC</span>
+              <span class="chip chip-primary">H.265 / HEVC</span>
+              <span class="chip chip-primary">AV1</span>
+              <span class="chip chip-info">AAC</span>
+              <span class="chip chip-info">Opus</span>
+              <span class="chip chip-info">MP3</span>
+            </p>
+          </div>
+          <div>
+            <h4>相关规范</h4>
+            <p>
+              <span class="chip chip-warning">ISO 14496-12</span>
+              <span class="chip chip-warning">ISO 14496-14</span>
+              <span class="chip chip-success">QuickTime (.mov)</span>
+              <span class="chip chip-success">3GP / M4A / M4V</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Box Structure -->
+    <div class="card" id="box-structure">
+      <div class="card-header">
+        <span class="material-icons">view_quilt</span>
+        <h2>Box 结构详解</h2>
+      </div>
+      <div class="card-body">
+        <p>每个 Box 由 <strong>Header</strong>（8 字节）+ <strong>Body</strong>（变长）组成：</p>
+
+        <div class="box-diagram">
+┌──────────────────────────────────────────────┐
+│  Box Header (8 bytes)                        │
+│  ┌──────────────────┬──────────────────────┐ │
+│  │  size (4 bytes)  │  type (4 bytes)      │ │
+│  │  uint32          │  FourCC (ASCII)      │ │
+│  └──────────────────┴──────────────────────┘ │
+│                                              │
+│  Box Body (size - 8 bytes)                   │
+│  ┌────────────────────────────────────────┐  │
+│  │  data ...                              │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+
+Extended size: 当 size == 1 时，后续 8 字节为真实大小（共 16 字节 header）
+Terminal:     当 size == 0 时，Box 延伸到文件末尾
+        </div>
+
+        <div class="section-title"><span class="material-icons">label</span>Box Header 字段</div>
+        <table class="md-table">
+          <thead>
+            <tr><th>字段</th><th>大小</th><th>类型</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>size</code></td>
+              <td>4 bytes</td>
+              <td>uint32</td>
+              <td>Box 总大小（含 header），若为 1 则使用 extended size（后续 8 字节）</td>
+            </tr>
+            <tr>
+              <td><code>type</code></td>
+              <td>4 bytes</td>
+              <td>FourCC</td>
+              <td>Box 类型标识，如 <code>ftyp</code>、<code>moov</code>、<code>mdat</code></td>
+            </tr>
+            <tr>
+              <td><code>extended_size</code></td>
+              <td>8 bytes</td>
+              <td>uint64</td>
+              <td>仅当 size==1 时存在，表示大于 4GB 的 Box</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="section-title"><span class="material-icons">category</span>Full Box（版本化）</div>
+        <p>部分 Box 继承自 <strong>Full Box</strong>，在 header 后额外包含 1 字节版本 + 3 字节标志位：</p>
+        <div class="box-diagram">
+┌──────────────────────────────────────────────┐
+│  Full Box Header                             │
+│  ┌──────────┬──────────┬─────────┬─────────┐ │
+│  │  size    │  type    │ version │ flags   │ │
+│  │  4B      │  4B      │ 1B      │ 3B      │ │
+│  └──────────┴──────────┴─────────┴─────────┘ │
+│  version: 0 或 1                             │
+│  flags:   各 Box 自定义的标志位               │
+└──────────────────────────────────────────────┘
+        </div>
+      </div>
+    </div>
+
+    <!-- File Layout -->
+    <div class="card" id="file-layout">
+      <div class="card-header">
+        <span class="material-icons">grid_on</span>
+        <h2>典型 MP4 文件布局</h2>
+      </div>
+      <div class="card-body">
+        <p>一个标准 MP4 文件的顶层 Box 排列：</p>
+
+        <div class="box-visual">
+          <div class="box-segment box-ftyp" style="flex: 1;">
+            <div class="label">ftyp</div>
+            <div class="size">~32B</div>
+          </div>
+          <div class="box-segment box-free" style="flex: 0.3;">
+            <div class="label">free</div>
+            <div class="size">可选</div>
+          </div>
+          <div class="box-segment box-moov" style="flex: 3;">
+            <div class="label">moov</div>
+            <div class="size">元数据</div>
+          </div>
+          <div class="box-segment box-mdat" style="flex: 8;">
+            <div class="label">mdat</div>
+            <div class="size">媒体数据</div>
+          </div>
+        </div>
+
+        <div class="callout callout-warning">
+          <span class="material-icons">warning</span>
+          <div class="callout-content">
+            <strong>注意 moov 位置！</strong>默认情况下，编码器将 <code>moov</code> 放在 <code>mdat</code> 之后。这意味着播放器必须下载完整个文件才能开始播放。使用 <code>-movflags +faststart</code> 可以将 <code>moov</code> 移到文件开头。
+          </div>
+        </div>
+
+        <table class="md-table">
+          <thead>
+            <tr><th>顶层 Box</th><th>类型</th><th>必须</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ftyp</code></td>
+              <td>普通 Box</td>
+              <td>✓</td>
+              <td>文件类型和兼容品牌，必须在第一个</td>
+            </tr>
+            <tr>
+              <td><code>pdin</code></td>
+              <td>Full Box</td>
+              <td></td>
+              <td>渐进式下载信息（速率/延迟）</td>
+            </tr>
+            <tr>
+              <td><code>moov</code></td>
+              <td>容器 Box</td>
+              <td>✓</td>
+              <td>所有元数据：时长、轨道、采样表等</td>
+            </tr>
+            <tr>
+              <td><code>moof</code></td>
+              <td>容器 Box</td>
+              <td></td>
+              <td>Fragmented MP4 的片段元数据</td>
+            </tr>
+            <tr>
+              <td><code>mdat</code></td>
+              <td>普通 Box</td>
+              <td>✓</td>
+              <td>实际的音视频采样数据</td>
+            </tr>
+            <tr>
+              <td><code>free</code></td>
+              <td>普通 Box</td>
+              <td></td>
+              <td>空闲空间，播放器忽略</td>
+            </tr>
+            <tr>
+              <td><code>skip</code></td>
+              <td>普通 Box</td>
+              <td></td>
+              <td>同 free，可选的跳过数据</td>
+            </tr>
+            <tr>
+              <td><code>styp</code></td>
+              <td>普通 Box</td>
+              <td></td>
+              <td>Fragment 的 segment 类型</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ftyp -->
+    <div class="card" id="ftyp">
+      <div class="card-header">
+        <span class="material-icons">badge</span>
+        <h2>ftyp — 文件类型 Box</h2>
+      </div>
+      <div class="card-body">
+        <p><code>ftyp</code> 必须是文件的第一个 Box，声明文件格式版本和兼容品牌。</p>
+
+        <div class="box-diagram">
+┌──────────────────────────────────────────────┐
+│  ftyp Box                                    │
+│  ┌─────────────────────────────────────────┐ │
+│  │ major_brand       (4B FourCC)          │ │
+│  │   e.g. "isom", "avc1", "mp42", "MSNV" │ │
+│  ├─────────────────────────────────────────┤ │
+│  │ minor_version     (4B uint32)          │ │
+│  ├─────────────────────────────────────────┤ │
+│  │ compatible_brands (4B × N FourCC)      │ │
+│  │   e.g. ["isom", "iso2", "avc1", "mp41"]│ │
+│  └─────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+        </div>
+
+        <div class="section-title"><span class="material-icons">dns</span>常见品牌</div>
+        <table class="md-table">
+          <thead>
+            <tr><th>品牌</th><th>来源</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>isom</code></td><td>ISO</td><td>ISO Base Media File Format，最通用</td></tr>
+            <tr><td><code>iso2</code></td><td>ISO</td><td>ISOBMFF 第二版</td></tr>
+            <tr><td><code>avc1</code></td><td>Apple</td><td>H.264/AVC 视频</td></tr>
+            <tr><td><code>mp41</code></td><td>ISO</td><td>MPEG-4 Part 1</td></tr>
+            <tr><td><code>mp42</code></td><td>ISO</td><td>MPEG-4 Part 2</td></tr>
+            <tr><td><code>MSNV</code></td><td>Microsoft</td><td>MPEG-4 NV</td></tr>
+            <tr><td><code>dash</code></td><td>DASH-IF</td><td>DASH 流媒体片段</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- moov -->
+    <div class="card" id="moov">
+      <div class="card-header">
+        <span class="material-icons">account_tree</span>
+        <h2>moov — 元数据容器</h2>
+      </div>
+      <div class="card-body">
+        <p><code>moov</code> 是一个容器 Box，包含整个文件的所有元数据。<strong>不包含任何实际的媒体数据。</strong></p>
+
+        <div class="box-hierarchy bh-moov">
+          <div class="box-hierarchy-header">📦 moov</div>
+          <div class="box-hierarchy-children">
+            <div class="box-hierarchy" style="border-color: #4CAF50; margin-bottom: 8px;">
+              <div class="box-hierarchy-header" style="background: #E8F5E9; color: #2E7D32;">
+                🎬 mvhd <span style="font-weight: 300; font-size: 12px; margin-left: 8px;">— Movie Header</span>
+              </div>
+            </div>
+            <div class="box-hierarchy" style="border-color: #2196F3; margin-bottom: 8px;">
+              <div class="box-hierarchy-header" style="background: #E3F2FD; color: #1565C0;">
+                🎥 trak <span style="font-weight: 300; font-size: 12px; margin-left: 8px;">— 视频轨道</span>
+              </div>
+            </div>
+            <div class="box-hierarchy" style="border-color: #9C27B0; margin-bottom: 8px;">
+              <div class="box-hierarchy-header" style="background: #F3E5F5; color: #7B1FA2;">
+                🔊 trak <span style="font-weight: 300; font-size: 12px; margin-left: 8px;">— 音频轨道</span>
+              </div>
+            </div>
+            <div class="box-hierarchy" style="border-color: #FF9800; margin-bottom: 0;">
+              <div class="box-hierarchy-header" style="background: #FFF3E0; color: #E65100;">
+                📝 udta <span style="font-weight: 300; font-size: 12px; margin-left: 8px;">— 用户数据（可选）</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">description</span>mvhd — Movie Header</div>
+        <p><code>mvhd</code> 是 Full Box，存储整个影片的全局信息：</p>
+        <table class="md-table">
+          <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>creation_time</code></td><td>uint32/64</td><td>创建时间（MP4 epoch: 1904-01-01）</td></tr>
+            <tr><td><code>modification_time</code></td><td>uint32/64</td><td>修改时间</td></tr>
+            <tr><td><code>timescale</code></td><td>uint32</td><td>时间刻度（每秒 tick 数），如 1000 = 毫秒精度</td></tr>
+            <tr><td><code>duration</code></td><td>uint32/64</td><td>总时长（以 timescale 为单位）</td></tr>
+            <tr><td><code>rate</code></td><td>int32</td><td>播放速率，固定 1.0 = 0x00010000</td></tr>
+            <tr><td><code>volume</code></td><td>int16</td><td>音量，固定 1.0 = 0x0100</td></tr>
+            <tr><td><code>matrix</code></td><td>int32[9]</td><td>变换矩阵（旋转/缩放/平移）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- trak -->
+    <div class="card" id="trak">
+      <div class="card-header">
+        <span class="material-icons">theaters</span>
+        <h2>trak — 轨道</h2>
+      </div>
+      <div class="card-body">
+        <p>每个媒体流（视频、音频、字幕）对应一个 <code>trak</code> Box。每个 trak 有自己的时间线和采样表。</p>
+
+        <div class="box-hierarchy bh-trak">
+          <div class="box-hierarchy-header">📦 trak</div>
+          <div class="box-hierarchy-children">
+            <table class="md-table">
+              <thead><tr><th>子 Box</th><th>类型</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><code>tkhd</code></td><td>Full Box</td><td>Track Header：track ID、时长、宽高、启用/音量等</td></tr>
+                <tr><td><code>tref</code></td><td>容器</td><td>Track Reference：轨道间引用关系（如音视频同步）</td></tr>
+                <tr><td><code>edts</code></td><td>容器</td><td>Edit List：时间线映射（空段、变速、偏移）</td></tr>
+                <tr>
+                  <td><code>mdia</code></td>
+                  <td>容器</td>
+                  <td>
+                    <strong>Media</strong> — 包含媒体所有详细信息
+                    <div style="margin-top: 8px; padding-left: 16px; border-left: 2px solid #FF9800;">
+                      <code>mdhd</code> — Media Header（时长、timescale）<br>
+                      <code>hdlr</code> — Handler（vide/soun/subt）<br>
+                      <code>minf</code> — Media Info ↓
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">subdirectory_arrow_right</span>minf → stbl 路径</div>
+        <div class="box-diagram">
+trak
+ ├── tkhd          # Track Header
+ ├── edts          # Edit List (optional)
+ └── mdia          # Media
+      ├── mdhd     # Media Header (timescale, duration)
+      ├── hdlr     # Handler Reference (vide / soun / subt)
+      └── minf     # Media Info
+           ├── vmhd / smhd / hmhd   # 视频/音频/提示媒体头
+           ├── dinf                 # Data Information
+           │    └── dref            # Data Reference (本地/远程)
+           └── stbl                 # ★ Sample Table (核心)
+                ├── stsd  # 采样描述（编解码器信息）
+                ├── stts  # 时间戳表
+                ├── stsc  # 采样→chunk 映射
+                ├── stsz  # 采样大小表
+                ├── stco  # chunk 偏移表 (32-bit)
+                ├── co64  # chunk 偏移表 (64-bit)
+                ├── stss  # 同步采样表（关键帧索引）
+                ├── ctts  # composition time offset
+                └── sdtp  # 独立/依赖采样标志
+        </div>
+      </div>
+    </div>
+
+    <!-- stbl -->
+    <div class="card" id="stbl">
+      <div class="card-header">
+        <span class="material-icons">table_chart</span>
+        <h2>stbl — 采样表（核心）</h2>
+      </div>
+      <div class="card-body">
+        <p><code>stbl</code>（Sample Table）是 MP4 最核心的 Box，它告诉播放器：<strong>每个采样在哪里、多大、什么时间播放</strong>。没有它，mdat 就是一堆无意义的字节。</p>
+
+        <div class="section-title"><span class="material-icons">movie_filter</span>stsd — 采样描述</div>
+        <p>定义编解码器类型和配置，如 <code>avc1</code>（H.264）内含 <code>avcC</code>（SPS/PPS 参数集）。</p>
+        <div class="box-diagram">
+stsd
+ └── avc1          # H.264 视频采样描述
+      ├── width, height
+      ├── compressorName
+      └── avcC     # AVC Decoder Configuration
+           ├── configurationVersion
+           ├── profileIndication
+           ├── levelIndication
+           ├── SPS (Sequence Parameter Set)
+           └── PPS (Picture Parameter Set)
+        </div>
+
+        <div class="section-title"><span class="material-icons">timer</span>stts — Decoding Time-to-Sample</div>
+        <p>将采样索引映射到解码时间戳。用 run-length 编码压缩：</p>
+        <table class="md-table">
+          <thead><tr><th>字段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>sample_count</code></td><td>连续相同 duration 的采样数</td></tr>
+            <tr><td><code>sample_delta</code></td><td>每个采样的时间增量（timescale 单位）</td></tr>
+          </tbody>
+        </table>
+        <div class="callout callout-info">
+          <span class="material-icons">calculate</span>
+          <div class="callout-content">
+            <strong>计算总时长：</strong>将所有 stts 条目的 <code>sample_count × sample_delta</code> 求和，再除以 mdhd 的 timescale，得到秒数。
+          </div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">grid_on</span>stsc — Sample-to-Chunk 映射</div>
+        <p>采样被组织为 chunk，每个 chunk 包含若干采样。stsc 记录每个 chunk 的采样数：</p>
+        <table class="md-table">
+          <thead><tr><th>字段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>first_chunk</code></td><td>当前条目起始的 chunk 编号</td></tr>
+            <tr><td><code>samples_per_chunk</code></td><td>该范围内每个 chunk 的采样数</td></tr>
+            <tr><td><code>sample_description_index</code></td><td>使用的 stsd 条目索引</td></tr>
+          </tbody>
+        </table>
+
+        <div class="section-title"><span class="material-icons">aspect_ratio</span>stsz — 采样大小</div>
+        <p>记录每个采样的字节大小。若 <code>sample_size != 0</code>，所有采样等大；否则逐个列出：</p>
+        <div class="box-diagram">
+stsz
+ ├── sample_size:    0          # 0 = 各采样大小不同
+ ├── sample_count:   150        # 总采样数
+ └── entry_size[]:   [12345, 8901, 15678, ...]  # 每个采样的字节数
+        </div>
+
+        <div class="section-title"><span class="material-icons">my_location</span>stco / co64 — chunk 偏移</div>
+        <p>记录每个 chunk 在文件中的绝对字节偏移。播放器结合 stsc + stsz + stco 即可定位任意采样：</p>
+        <div class="box-diagram">
+定位采样 #N 的流程:
+
+1. stss → N 是不是关键帧？（用于 seek）
+2. stts → 前 N-1 个 delta 求和 → decode time
+3. ctts → composition offset → display time
+4. stsc → 采样 #N 属于哪个 chunk？
+5. stco → chunk 在文件中的偏移
+6. stsc → 该 chunk 从第几个采样开始？
+7. stsz → 累加前面采样的大小 → chunk 内偏移
+8. 读取 stsz[N] 字节 → 得到采样数据
+        </div>
+
+        <div class="callout callout-success">
+          <span class="material-icons">key</span>
+          <div class="callout-content">
+            <strong>这就是 MP4 支持随机 Seek 的秘密：</strong>所有索引信息都在 moov 中预计算好，播放器可以跳转到任意采样而无需线性扫描。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- mdat -->
+    <div class="card" id="mdat">
+      <div class="card-header">
+        <span class="material-icons">sd_card</span>
+        <h2>mdat — 媒体数据</h2>
+      </div>
+      <div class="card-body">
+        <p><code>mdat</code> 存储所有轨道的实际采样数据，以连续字节流的形式排列。它本身没有任何结构——完全依赖 <code>moov</code> 中的采样表来解释。</p>
+
+        <div class="box-diagram">
+┌──────────────────────────────────────────────────────────────┐
+│  mdat                                                         │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ [video chunk 0] [audio chunk 0] [video chunk 1] ...    │ │
+│  │                                                         │ │
+│  │  视频采样 = NAL Units (H.264) / OBU (AV1)              │ │
+│  │  音频采样 = AAC Frames / PCM / Opus Frames             │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
+
+H.264 NAL Unit 结构:
+┌──────────────┬──────────────┬─────────────────────────────┐
+│ start_code   │ NAL header   │ NAL payload                 │
+│ 00 00 00 01  │ 1B (type)    │ SPS/PPS/IDR/SLICE/...       │
+└──────────────┴──────────────┴─────────────────────────────┘
+        </div>
+
+        <div class="callout callout-warning">
+          <span class="material-icons">warning</span>
+          <div class="callout-content">
+            <strong>重要：</strong>普通 MP4 的 <code>mdat</code> 中，H.264 使用 <strong>AVCC 格式</strong>（4字节长度前缀），而非 Annex B（start code）。播放器需要根据 <code>avcC</code> 中的 SPS/PPS 初始化解码器。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- moov Position -->
+    <div class="card" id="moov-position">
+      <div class="card-header">
+        <span class="material-icons">compare_arrows</span>
+        <h2>moov 位置对播放的影响</h2>
+      </div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div>
+            <h4 style="color: var(--md-error); margin-bottom: 8px;">❌ moov 在末尾（默认）</h4>
+            <div class="box-visual">
+              <div class="box-segment box-ftyp"><div class="label">ftyp</div></div>
+              <div class="box-segment box-mdat" style="flex: 6;"><div class="label">mdat</div></div>
+              <div class="box-segment box-moov" style="flex: 2;"><div class="label">moov</div></div>
+            </div>
+            <p style="font-size: 14px; color: var(--md-on-surface-medium);">
+              必须下载完整个 mdat 才能读取 moov 索引 → <strong>无法边下边播</strong>
+            </p>
+          </div>
+          <div>
+            <h4 style="color: var(--md-success); margin-bottom: 8px;">✓ moov 在开头（faststart）</h4>
+            <div class="box-visual">
+              <div class="box-segment box-ftyp"><div class="label">ftyp</div></div>
+              <div class="box-segment box-moov" style="flex: 2;"><div class="label">moov</div></div>
+              <div class="box-segment box-mdat" style="flex: 6;"><div class="label">mdat</div></div>
+            </div>
+            <p style="font-size: 14px; color: var(--md-on-surface-medium);">
+              先获取 moov 索引 → 立即计算需要的字节范围 → <strong>支持分段请求和渐进式播放</strong>
+            </p>
+          </div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">code</span>FFmpeg 转换命令</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>bash</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="comment"># 将 moov 移到文件开头</span>
+ffmpeg -i input.mp4 -c copy -movflags +faststart output.mp4
+
+<span class="comment"># 从零开始编码并确保 faststart</span>
+ffmpeg -i source.avi -c:v libx264 -c:a aac -movflags +faststart output.mp4
+
+<span class="comment"># 查看 MP4 Box 结构</span>
+ffprobe -show_format -show_streams output.mp4
+
+<span class="comment"># 使用 mp4box 查看 Box 树</span>
+mp4box -info output.mp4</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fragmented MP4 -->
+    <div class="card" id="fragmented">
+      <div class="card-header">
+        <span class="material-icons">movie_creation</span>
+        <h2>fMP4 — Fragmented MP4</h2>
+      </div>
+      <div class="card-body">
+        <p><strong>Fragmented MP4 (fMP4)</strong> 是 MP4 的分段版本，专为流媒体设计。它将媒体数据拆分为独立的 <strong>fragment</strong>，每个 fragment 可以独立解码。</p>
+
+        <div class="section-title"><span class="material-icons">view_stream</span>fMP4 文件结构</div>
+        <div class="box-visual">
+          <div class="box-segment box-ftyp"><div class="label">ftyp</div></div>
+          <div class="box-segment box-moov" style="flex: 1.5;"><div class="label">moov</div><div class="size">仅轨道信息</div></div>
+          <div class="box-segment box-moof" style="flex: 1;"><div class="label">moof</div></div>
+          <div class="box-segment box-mdat" style="flex: 2;"><div class="label">mdat</div></div>
+          <div class="box-segment box-moof" style="flex: 1;"><div class="label">moof</div></div>
+          <div class="box-segment box-mdat" style="flex: 2;"><div class="label">mdat</div></div>
+          <div class="box-segment box-moof" style="flex: 1;"><div class="label">moof</div></div>
+          <div class="box-segment box-mdat" style="flex: 2;"><div class="label">mdat</div></div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">account_tree</span>Fragment 结构</div>
+        <div class="box-diagram">
+┌─ moof (Movie Fragment) ─────────────────────────────┐
+│  ┌─ mfhd (Fragment Header) ──────────────────────┐  │
+│  │  sequence_number: 1                            │  │
+│  └────────────────────────────────────────────────┘  │
+│  ┌─ traf (Track Fragment) × N ────────────────────┐  │
+│  │  ┌─ tfhd (Track Fragment Header) ────────────┐ │  │
+│  │  │  track_ID: 1                               │ │  │
+│  │  └────────────────────────────────────────────┘ │  │
+│  │  ┌─ tfdt (Fragment Decode Time) ─────────────┐ │  │
+│  │  │  baseMediaDecodeTime: 0                    │ │  │
+│  │  └────────────────────────────────────────────┘ │  │
+│  │  ┌─ trun (Track Run) ────────────────────────┐ │  │
+│  │  │  sample_count: 60                          │ │  │
+│  │  │  data_offset: ...                          │ │  │
+│  │  │  entries[]: {duration, size, flags, cto}   │ │  │
+│  │  └────────────────────────────────────────────┘ │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+
+┌─ mdat ──────────────────────────────────────────────┐
+│  [fragment 1 的所有采样数据，连续排列]               │
+└──────────────────────────────────────────────────────┘
+        </div>
+
+        <div class="section-title"><span class="material-icons">tune</span>普通 MP4 vs fMP4</div>
+        <table class="md-table">
+          <thead><tr><th>特性</th><th>普通 MP4</th><th>fMP4</th></tr></thead>
+          <tbody>
+            <tr><td>索引位置</td><td>moov 中的 stbl（全量）</td><td>moof 中的 trun（每个 fragment）</td></tr>
+            <tr><td>随机访问</td><td>需要完整 moov</td><td>每个 fragment 独立可解码</td></tr>
+            <tr><td>适合场景</td><td>本地播放、渐进式下载</td><td>HLS、DASH、MSE 流式播放</td></tr>
+            <tr><td>文件大小</td><td>更小（索引集中）</td><td>略大（每个 fragment 有 moof 开销）</td></tr>
+            <tr><td>编辑</td><td>需要重写 moov</td><td>可以独立添加/删除 fragment</td></tr>
+            <tr><td>直播</td><td>不支持</td><td>✓ 原生支持</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MSE -->
+    <div class="card" id="mse">
+      <div class="card-header">
+        <span class="material-icons">stream</span>
+        <h2>MSE — Media Source Extensions</h2>
+      </div>
+      <div class="card-body">
+        <p><strong>Media Source Extensions (MSE)</strong> 是浏览器 API，允许 JavaScript 动态向 <code>&lt;video&gt;</code> 元素推送媒体数据。它是所有现代流媒体方案（HLS.js、Dash.js、自定义流）的基础。</p>
+
+        <div class="section-title"><span class="material-icons">schema</span>MSE 工作流程</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #6200EE;">
+              <span class="material-icons">create</span>
+            </div>
+            <div class="flow-content">
+              <h4>1. 创建 MediaSource</h4>
+              <p><code>new MediaSource()</code> → 通过 <code>URL.createObjectURL()</code> 绑定到 video.src</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #03DAC6;">
+              <span class="material-icons">source</span>
+            </div>
+            <div class="flow-content">
+              <h4>2. 创建 SourceBuffer</h4>
+              <p><code>mediaSource.addSourceBuffer(mimeType)</code> — 声明编码格式（如 <code>video/mp4; codecs="avc1.4D401E"</code>）</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #FF9800;">
+              <span class="material-icons">cloud_download</span>
+            </div>
+            <div class="flow-content">
+              <h4>3. 获取媒体数据</h4>
+              <p>通过 <code>fetch()</code> + <code>ReadableStream</code> 分段下载，或使用 Range 请求精确控制</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #4CAF50;">
+              <span class="material-icons">input</span>
+            </div>
+            <div class="flow-content">
+              <h4>4. 追加数据到 SourceBuffer</h4>
+              <p><code>sourceBuffer.appendBuffer(chunk)</code> — 等待 <code>updateend</code> 事件后再追加下一段</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #2196F3;">
+              <span class="material-icons">play_circle</span>
+            </div>
+            <div class="flow-content">
+              <h4>5. 播放</h4>
+              <p>数据足够时浏览器自动开始解码和渲染，<code>video.play()</code> 触发播放</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-icon" style="background: #F44336;">
+              <span class="material-icons">stop</span>
+            </div>
+            <div class="flow-content">
+              <h4>6. 结束流</h4>
+              <p><code>mediaSource.endOfStream()</code> — 通知浏览器所有数据已推送完毕</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title"><span class="material-icons">dns</span>关键 API</div>
+        <table class="md-table">
+          <thead><tr><th>API</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>MediaSource</code></td><td>媒体源容器，管理 SourceBuffer 集合</td></tr>
+            <tr><td><code>SourceBuffer</code></td><td>数据接收器，处理 append/remove 操作</td></tr>
+            <tr><td><code>SourceBufferList</code></td><td>SourceBuffer 集合</td></tr>
+            <tr><td><code>URL.createObjectURL()</code></td><td>将 MediaSource 转为可赋给 video.src 的 URL</td></tr>
+            <tr><td><code>appendBuffer()</code></td><td>向 SourceBuffer 追加 ArrayBuffer/TypedArray</td></tr>
+            <tr><td><code>remove(start, end)</code></td><td>移除指定时间范围的数据（内存管理）</td></tr>
+            <tr><td><code>sourceBuffer.updating</code></td><td>布尔值，指示是否正在执行 append/remove</td></tr>
+            <tr><td><code>mediaSource.readyState</code></td><td>"closed" / "open" / "ended"</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Code Examples -->
+    <div class="card" id="code">
+      <div class="card-header">
+        <span class="material-icons">code</span>
+        <h2>完整代码示例</h2>
+      </div>
+      <div class="card-body">
+
+        <div class="section-title"><span class="material-icons">play_circle</span>基础流式播放器</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>javascript — MSE StreamPlayer</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="keyword">class</span> <span class="type">StreamPlayer</span> {
+  <span class="keyword">constructor</span>(<span class="prop">videoElement</span>) {
+    <span class="keyword">this</span>.video = videoElement;
+    <span class="keyword">this</span>.mediaSource = <span class="keyword">new</span> <span class="type">MediaSource</span>();
+    <span class="keyword">this</span>.video.src = <span class="type">URL</span>.<span class="func">createObjectURL</span>(<span class="keyword">this</span>.mediaSource);
+    <span class="keyword">this</span>.sourceBuffer = <span class="keyword">null</span>;
+    <span class="keyword">this</span>.queue = [];
+
+    <span class="keyword">this</span>.mediaSource.<span class="func">addEventListener</span>(<span class="string">'sourceopen'</span>, () => {
+      <span class="keyword">this</span>.<span class="func">initSourceBuffer</span>();
+    });
+  }
+
+  <span class="func">initSourceBuffer</span>() {
+    <span class="keyword">const</span> mimeType = <span class="string">'video/mp4; codecs="avc1.4D401E, mp4a.40.2"'</span>;
+
+    <span class="keyword">if</span> (!<span class="type">MediaSource</span>.<span class="func">isTypeSupported</span>(mimeType)) {
+      console.<span class="func">error</span>(<span class="string">'不支持的编码格式:'</span>, mimeType);
+      <span class="keyword">return</span>;
+    }
+
+    <span class="keyword">this</span>.sourceBuffer = <span class="keyword">this</span>.mediaSource.<span class="func">addSourceBuffer</span>(mimeType);
+    <span class="keyword">this</span>.sourceBuffer.<span class="func">addEventListener</span>(<span class="string">'updateend'</span>, () => {
+      <span class="keyword">this</span>.<span class="func">processQueue</span>();
+    });
+  }
+
+  <span class="comment">// 追加数据（自动排队）</span>
+  <span class="func">appendBuffer</span>(<span class="prop">data</span>) {
+    <span class="keyword">if</span> (<span class="keyword">this</span>.sourceBuffer.updating) {
+      <span class="keyword">this</span>.queue.<span class="func">push</span>(data);
+    } <span class="keyword">else</span> {
+      <span class="keyword">this</span>.sourceBuffer.<span class="func">appendBuffer</span>(data);
+    }
+  }
+
+  <span class="comment">// 处理排队的数据</span>
+  <span class="func">processQueue</span>() {
+    <span class="keyword">if</span> (<span class="keyword">this</span>.queue.length > <span class="number">0</span> && !<span class="keyword">this</span>.sourceBuffer.updating) {
+      <span class="keyword">this</span>.sourceBuffer.<span class="func">appendBuffer</span>(<span class="keyword">this</span>.queue.<span class="func">shift</span>());
+    }
+  }
+
+  <span class="comment">// 结束流</span>
+  <span class="func">endStream</span>() {
+    <span class="keyword">if</span> (<span class="keyword">this</span>.mediaSource.readyState === <span class="string">'open'</span>
+        && !<span class="keyword">this</span>.sourceBuffer.updating
+        && <span class="keyword">this</span>.queue.length === <span class="number">0</span>) {
+      <span class="keyword">this</span>.mediaSource.<span class="func">endOfStream</span>();
+    }
+  }
+}</pre>
+        </div>
+
+        <div class="section-title"><span class="material-icons">cloud_download</span>Fetch + ReadableStream 分段加载</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>javascript — 流式下载</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="keyword">async function</span> <span class="func">streamLoad</span>(<span class="prop">url</span>, <span class="prop">player</span>) {
+  <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="func">fetch</span>(url);
+  <span class="keyword">const</span> reader = response.body.<span class="func">getReader</span>();
+
+  <span class="keyword">while</span> (<span class="keyword">true</span>) {
+    <span class="keyword">const</span> { done, value } = <span class="keyword">await</span> reader.<span class="func">read</span>();
+    <span class="keyword">if</span> (done) <span class="keyword">break</span>;
+
+    <span class="comment">// value 是 Uint8Array，直接追加</span>
+    player.<span class="func">appendBuffer</span>(value);
+  }
+
+  player.<span class="func">endStream</span>();
+}</pre>
+        </div>
+
+        <div class="section-title"><span class="material-icons">tune</span>Range 请求精确控制</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>javascript — 分段请求</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="keyword">async function</span> <span class="func">loadByRange</span>(<span class="prop">url</span>, <span class="prop">player</span>, <span class="prop">chunkSize</span> = <span class="number">1024</span> * <span class="number">1024</span>) {
+  <span class="comment">// 先获取文件大小</span>
+  <span class="keyword">const</span> head = <span class="keyword">await</span> <span class="func">fetch</span>(url, { <span class="prop">method</span>: <span class="string">'HEAD'</span> });
+  <span class="keyword">const</span> totalSize = <span class="func">parseInt</span>(head.headers.<span class="func">get</span>(<span class="string">'content-length'</span>));
+
+  <span class="comment">// 分段请求</span>
+  <span class="keyword">for</span> (<span class="keyword">let</span> start = <span class="number">0</span>; start < totalSize; start += chunkSize) {
+    <span class="keyword">const</span> end = <span class="type">Math</span>.<span class="func">min</span>(start + chunkSize - <span class="number">1</span>, totalSize - <span class="number">1</span>);
+
+    <span class="keyword">const</span> resp = <span class="keyword">await</span> <span class="func">fetch</span>(url, {
+      <span class="prop">headers</span>: {
+        <span class="string">'Range'</span>: <span class="string">`bytes=</span>${start}<span class="string">-</span>${end}<span class="string">`</span>
+      }
+    });
+
+    <span class="keyword">const</span> buffer = <span class="keyword">await</span> resp.<span class="func">arrayBuffer</span>();
+    player.<span class="func">appendBuffer</span>(buffer);
+  }
+
+  player.<span class="func">endStream</span>();
+}</pre>
+        </div>
+
+        <div class="section-title"><span class="material-icons">video_settings</span>完整示例：带 Seek 支持</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>javascript — AdvancedPlayer</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="keyword">class</span> <span class="type">AdvancedPlayer</span> {
+  <span class="keyword">constructor</span>(<span class="prop">video</span>, <span class="prop">url</span>) {
+    <span class="keyword">this</span>.video = video;
+    <span class="keyword">this</span>.url = url;
+    <span class="keyword">this</span>.ms = <span class="keyword">new</span> <span class="type">MediaSource</span>();
+    <span class="keyword">this</span>.video.src = <span class="type">URL</span>.<span class="func">createObjectURL</span>(<span class="keyword">this</span>.ms);
+    <span class="keyword">this</span>.loadedRanges = [];  <span class="comment">// 已加载的字节范围</span>
+
+    <span class="keyword">this</span>.ms.<span class="func">addEventListener</span>(<span class="string">'sourceopen'</span>, () => <span class="keyword">this</span>.<span class="func">onOpen</span>());
+    video.<span class="func">addEventListener</span>(<span class="string">'seeking'</span>, () => <span class="keyword">this</span>.<span class="func">onSeek</span>());
+  }
+
+  <span class="keyword">async</span> <span class="func">onOpen</span>() {
+    <span class="keyword">this</span>.sb = <span class="keyword">this</span>.ms.<span class="func">addSourceBuffer</span>(<span class="string">'video/mp4; codecs="avc1.4D401E"'</span>);
+    <span class="keyword">await</span> <span class="keyword">this</span>.<span class="func">loadRange</span>(<span class="number">0</span>, <span class="number">1024</span> * <span class="number">1024</span>); <span class="comment">// 先加载 1MB</span>
+  }
+
+  <span class="keyword">async</span> <span class="func">loadRange</span>(<span class="prop">start</span>, <span class="prop">end</span>) {
+    <span class="comment">// 检查是否已加载</span>
+    <span class="keyword">if</span> (<span class="keyword">this</span>.<span class="func">isRangeLoaded</span>(start, end)) <span class="keyword">return</span>;
+
+    <span class="keyword">const</span> resp = <span class="keyword">await</span> <span class="func">fetch</span>(<span class="keyword">this</span>.url, {
+      <span class="prop">headers</span>: { <span class="string">'Range'</span>: <span class="string">`bytes=</span>${start}<span class="string">-</span>${end}<span class="string">`</span> }
+    });
+
+    <span class="keyword">const</span> data = <span class="keyword">await</span> resp.<span class="func">arrayBuffer</span>();
+
+    <span class="keyword">await</span> <span class="keyword">new</span> <span class="type">Promise</span>(<span class="prop">resolve</span> => {
+      <span class="keyword">this</span>.sb.<span class="func">addEventListener</span>(<span class="string">'updateend'</span>, resolve, { <span class="prop">once</span>: <span class="keyword">true</span> });
+      <span class="keyword">this</span>.sb.<span class="func">appendBuffer</span>(data);
+    });
+
+    <span class="keyword">this</span>.loadedRanges.<span class="func">push</span>({ start, end });
+  }
+
+  <span class="func">isRangeLoaded</span>(<span class="prop">start</span>, <span class="prop">end</span>) {
+    <span class="keyword">return</span> <span class="keyword">this</span>.loadedRanges.<span class="func">some</span>(
+      <span class="prop">r</span> => r.start <= start && r.end >= end
+    );
+  }
+
+  <span class="keyword">async</span> <span class="func">onSeek</span>() {
+    <span class="comment">// 根据 seek 时间计算需要的字节范围</span>
+    <span class="keyword">const</span> time = <span class="keyword">this</span>.video.currentTime;
+    <span class="keyword">const</span> range = <span class="keyword">this</span>.<span class="func">timeToByteRange</span>(time);
+    <span class="keyword">await</span> <span class="keyword">this</span>.<span class="func">loadRange</span>(range.start, range.end);
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- FFmpeg -->
+    <div class="card" id="ffmpeg">
+      <div class="card-header">
+        <span class="material-icons">terminal</span>
+        <h2>FFmpeg 实用命令</h2>
+      </div>
+      <div class="card-body">
+
+        <div class="section-title"><span class="material-icons">transform</span>生成流式友好的 MP4</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>bash</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="comment"># 1. 生成 faststart MP4（moov 在前）</span>
+ffmpeg -i input.mp4 -c copy -movflags +faststart output.mp4
+
+<span class="comment"># 2. 生成 Fragmented MP4（支持 MSE）</span>
+ffmpeg -i input.mp4 -c copy \
+  -movflags +frag_keyframe+empty_moov+default_base_moof \
+  output_fmp4.mp4
+
+<span class="comment"># 3. 生成 HLS 分片（.m3u8 + .ts）</span>
+ffmpeg -i input.mp4 -c copy \
+  -hls_time <span class="number">4</span> -hls_list_size <span class="number">0</span> \
+  -hls_segment_filename <span class="string">"seg_%03d.ts"</span> \
+  playlist.m3u8
+
+<span class="comment"># 4. 生成 DASH 分片（.mpd + .m4s）</span>
+ffmpeg -i input.mp4 -c copy \
+  -f dash -seg_duration <span class="number">4</span> \
+  -adaptation_sets <span class="string">"id=0,streams=v id=1,streams=a"</span> \
+  manifest.mpd
+
+<span class="comment"># 5. 仅转换视频轨道为 H.264，音频保持原样</span>
+ffmpeg -i input.mkv \
+  -c:v libx264 -preset medium -crf <span class="number">23</span> \
+  -c:a copy \
+  -movflags +faststart \
+  output.mp4</pre>
+        </div>
+
+        <div class="section-title"><span class="material-icons">analytics</span>分析 MP4 结构</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span>bash</span>
+            <span class="material-icons" onclick="copyCode(this)">content_copy</span>
+          </div>
+<pre><span class="comment"># 查看所有流信息</span>
+ffprobe -show_streams -show_format input.mp4
+
+<span class="comment"># 打印 Box 结构（类似 MediaInfo）</span>
+ffprobe -show_entries format_tags -v trace input.mp4 <span class="number">2</span>&amp;<span class="number">1</span> | grep -E <span class="string">"type|size"</span>
+
+<span class="comment"># 使用 mp4box（GPAC 工具）查看 Box 树</span>
+mp4box -info input.mp4
+
+<span class="comment"># 使用 mediainfo 查看详细信息</span>
+mediainfo input.mp4
+
+<span class="comment"># 检查 moov 位置</span>
+ffprobe -v trace input.mp4 <span class="number">2</span>&amp;<span class="number">1</span> | head -<span class="number">20</span></pre>
+        </div>
+
+        <div class="section-title"><span class="material-icons">build</span>movflags 速查</div>
+        <table class="md-table">
+          <thead><tr><th>标志</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>+faststart</code></td><td>moov 移到文件开头（后处理，适合渐进式下载）</td></tr>
+            <tr><td><code>+frag_keyframe</code></td><td>在关键帧处分割 fragment</td></tr>
+            <tr><td><code>+empty_moov</code></td><td>moov 不含 stbl（仅限 fMP4，moov 会很小）</td></tr>
+            <tr><td><code>+default_base_moof</code></td><td>trun 中的 data_offset 相对于 moof 而非 moof+mdat</td></tr>
+            <tr><td><code>+separate_moof</code></td><td>每个轨道单独一个 moof（DASH 需要）</td></tr>
+            <tr><td><code>+dash</code></td><td>DASH 友好的输出</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-success">
+          <span class="material-icons">tips_and_updates</span>
+          <div class="callout-content">
+            <strong>最佳实践：</strong>对于 Web 流式播放，推荐使用 <code>+faststart</code>（普通 MP4 + Range 请求）或 <code>+frag_keyframe+empty_moov+default_base_moof</code>（fMP4 + MSE）。前者更简单，后者更适合直播和自适应码率。
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function copyCode(el) {
+  const pre = el.closest('.code-block').querySelector('pre');
+  const text = pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    el.textContent = 'check';
+    setTimeout(() => el.textContent = 'content_copy', 1500);
+  });
+}
+</script>
+
+</body>
+</html>

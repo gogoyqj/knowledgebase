@@ -77,7 +77,9 @@
     white-space: pre;
     line-height: 1.4;
     margin: 1rem 0;
+    width: 720px;
     overflow-x: auto;
+    font-size: 0.8rem;
   }
   .note {
     background: var(--surface);
@@ -680,20 +682,30 @@ const result = TurboModule.getData();  <span style="color:var(--muted)">// 同�
 </div>
 
 <!-- ==================== 本项目实现 ==================== -->
-<h2>6. 本项目实现：JSI 版 Circle Plugin</h2>
+<h2>6. 本项目实现：TurboModule 版 Circle Plugin</h2>
+
+<div class="note">
+  <strong>为什么用 TurboModule 而非 JSI 全局函数？</strong><br>
+  旧方案通过 <code>globalThis.__drawCircle</code> 在启动时注册全局函数，和旧 Bridge 一样是全局注册，没有懒加载。<br>
+  TurboModule 通过 <code>TurboModuleRegistry.getEnforcing('CirclePlugin')</code> 按名访问，JS 首次调用时才初始化——底层同样是 JSI 同步调用，但模块发现和加载由 RN 框架统一管理。
+</div>
 
 <div class="arch-diagram">
 ┌─────────────────────────────────────────────────────────────────┐
 │                        JavaScript Layer                         │
-│  src/NativeCirclePlugin.ts  ← 全局函数声明                      │
+│  src/NativeCirclePlugin.ts  ← TurboModule Spec                 │
 │  src/index.tsx              ← React Component                   │
+│                                                                 │
+│  TurboModuleRegistry.getEnforcing&lt;Spec&gt;('CirclePlugin')          │
+│    → global.__turboModuleProxy('CirclePlugin')                  │
+│      → 我们的 wrapper 匹配，返回 HostObject                      │
 └──────────────────────────┬──────────────────────────────────────┘
                            │  JSI (同步，直接调用 C++)
                            ▼
               ┌──────────────────────────┐
-              │    C++ JSI 绑定层        │
-              │  cpp/CircleJSI.h/cpp     │
-              │  installCircleJSI()      │
+              │  C++ TurboModule 层      │
+              │  CirclePluginTurboModule │
+              │  jsi::HostObject         │
               └────────────┬─────────────┘
                            │ 调用
                            ▼
@@ -708,28 +720,28 @@ const result = TurboModule.getData();  <span style="color:var(--muted)">// 同�
 ┌───────────────────────┐    ┌────────────────────────────────────┐
 │      iOS (ObjC++)     │    │       Android (JNI)                │
 │  CirclePlugin.mm      │    │  CirclePluginJNI.cpp               │
-│  setBridge → install  │    │  nativeInstallJSI(runtimePtr)      │
+│  setBridge → install  │    │  nativeRegisterTurboModule()       │
 └───────────────────────┘    └────────────────────────────────────┘
 </div>
 
 <h3>目录结构</h3>
 <pre><code>react-native-plugin/
 ├── cpp/
-│   ├── CircleDrawer.h/cpp     <span style="color:var(--muted)">← C++ 核心：圆形光栅化</span>
-│   └── CircleJSI.h/cpp        <span style="color:var(--muted)">← JSI 绑定：注册全局函数</span>
+│   ├── CircleDrawer.h/cpp             <span style="color:var(--muted)">← C++ 核心：圆形光栅化</span>
+│   └── CirclePluginTurboModule.h/cpp  <span style="color:var(--muted)">← TurboModule：HostObject + 包装 __turboModuleProxy</span>
 ├── src/
-│   ├── NativeCirclePlugin.ts  <span style="color:var(--muted)">← 全局函数类型声明</span>
-│   └── index.tsx              <span style="color:var(--muted)">← React 组件</span>
+│   ├── NativeCirclePlugin.ts          <span style="color:var(--muted)">← TurboModule Spec (TurboModuleRegistry)</span>
+│   └── index.tsx                      <span style="color:var(--muted)">← React 组件</span>
 ├── ios/
-│   ├── CirclePlugin.h/mm      <span style="color:var(--muted)">← ObjC++：获取 Runtime，安装 JSI</span>
+│   ├── CirclePlugin.h/mm              <span style="color:var(--muted)">← ObjC++：获取 Runtime，注册 TurboModule</span>
 │   └── ReactNativePlugin.podspec
 ├── android/
 │   ├── build.gradle
 │   └── src/main/
-│       ├── java/.../CirclePluginModule.java    <span style="color:var(--muted)">← Java：声明 nativeInstallJSI</span>
-│       ├── java/.../CirclePluginPackage.java   <span style="color:var(--muted)">← JSIModulePackage：安装 JSI</span>
+│       ├── java/.../CirclePluginModule.java    <span style="color:var(--muted)">← Java：声明 nativeRegisterTurboModule</span>
+│       ├── java/.../CirclePluginPackage.java   <span style="color:var(--muted)">← JSIModulePackage：注册 TurboModule</span>
 │       └── cpp/
-│           ├── CirclePluginJNI.cpp             <span style="color:var(--muted)">← JNI：调用 installCircleJSI</span>
+│           ├── CirclePluginJNI.cpp             <span style="color:var(--muted)">← JNI：调用 installCirclePluginTurboModule</span>
 │           └── CMakeLists.txt
 └── package.json</code></pre>
 
@@ -753,110 +765,122 @@ CircleResult drawCircle(int radius, uint32_t color);
 
 }</code></pre>
 
-<h3>CircleJSI.h — JSI 绑定声明</h3>
+<h3>CirclePluginTurboModule.h — TurboModule 声明</h3>
 <pre><code>#pragma once
 #include &lt;jsi/jsi.h&gt;
 #include "CircleDrawer.h"
 
 namespace circleplugin {
 
-/**
- * 注册 __drawCircle 到 JS 全局。
- * JS 调用: const result = __drawCircle(100, 0xFF0000FF)
- */
-void installCircleJSI(facebook::jsi::Runtime &runtime);
+<span style="color:var(--muted)">/**
+ * 注册 CirclePlugin TurboModule。
+ * 包装 __turboModuleProxy，注入我们的 HostObject。
+ */</span>
+void installCirclePluginTurboModule(facebook::jsi::Runtime &runtime);
 
 }</code></pre>
 
-<h3>CircleJSI.cpp — JSI 绑定实现</h3>
-<pre><code>#include "CircleJSI.h"
+<h3>CirclePluginTurboModule.cpp — TurboModule 实现</h3>
+<pre><code>#include "CirclePluginTurboModule.h"
 using namespace facebook;
 
 namespace circleplugin {
 
-void installCircleJSI(jsi::Runtime &runtime) {
-  <span style="color:var(--muted)">// 创建 HostFunction，JS 侧作为全局函数调用</span>
-  auto drawCircleFunc = jsi::Function::createFromHostFunction(
-    runtime,
-    jsi::PropNameID::forAscii(runtime, "__drawCircle"),
-    2, <span style="color:var(--muted)">// 参数个数</span>
-    [](jsi::Runtime &rt,
-       const jsi::Value &thisVal,
-       const jsi::Value *args,
-       size_t count) -> jsi::Value {
+<span style="color:var(--muted)">/**
+ * HostObject — JS 通过 TurboModuleRegistry 访问。
+ * 方法在首次访问时才创建（懒解析）。
+ */</span>
+class CirclePluginModule : public jsi::HostObject {
+public:
+  jsi::Value get(jsi::Runtime &amp;rt, const jsi::PropNameID &amp;name) override {
+    if (name.utf8(rt) == "drawCircle") {
+      return jsi::Function::createFromHostFunction(rt, name, 2,
+          [](jsi::Runtime &amp;runtime, const jsi::Value &amp;,
+             const jsi::Value *args, size_t count) -&gt; jsi::Value {
+            auto result = drawCircle(
+                static_cast&lt;int&gt;(args[0].asNumber()),
+                static_cast&lt;uint32_t&gt;(args[1].asNumber()));
+            auto buffer = jsi::ArrayBuffer(runtime,
+                std::make_shared&lt;RawBuffer&gt;(std::move(result.pixels)));
+            auto obj = jsi::Object(runtime);
+            obj.setProperty(rt, "width", result.width);
+            obj.setProperty(rt, "height", result.height);
+            obj.setProperty(rt, "buffer", std::move(buffer));
+            return obj;
+          });
+    }
+    return jsi::Value::undefined();
+  }
 
-      <span style="color:var(--muted)">// 参数校验</span>
-      if (count &lt; 2) {
-        throw jsi::JSError(rt, "__drawCircle requires 2 arguments");
-      }
+  std::vector&lt;jsi::PropNameID&gt; getPropertyNames(jsi::Runtime &amp;rt) override {
+    std::vector&lt;jsi::PropNameID&gt; names;
+    names.push_back(jsi::PropNameID::forAscii(rt, "drawCircle"));
+    return names;
+  }
+};
 
-      int radius = static_cast&lt;int&gt;(args[0].asNumber());
-      uint32_t color = static_cast&lt;uint32_t&gt;(args[1].asNumber());
+<span style="color:var(--muted)">/**
+ * 包装 __turboModuleProxy，注入 CirclePlugin。
+ * 调用时机：JSIModulePackage.getJSIModules()。
+ */</span>
+void installCirclePluginTurboModule(jsi::Runtime &amp;runtime) {
+  auto originalProxy = std::make_shared&lt;jsi::Value&gt;(
+      runtime.global().getProperty(runtime, "__turboModuleProxy"));
+  auto module = std::make_shared&lt;CirclePluginModule&gt;();
 
-      <span style="color:var(--muted)">// 调用 C++ 核心</span>
-      auto result = drawCircle(radius, color);
+  auto wrapper = jsi::Function::createFromHostFunction(runtime,
+      jsi::PropNameID::forAscii(runtime, "__turboModuleProxy"), 1,
+      [originalProxy, module](jsi::Runtime &amp;rt, const jsi::Value &amp;,
+          const jsi::Value *args, size_t count) -&gt; jsi::Value {
+        std::string name = args[0].getString(rt).utf8(rt);
+        if (name == "CirclePlugin") {
+          return jsi::Object::createFromHostObject(rt, module);
+        }
+        return originalProxy-&gt;asObject(rt).asFunction(rt).call(rt, args, count);
+      });
 
-      <span style="color:var(--muted)">// 创建 ArrayBuffer（零拷贝或拷贝取决于平台）</span>
-      auto buffer = jsi::ArrayBuffer::createFromBytes(
-        rt, result.pixels.data(), result.pixels.size()
-      );
-
-      <span style="color:var(--muted)">// 返回 JS 对象</span>
-      auto obj = jsi::Object(rt);
-      obj.setProperty(rt, "width", result.width);
-      obj.setProperty(rt, "height", result.height);
-      obj.setProperty(rt, "buffer", std::move(buffer));
-      return obj;
-    });
-
-  <span style="color:var(--muted)">// 注册到全局</span>
-  runtime.global().setProperty(runtime, "__drawCircle", std::move(drawCircleFunc));
+  runtime.global().setProperty(runtime, "__turboModuleProxy", std::move(wrapper));
 }
 
 }</code></pre>
 
 <div class="tip">
-  <strong>JSI 核心 API</strong>：<br>
-  • <code>jsi::Function::createFromHostFunction()</code> — 将 C++ lambda 包装为 JS 函数<br>
-  • <code>jsi::ArrayBuffer::createFromBytes()</code> — 将 C++ 内存包装为 JS ArrayBuffer<br>
-  • <code>jsi::Object</code> / <code>jsi::Value</code> — JS 对象的 C++ 表示<br>
-  • <code>throw jsi::JSError()</code> — 抛出 JS 异常
+  <strong>TurboModule 核心 API</strong>：<br>
+  • <code>jsi::HostObject</code> — JS 对象的 C++ 代理，<code>get()</code> 在属性访问时延迟调用<br>
+  • 包装 <code>__turboModuleProxy</code> — 注入自定义模块到 RN 的 TurboModule 系统<br>
+  • <code>jsi::Object::createFromHostObject()</code> — 将 HostObject 包装为 JS 对象<br>
+  • <code>shared_ptr&lt;jsi::Value&gt;</code> — 包装 move-only 的 Value，使 lambda 可拷贝
 </div>
 
 <!-- ==================== JS 侧 ==================== -->
 <h2>8. JS 侧调用</h2>
 
-<h3>类型声明</h3>
-<pre><code><span style="color:var(--muted)">// NativeCirclePlugin.ts</span>
-export interface CircleResult {
-  width: number;
-  height: number;
-  buffer: ArrayBuffer;
+<h3>TurboModule Spec</h3>
+<pre><code><span style="color:var(--muted)">// NativeCirclePlugin.ts — TurboModule Spec</span>
+import { TurboModuleRegistry } from 'react-native';
+
+export interface Spec {
+  drawCircle(radius: number, color: number): {
+    width: number;
+    height: number;
+    buffer: ArrayBuffer;
+  };
 }
 
-<span style="color:var(--muted)">// 声明全局 JSI 函数</span>
-declare global {
-  function __drawCircle(radius: number, color: number): CircleResult;
-}
-
-export function drawCircle(radius: number, color: number): CircleResult {
-  if (typeof globalThis.__drawCircle !== 'function') {
-    throw new Error('CirclePlugin JSI not initialized');
-  }
-  return globalThis.__drawCircle(radius, color);
-}</code></pre>
+<span style="color:var(--muted)">// 按名获取，首次调用时才初始化 native module</span>
+export default TurboModuleRegistry.getEnforcing&lt;Spec&gt;('CirclePlugin');</code></pre>
 
 <h3>React 组件</h3>
-<pre><code>import { drawCircle } from './NativeCirclePlugin';
+<pre><code>import NativeCirclePlugin from './NativeCirclePlugin';
 
 function CircleView({ radius, color }) {
   const [uri, setUri] = useState(null);
 
   useEffect(() => {
-    <span style="color:var(--green)">// 同步调用！无 Promise、无 await</span>
-    const result = drawCircle(radius, color);
+    <span style="color:var(--green)">// 同步调用！底层是 JSI，无 Promise、无 await</span>
+    const result = NativeCirclePlugin.drawCircle(radius, color);
     const pixels = new Uint8Array(result.buffer);
-    <span style="color:var(--muted)">// ... 转 base64 渲染</span>
+    <span style="color:var(--muted)">// RGBA → BMP → base64 → Image</span>
   }, [radius, color]);
 
   return &lt;Image source={{ uri }} /&gt;;
@@ -868,7 +892,7 @@ function CircleView({ radius, color }) {
 <h3>iOS — ObjC++ 获取 Runtime</h3>
 <pre><code><span style="color:var(--muted)">// CirclePlugin.mm</span>
 #import &lt;React/RCTBridge+Private.h&gt;
-#include "../cpp/CircleJSI.h"
+#include "../cpp/CirclePluginTurboModule.h"
 
 @implementation CirclePlugin
 
@@ -879,65 +903,87 @@ RCT_EXPORT_MODULE();
   dispatch_async(dispatch_get_main_queue(), ^{
     RCTCxxBridge *cxxBridge = (RCTCxxBridge *)self.bridge;
     jsi::Runtime *runtime = (jsi::Runtime *)cxxBridge.runtime;
-    circleplugin::installCircleJSI(*runtime);  <span style="color:var(--muted)">// 一行搞定</span>
+    circleplugin::installCirclePluginTurboModule(*runtime);
   });
 }
 
 @end</code></pre>
 
 <h3>Android — JNI 传递 Runtime 指针</h3>
-<pre><code><span style="color:var(--muted">// CirclePluginJNI.cpp</span>
+<pre><code><span style="color:var(--muted)">// CirclePluginJNI.cpp</span>
 JNIEXPORT void JNICALL
-Java_com_circleplugin_CirclePluginModule_nativeInstallJSI(
+Java_com_circleplugin_CirclePluginModule_nativeRegisterTurboModule(
     JNIEnv *env, jclass clazz, jlong runtimePtr) {
 
     auto *runtime = reinterpret_cast&lt;jsi::Runtime *&gt;(runtimePtr);
-    circleplugin::installCircleJSI(*runtime);  <span style="color:var(--muted">// 同一行</span>
+    circleplugin::installCirclePluginTurboModule(*runtime);
 }</code></pre>
 
-<pre><code><span style="color:var(--muted">// CirclePluginPackage.java — 实现 JSIModulePackage</span>
+<pre><code><span style="color:var(--muted)">// CirclePluginPackage.java — JSIModulePackage 获取 runtime 指针</span>
+<span style="color:var(--muted)">// getJSIModules() 在 TurboModuleManager 初始化之后、JS 执行之前调用</span>
 public class CirclePluginPackage implements ReactPackage, JSIModulePackage {
 
     @Override
     public List&lt;JSIModuleSpec&gt; getJSIModules(
             ReactApplicationContext ctx,
             JavaScriptContextHolder jsContext) {
-        circleModule.installJSI(jsContext.get());  <span style="color:var(--muted">// 传 runtime 指针</span>
+        CirclePluginModule.registerTurboModule(jsContext.get());
         return Collections.emptyList();
     }
 }</code></pre>
 
-<!-- ==================== Bridge vs JSI ==================== -->
-<h2>10. Bridge vs JSI 代码对比</h2>
+<!-- ==================== Bridge vs JSI vs TurboModule ==================== -->
+<h2>10. Bridge vs JSI 全局函数 vs TurboModule</h2>
 
 <table>
-  <tr><th></th><th>Bridge (旧)</th><th>JSI (新)</th></tr>
+  <tr><th></th><th>Bridge (旧)</th><th>JSI 全局函数</th><th>TurboModule (本项目)</th></tr>
   <tr>
     <td>JS 调用</td>
     <td><code>await NativeModules.X.drawCircle()</code></td>
-    <td><code>drawCircle()</code> <span style="color:var(--green)">同步</span></td>
+    <td><code>globalThis.__drawCircle()</code></td>
+    <td><code>TurboModuleRegistry.getEnforcing('CirclePlugin').drawCircle()</code></td>
+  </tr>
+  <tr>
+    <td>同步/异步</td>
+    <td>异步 Promise</td>
+    <td>同步</td>
+    <td>同步 <span style="color:var(--green)">（底层 JSI）</span></td>
+  </tr>
+  <tr>
+    <td>加载时机</td>
+    <td>懒加载（首次调用）</td>
+    <td>启动时注册到 globalThis</td>
+    <td>懒加载（首次调用）</td>
+  </tr>
+  <tr>
+    <td>模块发现</td>
+    <td>NativeModules 代理</td>
+    <td>无，JS 必须知道全局名</td>
+    <td>TurboModuleRegistry 统一管理</td>
+  </tr>
+  <tr>
+    <td>命名空间</td>
+    <td>隔离</td>
+    <td>污染 globalThis</td>
+    <td>隔离</td>
   </tr>
   <tr>
     <td>返回值</td>
     <td>Promise&lt;{data: base64}&gt;</td>
-    <td>{buffer: ArrayBuffer} <span style="color:var(--green)">零拷贝</span></td>
-  </tr>
-  <tr>
-    <td>Android 代码</td>
-    <td>Java @ReactMethod + JNI</td>
-    <td>JNI 直接注册 JSI 函数</td>
-  </tr>
-  <tr>
-    <td>类型安全</td>
-    <td>无</td>
-    <td>Codegen 生成</td>
+    <td>{buffer: ArrayBuffer}</td>
+    <td>{buffer: ArrayBuffer}</td>
   </tr>
   <tr>
     <td>性能</td>
     <td>JSON 序列化开销</td>
     <td>C++ 直调，无开销</td>
+    <td>C++ 直调，无开销</td>
   </tr>
 </table>
+
+<div class="note">
+  <strong>TurboModule = Bridge 的懒加载 + JSI 的同步调用</strong>，两者的优点组合。
+</div>
 
 <!-- ==================== Expo Modules ==================== -->
 <h2>11. Expo Modules <span class="badge recommended">推荐</span></h2>
