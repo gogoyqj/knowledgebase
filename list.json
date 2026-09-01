@@ -1,4 +1,5 @@
 [
+  { "name": "crdt", "src": "crdt.html" },
   { "name": "design", "src": "design.html" },
   { "name": "electron", "src": "electron.html" },
   { "name": "log", "src": "log.html" },
@@ -25,5 +26,6 @@
   { "name": "socket-transfer", "src": "socket-transfer.html" },
   { "name": "ssr", "src": "ssr.html" },
   { "name": "vue", "src": "vue.html" },
-  { "name": "webGPU", "src": "webGPU.html" }
+  { "name": "webGPU", "src": "webGPU.html" },
+  { "name": "webpack", "src": "webpack.html" }
 ]

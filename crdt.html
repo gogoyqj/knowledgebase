@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRDT · Fugue · ProseMirror - 协同编辑技术原理</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --md-primary: #1565C0;
+            --md-primary-light: #1E88E5;
+            --md-primary-dark: #0D47A1;
+            --md-secondary: #00897B;
+            --md-surface: #FFFFFF;
+            --md-background: #FAFAFA;
+            --md-on-surface: #212121;
+            --md-on-surface-medium: #666666;
+            --md-on-surface-light: #9E9E9E;
+            --md-outline: #E0E0E0;
+            --md-error: #D32F2F;
+            --md-shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            --md-shadow-2: 0 3px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12);
+            --md-shadow-3: 0 10px 20px rgba(0,0,0,0.15), 0 3px 6px rgba(0,0,0,0.10);
+            --md-radius: 8px;
+            --md-radius-lg: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--md-background);
+            color: var(--md-on-surface);
+            line-height: 1.6;
+        }
+
+        /* Top App Bar */
+        .app-bar {
+            background: linear-gradient(135deg, var(--md-primary-dark), var(--md-primary));
+            color: white;
+            padding: 24px 32px;
+            box-shadow: var(--md-shadow-2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .app-bar h1 {
+            font-size: 24px;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .app-bar .subtitle {
+            font-size: 14px;
+            opacity: 0.87;
+            margin-top: 4px;
+            font-weight: 300;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Navigation Chips */
+        .nav-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+            position: sticky;
+            top: 80px;
+            z-index: 50;
+            background: var(--md-background);
+            padding: 12px 0;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: var(--md-surface);
+            border: 1px solid var(--md-outline);
+            color: var(--md-on-surface);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .chip:hover {
+            background: #E3F2FD;
+            border-color: var(--md-primary);
+            color: var(--md-primary);
+            box-shadow: var(--md-shadow-1);
+        }
+
+        .chip .material-icons {
+            font-size: 18px;
+        }
+
+        /* Section Cards */
+        .section {
+            background: var(--md-surface);
+            border-radius: var(--md-radius-lg);
+            box-shadow: var(--md-shadow-1);
+            margin-bottom: 24px;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .section:hover {
+            box-shadow: var(--md-shadow-2);
+        }
+
+        .section-header {
+            padding: 24px 28px 16px;
+            border-bottom: 1px solid var(--md-outline);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .section-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .section-icon.blue { background: #E3F2FD; color: var(--md-primary); }
+        .section-icon.green { background: #E8F5E9; color: #2E7D32; }
+        .section-icon.purple { background: #F3E5F5; color: #7B1FA2; }
+        .section-icon.orange { background: #FFF3E0; color: #E65100; }
+        .section-icon.red { background: #FFEBEE; color: #C62828; }
+        .section-icon.teal { background: #E0F2F1; color: #00695C; }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+        }
+
+        .section-subtitle {
+            font-size: 14px;
+            color: var(--md-on-surface-medium);
+            margin-top: 2px;
+        }
+
+        .section-body {
+            padding: 24px 28px;
+        }
+
+        /* Typography */
+        h3 {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--md-primary);
+            margin: 24px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3:first-child {
+            margin-top: 0;
+        }
+
+        h3 .material-icons {
+            font-size: 20px;
+        }
+
+        h4 {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            margin: 16px 0 8px;
+        }
+
+        p {
+            margin-bottom: 12px;
+            color: var(--md-on-surface);
+            font-size: 15px;
+        }
+
+        /* Code Blocks with fixed-width ASCII */
+        .code-block {
+            background: #263238;
+            color: #EEFFFF;
+            padding: 20px 24px;
+            border-radius: var(--md-radius);
+            margin: 16px 0;
+            overflow-x: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            letter-spacing: 0.3px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .code-block .comment {
+            color: #546E7A;
+        }
+
+        .code-block .keyword {
+            color: #C792EA;
+        }
+
+        .code-block .string {
+            color: #C3E88D;
+        }
+
+        .code-block .type {
+            color: #FFCB6B;
+        }
+
+        .code-block .function {
+            color: #82AAFF;
+        }
+
+        .code-block .operator {
+            color: #89DDFF;
+        }
+
+        /* ASCII Diagram Blocks */
+        .ascii-diagram {
+            background: #1E1E1E;
+            color: #D4D4D4;
+            padding: 24px;
+            border-radius: var(--md-radius);
+            margin: 16px 0;
+            overflow-x: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            letter-spacing: 0.5px;
+            white-space: pre;
+            border-left: 4px solid var(--md-primary);
+        }
+
+        .ascii-diagram .highlight {
+            color: #4FC1FF;
+        }
+
+        .ascii-diagram .accent {
+            color: #C792EA;
+        }
+
+        .ascii-diagram .green {
+            color: #C3E88D;
+        }
+
+        .ascii-diagram .yellow {
+            color: #FFCB6B;
+        }
+
+        .ascii-diagram .red {
+            color: #FF5370;
+        }
+
+        /* Inline Code */
+        code {
+            font-family: 'Roboto Mono', monospace;
+            background: #E3F2FD;
+            color: var(--md-primary-dark);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* Info Cards */
+        .info-card {
+            background: #E3F2FD;
+            border-left: 4px solid var(--md-primary);
+            padding: 16px 20px;
+            border-radius: 0 var(--md-radius) var(--md-radius) 0;
+            margin: 16px 0;
+        }
+
+        .info-card.warning {
+            background: #FFF3E0;
+            border-left-color: #F57C00;
+        }
+
+        .info-card.success {
+            background: #E8F5E9;
+            border-left-color: #2E7D32;
+        }
+
+        .info-card.error {
+            background: #FFEBEE;
+            border-left-color: #D32F2F;
+        }
+
+        .info-card .title {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-card .title .material-icons {
+            font-size: 18px;
+        }
+
+        .info-card p {
+            font-size: 14px;
+            margin: 0;
+            color: var(--md-on-surface-medium);
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: var(--md-on-surface);
+        }
+
+        li code {
+            font-size: 12px;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            margin: 16px 0;
+            border-radius: var(--md-radius);
+            box-shadow: var(--md-shadow-1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--md-surface);
+            font-size: 14px;
+        }
+
+        thead {
+            background: #F5F5F5;
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            border-bottom: 2px solid var(--md-outline);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--md-outline);
+            color: var(--md-on-surface-medium);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: #FAFAFA;
+        }
+
+        /* Grid Layout */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Mini Cards */
+        .mini-card {
+            background: #FAFAFA;
+            border: 1px solid var(--md-outline);
+            border-radius: var(--md-radius);
+            padding: 16px;
+        }
+
+        .mini-card .label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--md-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .mini-card .value {
+            font-size: 14px;
+            color: var(--md-on-surface);
+        }
+
+        /* Tags */
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 2px;
+        }
+
+        .tag.blue { background: #E3F2FD; color: var(--md-primary); }
+        .tag.green { background: #E8F5E9; color: #2E7D32; }
+        .tag.purple { background: #F3E5F5; color: #7B1FA2; }
+        .tag.orange { background: #FFF3E0; color: #E65100; }
+
+        /* Flow Diagram */
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin: 16px 0;
+            padding: 16px;
+            background: #FAFAFA;
+            border-radius: var(--md-radius);
+            border: 1px solid var(--md-outline);
+        }
+
+        .flow-step .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--md-primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .flow-step .step-content {
+            flex: 1;
+        }
+
+        .flow-step .step-title {
+            font-weight: 500;
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .flow-step .step-desc {
+            font-size: 14px;
+            color: var(--md-on-surface-medium);
+        }
+
+        /* Comparison Table */
+        .comparison-header {
+            background: var(--md-primary);
+            color: white;
+        }
+
+        .comparison-header th {
+            color: white;
+            border-bottom-color: var(--md-primary-light);
+        }
+
+        /* Syntax Highlighting for formulas */
+        .formula {
+            background: #F5F5F5;
+            padding: 12px 16px;
+            border-radius: var(--md-radius);
+            font-family: 'Roboto Mono', monospace;
+            font-size: 14px;
+            margin: 12px 0;
+            text-align: center;
+            border: 1px solid var(--md-outline);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #F5F5F5;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #BDBDBD;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9E9E9E;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 32px;
+            color: var(--md-on-surface-light);
+            font-size: 14px;
+            border-top: 1px solid var(--md-outline);
+            margin-top: 48px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- App Bar -->
+<header class="app-bar">
+    <h1>CRDT · Fugue · ProseMirror</h1>
+    <div class="subtitle">协同编辑技术原理与架构深度解析</div>
+</header>
+
+<div class="container">
+
+    <!-- Navigation -->
+    <nav class="nav-chips">
+        <a href="#crdt" class="chip"><span class="material-icons">hub</span> CRDT 基础</a>
+        <a href="#types" class="chip"><span class="material-icons">category</span> 数据类型</a>
+        <a href="#fugue" class="chip"><span class="material-icons">music_note</span> Fugue 算法</a>
+        <a href="#prosemirror" class="chip"><span class="material-icons">edit</span> ProseMirror</a>
+        <a href="#architecture" class="chip"><span class="material-icons">architecture</span> 架构整合</a>
+        <a href="#comparison" class="chip"><span class="material-icons">compare</span> 对比分析</a>
+    </nav>
+
+    <!-- Section 1: CRDT Basics -->
+    <section id="crdt" class="section">
+        <div class="section-header">
+            <div class="section-icon blue">
+                <span class="material-icons">hub</span>
+            </div>
+            <div>
+                <div class="section-title">CRDT 基础概念</div>
+                <div class="section-subtitle">Conflict-free Replicated Data Types</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">lightbulb</span> 什么是 CRDT？</h3>
+            <p>
+                CRDT（无冲突复制数据类型）是一种特殊的数据结构，它能够在分布式系统中实现
+                <strong>无需协调</strong>的最终一致性。多个节点可以独立、并发地修改数据，然后自动合并，
+                且保证所有节点最终达到相同的状态。
+            </p>
+
+            <div class="info-card success">
+                <div class="title"><span class="material-icons">check_circle</span> 核心优势</div>
+                <p>无需中央协调器、无需锁机制、无需复杂的冲突解决算法，数据自动收敛到一致状态。</p>
+            </div>
+
+            <h3><span class="material-icons">rule</span> 核心数学性质</h3>
+            <p>CRDT 的正确性建立在以下数学性质之上：</p>
+
+            <div class="grid-2">
+                <div class="mini-card">
+                    <div class="label">交换律 Commutativity</div>
+                    <div class="value">
+                        <code>a ∘ b = b ∘ a</code><br>
+                        操作的执行顺序不影响结果
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">结合律 Associativity</div>
+                    <div class="value">
+                        <code>(a ∘ b) ∘ c = a ∘ (b ∘ c)</code><br>
+                        操作的分组方式不影响结果
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">幂等性 Idempotency</div>
+                    <div class="value">
+                        <code>a ∘ a = a</code><br>
+                        重复执行同一操作不产生副作用
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">单调性 Monotonicity</div>
+                    <div class="value">
+                        状态只能"增长"，不会回退<br>
+                        保证最终收敛
+                    </div>
+                </div>
+            </div>
+
+            <h3><span class="material-icons">compare_arrows</span> 两种 CRDT 类型</h3>
+
+            <div class="ascii-diagram"><span class="highlight">┌─────────────────────────────────────────────────────────────────────┐</span>
+<span class="highlight">│</span>                        <span class="yellow">CRDT 两大类型</span>                              <span class="highlight">│</span>
+<span class="highlight">├───────────────────────────────┬─────────────────────────────────────┤</span>
+<span class="highlight">│</span>      <span class="green">State-based (CvRDT)</span>      <span class="highlight">│</span>      <span class="accent">Operation-based (CmRDT)</span>      <span class="highlight">│</span>
+<span class="highlight">├───────────────────────────────┼─────────────────────────────────────┤</span>
+<span class="highlight">│</span>                               <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">│</span>  传输完整状态                   <span class="highlight">│</span>  传输操作                           <span class="highlight">│</span>
+<span class="highlight">│</span>                               <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">│</span>  <span class="yellow">A</span> ──state──▶ <span class="yellow">B</span>              <span class="highlight">│</span>  <span class="yellow">A</span> ──op──▶ <span class="yellow">B</span>                      <span class="highlight">│</span>
+<span class="highlight">│</span>                               <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">│</span>  merge(s₁, s₂) 必须:          <span class="highlight">│</span>  传输必须:                          <span class="highlight">│</span>
+<span class="highlight">│</span>    • 交换律                    <span class="highlight">│</span>    • 恰好一次 (exactly-once)        <span class="highlight">│</span>
+<span class="highlight">│</span>    • 结合律                    <span class="highlight">│</span>    • 保序 (causal order)           <span class="highlight">│</span>
+<span class="highlight">│</span>    • 幂等性                    <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">│</span>                               <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">│</span>  优点: 网络容错性强              <span class="highlight">│</span>  优点: 带宽效率高                    <span class="highlight">│</span>
+<span class="highlight">│</span>  缺点: 状态传输量大              <span class="highlight">│</span>  缺点: 需要可靠传输                 <span class="highlight">│</span>
+<span class="highlight">│</span>                               <span class="highlight">│</span>                                     <span class="highlight">│</span>
+<span class="highlight">└───────────────────────────────┴─────────────────────────────────────┘</span></div>
+        </div>
+    </section>
+
+    <!-- Section 2: CRDT Data Types -->
+    <section id="types" class="section">
+        <div class="section-header">
+            <div class="section-icon green">
+                <span class="material-icons">category</span>
+            </div>
+            <div>
+                <div class="section-title">常见 CRDT 数据类型</div>
+                <div class="section-subtitle">从简单计数器到复杂序列</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">tag</span> 基础类型</h3>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>描述</th>
+                            <th>操作</th>
+                            <th>应用场景</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>G-Counter</code></td>
+                            <td>只增计数器</td>
+                            <td>increment</td>
+                            <td>页面浏览量、点赞数</td>
+                        </tr>
+                        <tr>
+                            <td><code>PN-Counter</code></td>
+                            <td>可增可减计数器</td>
+                            <td>increment / decrement</td>
+                            <td>库存数量、余额</td>
+                        </tr>
+                        <tr>
+                            <td><code>G-Set</code></td>
+                            <td>只增集合</td>
+                            <td>add</td>
+                            <td>标签集合、已读消息</td>
+                        </tr>
+                        <tr>
+                            <td><code>OR-Set</code></td>
+                            <td>可移除集合</td>
+                            <td>add / remove</td>
+                            <td>购物车、协作文档</td>
+                        </tr>
+                        <tr>
+                            <td><code>LWW-Register</code></td>
+                            <td>最后写入胜出</td>
+                            <td>assign</td>
+                            <td>用户配置、状态标志</td>
+                        </tr>
+                        <tr>
+                            <td><code>Sequence CRDT</code></td>
+                            <td>有序序列</td>
+                            <td>insert / delete</td>
+                            <td>文本编辑、列表</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3><span class="material-icons">calculate</span> G-Counter 工作原理</h3>
+            <p>G-Counter 使用向量时钟，每个节点维护自己的计数器：</p>
+
+            <div class="ascii-diagram"><span class="highlight">G-Counter 示例 (3个节点)</span>
+
+<span class="yellow">节点 A</span>: [5, 0, 0]    <span class="comment">// A 计数 5</span>
+<span class="yellow">节点 B</span>: [0, 3, 0]    <span class="comment">// B 计数 3</span>
+<span class="yellow">节点 C</span>: [0, 0, 7]    <span class="comment">// C 计数 7</span>
+
+<span class="green">合并规则</span>: merge(a, b) = [max(a[i], b[i]) for each i]
+
+<span class="accent">合并后</span>: [5, 3, 7]    <span class="comment">// 总计 = 5 + 3 + 7 = 15</span>
+
+<span class="highlight">┌──────────────────────────────────────────────┐</span>
+<span class="highlight">│</span>  <span class="yellow">A</span>: [5,0,0] ──merge──▶ <span class="green">[5,3,7]</span> ◀──merge── <span class="yellow">B</span>: [0,3,0]  <span class="highlight">│</span>
+<span class="highlight">│</span>                    ▲                          <span class="highlight">│</span>
+<span class="highlight">│</span>                    │                          <span class="highlight">│</span>
+<span class="highlight">│</span>               merge│                          <span class="highlight">│</span>
+<span class="highlight">│</span>                    │                          <span class="highlight">│</span>
+<span class="highlight">│</span>               <span class="yellow">C</span>: [0,0,7]                       <span class="highlight">│</span>
+<span class="highlight">└──────────────────────────────────────────────┘</span></div>
+
+            <h3><span class="material-icons">text_fields</span> Sequence CRDT（序列 CRDT）</h3>
+            <p>
+                序列 CRDT 是文本编辑的核心。每个字符被赋予一个<strong>全局唯一标识符</strong>，
+                通过标识符的偏序关系确定字符顺序，而非依赖数组索引。
+            </p>
+
+            <div class="info-card">
+                <div class="title"><span class="material-icons">info</span> 关键洞察</div>
+                <p>传统数组使用位置索引 [0, 1, 2, ...]，并发插入会导致索引冲突。
+                   Sequence CRDT 使用唯一 ID，每个字符有固定身份，不受其他插入影响。</p>
+            </div>
+
+            <div class="ascii-diagram"><span class="highlight">Sequence CRDT 字符标识</span>
+
+初始文档: <span class="yellow">H</span> <span class="yellow">e</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+
+每个字符有唯一 ID:
+  <span class="yellow">H</span> → (site=A, seq=1, value='H')
+  <span class="yellow">e</span> → (site=A, seq=2, value='e')
+  <span class="yellow">l</span> → (site=A, seq=3, value='l')
+  <span class="yellow">l</span> → (site=A, seq=4, value='l')
+  <span class="yellow">o</span> → (site=A, seq=5, value='o')
+
+<span class="green">并发插入 "X" 和 "Y" 在位置 2 之后:</span>
+
+  <span class="yellow">H</span> <span class="yellow">e</span> <span class="accent">X</span> <span class="accent">Y</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+        │   │
+        │   └─ (site=B, seq=1) <span class="comment">// B 插入</span>
+        └───── (site=A, seq=6) <span class="comment">// A 插入</span>
+
+<span class="green">排序规则</span>: 先比较 parent ID，再比较 site ID
+  → 所有节点得到相同顺序，无需协调</div>
+        </div>
+    </section>
+
+    <!-- Section 3: Fugue Algorithm -->
+    <section id="fugue" class="section">
+        <div class="section-header">
+            <div class="section-icon purple">
+                <span class="material-icons">music_note</span>
+            </div>
+            <div>
+                <div class="section-title">Fugue 算法</div>
+                <div class="section-subtitle">高性能文本编辑 CRDT · Joseph Gentle & Martin Kleppmann</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">history</span> 背景与动机</h3>
+            <p>
+                Fugue 是 2023 年由 Joseph Gentle 和 Martin Kleppmann 提出的序列 CRDT 算法，
+                专为<strong>协同文本编辑</strong>设计。它解决了早期文本 CRDT 的关键问题：
+            </p>
+
+            <ul>
+                <li><strong>Logoot / LSEQ</strong>：使用随机 ID，可能导致排序不一致</li>
+                <li><strong>RGA</strong>：并发插入的排序依赖实现细节，行为不可预测</li>
+                <li><strong>YATA (Yjs)</strong>：复杂的左右邻居规则，边界情况多</li>
+                <li><strong>Fugue</strong>：简洁的数学模型，行为完全可预测</li>
+            </ul>
+
+            <h3><span class="material-icons">architecture</span> 核心数据结构</h3>
+            <p>Fugue 使用<strong>带唯一 ID 的双向链表</strong>表示文本序列：</p>
+
+            <div class="ascii-diagram"><span class="highlight">Fugue 数据结构</span>
+
+<span class="yellow">Character ID</span> = (site_id, sequence_number)
+  • site_id: 节点唯一标识 (UUID 或整数)
+  • sequence_number: 该节点的操作序号
+
+<span class="yellow">Document</span> = Linked List of Characters
+
+<span class="accent">┌─────────────────────────────────────────────────────────────┐</span>
+<span class="accent">│</span>                                                             <span class="accent">│</span>
+<span class="accent">│</span>  <span class="green">HEAD</span> ◄──▶ <span class="yellow">(A,1,'H')</span> ◄──▶ <span class="yellow">(A,2,'e')</span> ◄──▶ <span class="yellow">(A,3,'l')</span> ◄──▶ ...  <span class="accent">│</span>
+<span class="accent">│</span>                                                             <span class="accent">│</span>
+<span class="accent">│</span>  每个节点存储:                                               <span class="accent">│</span>
+<span class="accent">│</span>    • id: (site, seq)                                        <span class="accent">│</span>
+<span class="accent">│</span>    • value: 字符内容                                         <span class="accent">│</span>
+<span class="accent">│</span>    • parent_id: 插入位置的参考点                              <span class="accent">│</span>
+<span class="accent">│</span>    • is_deleted: 是否已删除 (tombstone)                      <span class="accent">│</span>
+<span class="accent">│</span>    • left, right: 链表指针                                   <span class="accent">│</span>
+<span class="accent">│</span>                                                             <span class="accent">│</span>
+<span class="accent">└─────────────────────────────────────────────────────────────┘</span></div>
+
+            <h3><span class="material-icons">compare_arrows</span> 并发插入的处理</h3>
+            <p>当两个用户同时在同一位置插入字符时，Fugue 使用<strong>确定性排序规则</strong>：</p>
+
+            <div class="flow-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">找到插入位置</div>
+                    <div class="step-desc">新字符的 parent_id 指向插入点右侧的字符</div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">检查并发冲突</div>
+                    <div class="step-desc">如果多个字符有相同的 parent_id，说明是并发插入</div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">确定性排序</div>
+                    <div class="step-desc">按 site_id 排序（字典序），site_id 小的排在左边</div>
+                </div>
+            </div>
+
+            <div class="ascii-diagram"><span class="highlight">Fugue 并发插入示例</span>
+
+初始状态: <span class="yellow">H</span> <span class="yellow">e</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+
+<span class="green">用户 A (site=A)</span>: 在 'e' 之后插入 'X'
+<span class="green">用户 B (site=B)</span>: 在 'e' 之后插入 'Y'
+
+操作:
+  A: insert('X', parent=(A,2))  <span class="comment">// parent = 'e' 的 ID</span>
+  B: insert('Y', parent=(A,2))  <span class="comment">// 同一个 parent</span>
+
+<span class="accent">合并后 (所有节点一致):</span>
+
+  <span class="yellow">H</span> <span class="yellow">e</span> <span class="accent">X</span> <span class="accent">Y</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+        │   │
+        │   └─ (B,1) <span class="comment">// site_id B > A，排在右边</span>
+        └───── (A,6) <span class="comment">// site_id A < B，排在左边</span>
+
+<span class="green">排序规则</span>: 相同 parent 的子节点，按 site_id 字典序排列
+  → 完全确定性，所有节点结果相同</div>
+
+            <h3><span class="material-icons">delete</span> 删除操作与 Tombstone</h3>
+            <p>Fugue 使用 <strong>tombstone</strong>（墓碑）机制处理删除：</p>
+
+            <div class="ascii-diagram"><span class="highlight">删除操作</span>
+
+删除前: <span class="yellow">H</span> <span class="yellow">e</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+
+删除 'e' (site=A, seq=2):
+  → 标记 is_deleted = true
+  → 物理上保留在链表中
+
+<span class="accent">逻辑视图</span>: <span class="yellow">H</span> <span class="red">~~e~~</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>  →  <span class="yellow">H</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>
+
+<span class="accent">物理视图</span>: <span class="yellow">H</span> <span class="red">e(del)</span> <span class="yellow">l</span> <span class="yellow">l</span> <span class="yellow">o</span>  <span class="comment">// 仍占位</span>
+
+<span class="green">为什么保留 tombstone?</span>
+  → 并发操作可能引用已删除字符作为 parent
+  → 需要保留 ID 以维持因果关系</div>
+
+            <h3><span class="material-icons">cleaning_services</span> 垃圾回收 (GC)</h3>
+            <p>长期编辑会产生大量 tombstone，需要垃圾回收：</p>
+
+            <div class="info-card warning">
+                <div class="title"><span class="material-icons">warning</span> GC 条件</div>
+                <p>只有当<strong>所有节点</strong>都确认某个 tombstone 不再被引用时，才能安全删除。
+                   通常通过向量时钟或版本向量追踪全局最小版本来判断。</p>
+            </div>
+
+            <div class="ascii-diagram"><span class="highlight">垃圾回收流程</span>
+
+<span class="yellow">版本向量</span>: {A: 10, B: 8, C: 12}
+
+<span class="green">全局最小版本</span>: min(10, 8, 12) = 8
+
+<span class="accent">规则</span>: seq ≤ 8 的 tombstone 可以安全删除
+  → 因为所有节点都已处理到 seq=8
+
+<span class="red">删除前</span>: <span class="yellow">H</span> <span class="red">e(del,seq=2)</span> <span class="yellow">l</span> <span class="red">x(del,seq=5)</span> <span class="yellow">l</span> <span class="yellow">o</span>
+<span class="green">删除后</span>: <span class="yellow">H</span> <span class="yellow">l</span> <span class="red">x(del,seq=5)</span> <span class="yellow">l</span> <span class="yellow">o</span>  <span class="comment">// seq=2 的被回收</span></div>
+
+            <h3><span class="material-icons">speed</span> 性能特点</h3>
+
+            <div class="grid-3">
+                <div class="mini-card">
+                    <div class="label">时间复杂度</div>
+                    <div class="value">
+                        插入: O(n) 查找 + O(1) 插入<br>
+                        删除: O(1) 标记<br>
+                        合并: O(n) 遍历
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">空间复杂度</div>
+                    <div class="value">
+                        每字符 ~40-80 bytes<br>
+                        (ID + parent + value + pointers)<br>
+                        GC 后可显著减少
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">网络传输</div>
+                    <div class="value">
+                        每操作 ~50-100 bytes<br>
+                        (ID + parent + value)<br>
+                        批量同步更高效
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 4: ProseMirror -->
+    <section id="prosemirror" class="section">
+        <div class="section-header">
+            <div class="section-icon orange">
+                <span class="material-icons">edit</span>
+            </div>
+            <div>
+                <div class="section-title">ProseMirror 架构</div>
+                <div class="section-subtitle">富文本编辑器工具包 · Marijn Haverbeke</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">view_module</span> 核心架构</h3>
+            <p>
+                ProseMirror 是一个<strong>工具包</strong>而非完整编辑器。它提供构建块，
+                让开发者定义自己的文档模型和编辑行为。
+            </p>
+
+            <div class="ascii-diagram"><span class="highlight">ProseMirror 核心架构</span>
+
+<span class="accent">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="accent">│</span>                         <span class="yellow">EditorView</span>                              <span class="accent">│</span>
+<span class="accent">│</span>                    (DOM 渲染 & 用户交互)                          <span class="accent">│</span>
+<span class="accent">├─────────────────────────────────────────────────────────────────┤</span>
+<span class="accent">│</span>                              │                                  <span class="accent">│</span>
+<span class="accent">│</span>                              ▼                                  <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                    <span class="green">EditorState</span>                          │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  <span class="yellow">Document</span>   │ │  <span class="yellow">Selection</span>  │ │    <span class="yellow">Plugins</span>      │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  (Node)     │ │  (TextSel)  │ │ (history, etc)  │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └─────────────┘ └─────────────┘ └─────────────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └─────────────────────────────────────────────────────────┘    <span class="accent">│</span>
+<span class="accent">│</span>                              │                                  <span class="accent">│</span>
+<span class="accent">│</span>                              ▼                                  <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                    <span class="green">Transform</span>                            │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │   Step      │ │   Step      │ │    Step         │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  (insert)   │ │  (delete)   │ │   (replace)     │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └─────────────┘ └─────────────┘ └─────────────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └─────────────────────────────────────────────────────────┘    <span class="accent">│</span>
+<span class="accent">│</span>                              │                                  <span class="accent">│</span>
+<span class="accent">│</span>                              ▼                                  <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                    <span class="green">Schema</span>                               │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  NodeSpec   │ │  MarkSpec   │ │   SchemaSpec    │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  (paragraph)│ │  (bold)     │ │   (定义结构)     │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └─────────────┘ └─────────────┘ └─────────────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └─────────────────────────────────────────────────────────┘    <span class="accent">│</span>
+<span class="accent">└─────────────────────────────────────────────────────────────────┘</span></div>
+
+            <h3><span class="material-icons">description</span> 文档模型 (Document Model)</h3>
+            <p>ProseMirror 的文档是一棵<strong>节点树</strong>，而非扁平文本：</p>
+
+            <div class="ascii-diagram"><span class="highlight">ProseMirror 文档树结构</span>
+
+<span class="yellow">doc</span>
+├── <span class="green">heading</span> (level=1)
+│   └── <span class="accent">"Hello World"</span>
+├── <span class="green">paragraph</span>
+│   ├── <span class="accent">"This is "</span>
+│   ├── <span class="red">strong</span>
+│   │   └── <span class="accent">"bold"</span>
+│   ├── <span class="accent">" and "</span>
+│   ├── <span class="red">em</span>
+│   │   └── <span class="accent">"italic"</span>
+│   └── <span class="accent">" text."</span>
+└── <span class="green">bullet_list</span>
+    ├── <span class="green">list_item</span>
+    │   └── <span class="green">paragraph</span>
+    │       └── <span class="accent">"Item 1"</span>
+    └── <span class="green">list_item</span>
+        └── <span class="green">paragraph</span>
+            └── <span class="accent">"Item 2"</span>
+
+<span class="comment">节点类型:</span>
+  <span class="yellow">Block nodes</span>: doc, heading, paragraph, bullet_list, list_item
+  <span class="yellow">Inline nodes</span>: text (leaf node)
+  <span class="yellow">Marks</span>: strong, em (装饰，不影响结构)</div>
+
+            <h3><span class="material-icons">transform</span> Transform 系统</h3>
+            <p>所有文档修改都通过 <strong>Step</strong>（步骤）进行，保证可追溯和可逆：</p>
+
+            <div class="code-block"><span class="comment">// ProseMirror Transform 示例</span>
+<span class="keyword">import</span> { <span class="type">EditorState</span> } <span class="keyword">from</span> <span class="string">'prosemirror-state'</span>
+<span class="keyword">import</span> { <span class="type">Transform</span> } <span class="keyword">from</span> <span class="string">'prosemirror-transform'</span>
+
+<span class="comment">// 创建 transform</span>
+<span class="keyword">const</span> tr = <span class="keyword">new</span> <span class="type">Transform</span>(state.doc)
+
+<span class="comment">// 应用步骤</span>
+tr.<span class="function">insert</span>(pos, schema.<span class="function">text</span>(<span class="string">'Hello'</span>))
+tr.<span class="function">delete</span>(from, to)
+tr.<span class="function">replaceWith</span>(from, to, newNode)
+
+<span class="comment">// 每个 step 都是可逆的</span>
+<span class="keyword">const</span> inverted = step.<span class="function">invert</span>()
+
+<span class="comment">// 应用到状态</span>
+<span class="keyword">const</span> newState = state.<span class="function">apply</span>(tr)</div>
+
+            <h3><span class="material-icons">extension</span> 插件系统</h3>
+
+            <div class="grid-2">
+                <div class="mini-card">
+                    <div class="label">内置插件</div>
+                    <div class="value">
+                        <code>history</code> - 撤销/重做<br>
+                        <code>keymap</code> - 快捷键绑定<br>
+                        <code>inputRules</code> - 输入规则<br>
+                        <code>dropCursor</code> - 拖放光标
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">协同插件</div>
+                    <div class="value">
+                        <code>collab</code> - 基础协同框架<br>
+                        <code>y-prosemirror</code> - Yjs 集成<br>
+                        <code>prosemirror-collab</code> - OT 协同<br>
+                        自定义 CRDT 适配器
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 5: Architecture Integration -->
+    <section id="architecture" class="section">
+        <div class="section-header">
+            <div class="section-icon teal">
+                <span class="material-icons">architecture</span>
+            </div>
+            <div>
+                <div class="section-title">架构整合</div>
+                <div class="section-subtitle">CRDT + ProseMirror 协同编辑系统</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">schema</span> 整体架构</h3>
+
+            <div class="ascii-diagram"><span class="highlight">CRDT + ProseMirror 协同编辑架构</span>
+
+<span class="accent">┌─────────────────────────────────────────────────────────────────────┐</span>
+<span class="accent">│</span>                         <span class="yellow">Client (浏览器)</span>                            <span class="accent">│</span>
+<span class="accent">│</span>                                                                     <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                      <span class="green">ProseMirror</span>                           │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │ EditorView  │ │ EditorState │ │   Collab Plugin     │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  (DOM)      │ │  (doc)      │ │  (local changes)    │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └──────┬──────┘ └──────┬──────┘ └──────────┬──────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └─────────┼───────────────┼───────────────────┼──────────────┘    <span class="accent">│</span>
+<span class="accent">│</span>            │               │                   │                   <span class="accent">│</span>
+<span class="accent">│</span>            ▼               ▼                   ▼                   <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                    <span class="green">CRDT Adapter</span>                            │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────────────────────────────────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │              <span class="yellow">Fugue / Yjs Document</span>                   │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  │  Text     │ │  Marks    │ │   Structure       │  │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  │  CRDT     │ │  CRDT     │ │   CRDT            │  │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  └───────────┘ └───────────┘ └───────────────────┘  │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └─────────────────────────────────────────────────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └──────────────────────────┬──────────────────────────────────┘    <span class="accent">│</span>
+<span class="accent">│</span>                             │                                       <span class="accent">│</span>
+<span class="accent">└─────────────────────────────┼───────────────────────────────────────┘</span>
+                              │
+                              │ <span class="green">WebSocket / WebRTC</span>
+                              │
+<span class="accent">┌─────────────────────────────┼───────────────────────────────────────┐</span>
+<span class="accent">│</span>                             ▼                                       <span class="accent">│</span>
+<span class="accent">│</span>  ┌─────────────────────────────────────────────────────────────┐    <span class="accent">│</span>
+<span class="accent">│</span>  │                    <span class="yellow">Sync Server</span>                             │    <span class="accent">│</span>
+<span class="accent">│</span>  │  ┌─────────────────────────────────────────────────────┐   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  • 接收并广播操作                                      │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  • 持久化文档状态                                      │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  • 管理房间和用户                                      │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  │  • 不参与冲突解决 (CRDT 自动处理)                       │   │    <span class="accent">│</span>
+<span class="accent">│</span>  │  └─────────────────────────────────────────────────────┘   │    <span class="accent">│</span>
+<span class="accent">│</span>  └─────────────────────────────────────────────────────────────┘    <span class="accent">│</span>
+<span class="accent">│</span>                         <span class="yellow">Server</span>                                     <span class="accent">│</span>
+<span class="accent">└─────────────────────────────────────────────────────────────────────┘</span></div>
+
+            <h3><span class="material-icons">sync</span> 数据流</h3>
+
+            <div class="flow-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">用户输入</div>
+                    <div class="step-desc">
+                        用户在 ProseMirror EditorView 中输入字符，触发 DOM 事件
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">ProseMirror Transform</div>
+                    <div class="step-desc">
+                        ProseMirror 创建 Step（如 ReplaceStep），更新本地 EditorState
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">CRDT 操作转换</div>
+                    <div class="step-desc">
+                        Collab Plugin 拦截 Step，转换为 CRDT 操作（如 Fugue insert）
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">本地应用</div>
+                    <div class="step-desc">
+                        CRDT 操作应用到本地 Fugue 文档，生成唯一操作 ID
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <div class="step-title">网络同步</div>
+                    <div class="step-desc">
+                        操作通过 WebSocket 发送到服务器，服务器广播给其他客户端
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <div class="step-title">远程合并</div>
+                    <div class="step-desc">
+                        收到远程操作后，CRDT 自动合并（无需冲突解决），更新本地文档
+                    </div>
+                </div>
+            </div>
+            <div class="flow-step">
+                <div class="step-number">7</div>
+                <div class="step-content">
+                    <div class="step-title">视图更新</div>
+                    <div class="step-desc">
+                        从 CRDT 文档生成新的 ProseMirror Document，更新 EditorView
+                    </div>
+                </div>
+            </div>
+
+            <h3><span class="material-icons">compare</span> OT vs CRDT 对比</h3>
+
+            <div class="ascii-diagram"><span class="highlight">OT (Operational Transformation) 流程</span>
+
+<span class="yellow">Client A</span>                    <span class="accent">Server</span>                    <span class="yellow">Client B</span>
+    │                           │                           │
+    │  op₁ ─────────────────▶   │                           │
+    │                           │  transform(op₁, op₂)     │
+    │                           │  ◀──────────────────── op₂ │
+    │  ◀───────────────────────────────────────────── op₁'  │
+    │                           │                           │
+
+<span class="green">特点</span>: 需要中心服务器做 transform，复杂度 O(n²)
+
+<span class="highlight">CRDT 流程</span>
+
+<span class="yellow">Client A</span>                    <span class="accent">Server</span>                    <span class="yellow">Client B</span>
+    │                           │                           │
+    │  op₁ ─────────────────▶   │                           │
+    │                           │  broadcast(op₁)           │
+    │                           │  ◀──────────────────── op₂ │
+    │                           │  broadcast(op₂)           │
+    │                           │                           │
+    │  <span class="green">merge(op₂)</span>               │               <span class="green">merge(op₁)</span>  │
+    │  → 自动收敛                │               → 自动收敛   │
+
+<span class="green">特点</span>: 无需中心协调，对等合并，复杂度 O(n)</div>
+
+            <h3><span class="material-icons">code</span> 适配器实现示例</h3>
+
+            <div class="code-block"><span class="comment">// ProseMirror ↔ Fugue 适配器伪代码</span>
+<span class="keyword">class</span> <span class="type">FugueAdapter</span> {
+  <span class="function">constructor</span>(schema) {
+    <span class="keyword">this</span>.fugueDoc = <span class="keyword">new</span> <span class="type">FugueDocument</span>()
+    <span class="keyword">this</span>.schema = schema
+  }
+
+  <span class="comment">// ProseMirror Step → Fugue 操作</span>
+  <span class="function">stepToOps</span>(step) {
+    <span class="keyword">if</span> (step <span class="keyword">instanceof</span> <span class="type">ReplaceStep</span>) {
+      <span class="keyword">const</span> ops = []
+      <span class="comment">// 删除范围内的字符</span>
+      <span class="keyword">for</span> (<span class="keyword">const</span> pos <span class="keyword">of</span> step.deletedRange) {
+        ops.<span class="function">push</span>(<span class="keyword">new</span> <span class="type">FugueDelete</span>(pos.id))
+      }
+      <span class="comment">// 插入新字符</span>
+      <span class="keyword">for</span> (<span class="keyword">const</span> char <span class="keyword">of</span> step.inserted) {
+        ops.<span class="function">push</span>(<span class="keyword">new</span> <span class="type">FugueInsert</span>(char, step.pos))
+      }
+      <span class="keyword">return</span> ops
+    }
+  }
+
+  <span class="comment">// Fugue 文档 → ProseMirror Document</span>
+  <span class="function">toProseMirrorDoc</span>() {
+    <span class="keyword">const</span> text = <span class="keyword">this</span>.fugueDoc.<span class="function">toString</span>()
+    <span class="comment">// 解析文本为 ProseMirror 节点树</span>
+    <span class="keyword">return</span> <span class="keyword">this</span>.schema.<span class="function">nodeFromJSON</span>(
+      <span class="function">parseText</span>(text, <span class="keyword">this</span>.schema)
+    )
+  }
+
+  <span class="comment">// 应用远程操作</span>
+  <span class="function">applyRemote</span>(ops) {
+    <span class="keyword">for</span> (<span class="keyword">const</span> op <span class="keyword">of</span> ops) {
+      <span class="keyword">this</span>.fugueDoc.<span class="function">apply</span>(op)
+    }
+    <span class="comment">// 触发 ProseMirror 更新</span>
+    <span class="keyword">return</span> <span class="keyword">this</span>.<span class="function">toProseMirrorDoc</span>()
+  }
+}</div>
+
+            <h3><span class="material-icons">layers</span> 富文本的挑战</h3>
+            <p>纯文本 CRDT 只需处理字符序列，但富文本还需处理：</p>
+
+            <div class="grid-2">
+                <div class="mini-card">
+                    <div class="label">Marks（标记）</div>
+                    <div class="value">
+                        <strong>粗体</strong>、<em>斜体</em>等<br>
+                        需要独立的 CRDT 追踪<br>
+                        使用 LWW-Register 或 OR-Set
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">Block Structure（块结构）</div>
+                    <div class="value">
+                        段落、标题、列表等<br>
+                        需要层次化 CRDT<br>
+                        使用 Tree CRDT 或嵌套 OR-Set
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">Attributes（属性）</div>
+                    <div class="value">
+                        链接、图片 src 等<br>
+                        使用 LWW-Map<br>
+                        最后写入胜出
+                    </div>
+                </div>
+                <div class="mini-card">
+                    <div class="label">Cursor Positions（光标）</div>
+                    <div class="value">
+                        多用户光标位置<br>
+                        使用 Awareness Protocol<br>
+                        实时同步但不持久化
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 6: Comparison -->
+    <section id="comparison" class="section">
+        <div class="section-header">
+            <div class="section-icon red">
+                <span class="material-icons">compare</span>
+            </div>
+            <div>
+                <div class="section-title">方案对比</div>
+                <div class="section-subtitle">主流协同编辑方案技术选型</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <h3><span class="material-icons">table_chart</span> 技术方案对比</h3>
+
+            <div class="table-container">
+                <table>
+                    <thead class="comparison-header">
+                        <tr>
+                            <th>方案</th>
+                            <th>算法</th>
+                            <th>编辑器</th>
+                            <th>优点</th>
+                            <th>缺点</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Google Docs</strong></td>
+                            <td>OT</td>
+                            <td>自研</td>
+                            <td>成熟稳定、功能丰富</td>
+                            <td>闭源、依赖中心服务器</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Figma</strong></td>
+                            <td>OT (优化版)</td>
+                            <td>自研</td>
+                            <td>实时性好、支持图形</td>
+                            <td>闭源、复杂度高</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Yjs + ProseMirror</strong></td>
+                            <td>YATA (CRDT)</td>
+                            <td>ProseMirror</td>
+                            <td>开源、性能好、生态丰富</td>
+                            <td>文档体积较大</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Automerge</strong></td>
+                            <td>RGA (CRDT)</td>
+                            <td>自定义</td>
+                            <td>API 简洁、支持任意数据</td>
+                            <td>性能较差、体积大</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fugue + ProseMirror</strong></td>
+                            <td>Fugue (CRDT)</td>
+                            <td>ProseMirror</td>
+                            <td>数学严谨、行为可预测</td>
+                            <td>较新、生态待完善</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Liveblocks</strong></td>
+                            <td>混合</td>
+                            <td>多编辑器</td>
+                            <td>托管服务、易集成</td>
+                            <td>商业服务、成本</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3><span class="material-icons">checklist</span> 选型建议</h3>
+
+            <div class="info-card success">
+                <div class="title"><span class="material-icons">star</span> 推荐方案</div>
+                <p>
+                    <strong>新项目首选</strong>：Yjs + ProseMirror<br>
+                    理由：成熟稳定、性能优秀、社区活跃、文档完善
+                </p>
+            </div>
+
+            <div class="info-card">
+                <div class="title"><span class="material-icons">science</span> 研究/实验项目</div>
+                <p>
+                    <strong>可选</strong>：Fugue + ProseMirror<br>
+                    理由：数学模型更简洁、行为更可预测，适合深入研究 CRDT
+                </p>
+            </div>
+
+            <div class="info-card warning">
+                <div class="title"><span class="material-icons">business</span> 企业级需求</div>
+                <p>
+                    <strong>可选</strong>：Liveblocks 或自建 OT 服务<br>
+                    理由：需要 SLA 保证、专业支持、合规性要求
+                </p>
+            </div>
+
+            <h3><span class="material-icons">trending_up</span> 发展趋势</h3>
+
+            <div class="ascii-diagram"><span class="highlight">协同编辑技术演进</span>
+
+<span class="yellow">2000s</span>     <span class="yellow">2010s</span>          <span class="yellow">2020s</span>              <span class="yellow">2025+</span>
+  │           │               │                   │
+  ▼           ▼               ▼                   ▼
+<span class="accent">OT</span> ────────▶ <span class="accent">OT + CRDT</span> ───▶ <span class="green">CRDT 主流化</span> ───▶ <span class="green">CRDT 原生</span>
+  │           │               │                   │
+  │           │               │                   │
+Google      Figma           Yjs               新一代
+Docs        Notion          Automerge          编辑器
+            Linear          Figma (新版)
+
+<span class="green">趋势</span>:
+  • CRDT 从学术走向工程
+  • 本地优先 (Local-first) 架构兴起
+  • 端到端加密 + CRDT 结合
+  • 离线优先、在线增强</div>
+        </div>
+    </section>
+
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+    <p>CRDT · Fugue · ProseMirror 技术原理文档</p>
+    <p style="margin-top: 8px; font-size: 12px;">
+        参考资料：
+        <a href="https://crdt.tech" style="color: var(--md-primary);">crdt.tech</a> ·
+        <a href="https://prosemirror.net" style="color: var(--md-primary);">prosemirror.net</a> ·
+        <a href="https://github.com/josephg/fugue" style="color: var(--md-primary);">Fugue GitHub</a>
+    </p>
+</footer>
+
+</body>
+</html>

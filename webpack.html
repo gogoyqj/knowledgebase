@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webpack 深度解析 — 核心结构 · 构建生命周期 · Plugin 开发</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-on-primary: #fff;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary-container: #001C3B;
+    --md-secondary: #545F70;
+    --md-secondary-container: #D8E3F8;
+    --md-tertiary: #6D5677;
+    --md-tertiary-container: #F5D9FF;
+    --md-surface: #FDFBFF;
+    --md-surface-variant: #DFE2EB;
+    --md-on-surface: #1A1C1E;
+    --md-on-surface-variant: #43474E;
+    --md-outline: #74777F;
+    --md-outline-variant: #C3C6CF;
+    --md-error: #BA1A1A;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F0F4FA;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 16px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #1565C0 0%, #42A5F5 50%, #90CAF9 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 620px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(21,101,192,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.purple { background: #E8DEF8; color: #4A148C; }
+  .card-icon.green  { background: #D0F5D8; color: #003D16; }
+  .card-icon.amber  { background: #FFF3C4; color: #5D4037; }
+  .card-icon.red    { background: #FFDAD6; color: #410002; }
+  .card-icon.teal   { background: #C8F7E5; color: #003D2E; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .chip.green {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+  .chip.amber {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+    white-space: pre; width: fit-content; max-width: 100%;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .prop { color: #89DDFF; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #F0F4FA;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  .banner.warn {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+  .banner.success {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+
+  /* ── Comparison Grid ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    margin: 16px 0 16px 20px;
+    padding-left: 28px;
+    border-left: 3px solid var(--md-primary-container);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -35px;
+    top: 6px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    border: 3px solid var(--md-primary-container);
+  }
+  .timeline-item h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-primary);
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">Wp</div>
+  <h1>Webpack <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>核心结构 · 构建生命周期 · Plugin 开发</h2>
+  <p>从源码视角理解 Webpack 架构、Compiler 与 Compilation 的生命周期钩子，以及如何开发自定义 Plugin</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="structure">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">account_tree</span>
+    核心结构
+  </button>
+  <button class="tab-btn" data-tab="lifecycle">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">autorenew</span>
+    构建生命周期
+  </button>
+  <button class="tab-btn" data-tab="plugin">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">extension</span>
+    Plugin 开发
+  </button>
+  <button class="tab-btn" data-tab="tapable">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">cable</span>
+    Tapable 机制
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== 核心结构 ==================== -->
+  <section class="section active" id="structure">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">account_tree</span></div>
+        <h3>Webpack 是什么？</h3>
+      </div>
+      <p>
+        Webpack 是一个现代 JavaScript 应用的<strong>静态模块打包工具</strong>。它将项目中的所有资源（JS、CSS、图片、字体等）
+        视为模块，通过分析模块间的依赖关系，构建出一个或多个优化后的 bundle。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>Webpack 的核心设计理念是<strong>一切皆模块</strong>。不仅 JS 文件是模块，CSS、图片、字体等都可以通过 Loader 转换后作为模块处理。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">settings</span></div>
+        <h3>五大核心概念</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">input</span> Entry</h4>
+          <p>构建的入口起点。Webpack 从 Entry 开始递归分析依赖，构建完整的依赖图。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">output</span> Output</h4>
+          <p>打包产物的输出配置。定义输出文件名、路径，以及如何命名 chunk 和资源。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">transform</span> Loader</h4>
+          <p>模块转换器。Webpack 只能处理 JS/JSON，Loader 让 Webpack 能处理其他类型的文件。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">extension</span> Plugin</h4>
+          <p>构建流程扩展。Plugin 可以介入构建的任何阶段，执行更广泛的任务（优化、资源管理、注入环境变量）。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">tune</span> Mode</h4>
+          <p>内置优化策略。<span class="inline-code">development</span> / <span class="inline-code">production</span> / <span class="inline-code">none</span>，自动启用对应的优化插件。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">schema</span></div>
+        <h3>整体架构图</h3>
+      </div>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────────────┐
+  │                      Webpack 核心架构                             │
+  └──────────────────────────────────────────────────────────────────┘
+
+                         webpack.config.js
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────┐
+  │                   Compiler (编译器)                   │
+  │  ┌─────────────────────────────────────────────────┐ │
+  │  │              Tapable (事件系统)                   │ │
+  │  │  compiler.hooks.run / compile / emit / done     │ │
+  │  └─────────────────────────────────────────────────┘ │
+  │                                                       │
+  │  ┌─────────────────────────────────────────────────┐ │
+  │  │             Compilation (编译过程)                │ │
+  │  │                                                  │ │
+  │  │  ┌──────────┐   ┌──────────┐   ┌──────────┐   │ │
+  │  │  │  Entry   │──▶│  Module  │──▶│  Chunk   │   │ │
+  │  │  │  (入口)   │   │  (模块)   │   │  (分包)   │   │ │
+  │  │  └──────────┘   └──────────┘   └──────────┘   │ │
+  │  │       │              │              │           │ │
+  │  │       ▼              ▼              ▼           │ │
+  │  │  ┌──────────┐   ┌──────────┐   ┌──────────┐   │ │
+  │  │  │Dependency│   │  Loader  │   │  Asset   │   │ │
+  │  │  │  (依赖)   │   │ (转换器)  │   │  (产物)   │   │ │
+  │  │  └──────────┘   └──────────┘   └──────────┘   │ │
+  │  └─────────────────────────────────────────────────┘ │
+  └─────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">dns</span></div>
+        <h3>核心对象详解</h3>
+      </div>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">📦 Compiler</h4>
+      <p>
+        <strong>Compiler</strong> 是 Webpack 的核心引擎，代表完整的构建环境配置。它是一个<strong>全局单例</strong>，
+        在整个生命周期中只创建一次。Compiler 持有所有配置信息，并负责创建 Compilation 实例。
+      </p>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">📋 Compilation</h4>
+      <p>
+        <strong>Compilation</strong> 代表一次具体的构建过程。每次文件变化触发重新编译时，都会创建一个新的 Compilation 实例。
+        它负责：模块解析、依赖收集、Chunk 优化、资源生成。
+      </p>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">🧩 Module</h4>
+      <p>
+        <strong>Module</strong> 是 Webpack 中的基本处理单元。每个文件经过 Loader 处理后都被抽象为一个 Module。
+        Module 记录了文件的内容、类型、依赖关系等信息。
+      </p>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">🔗 Dependency</h4>
+      <p>
+        <strong>Dependency</strong> 描述模块间的依赖关系。当解析 <span class="inline-code">import</span> / <span class="inline-code">require</span> 时，
+        Webpack 会创建 Dependency 对象，记录被依赖模块的信息。
+      </p>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">📄 Chunk</h4>
+      <p>
+        <strong>Chunk</strong> 是一组 Module 的集合，是代码分割的基本单位。一个 Entry 通常对应一个 Chunk，
+        通过动态 import 或 splitChunks 可以产生额外的 Chunk。
+      </p>
+
+      <h4 style="font-size:16px;font-weight:500;margin:16px 0 8px;color:var(--md-primary)">📁 Asset</h4>
+      <p>
+        <strong>Asset</strong> 是最终输出的文件资源（.js、.css、图片等）。Chunk 经过代码生成后产出 Asset。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">merge_type</span></div>
+        <h3>Module Graph — 模块依赖图</h3>
+      </div>
+      <p>Webpack 通过递归分析 Entry，构建出完整的<strong>模块依赖图（Module Graph）</strong>：</p>
+      <div class="diagram">  ┌───────────────────────────────────────────────────────────┐
+  │                    Module Graph                            │
+  └───────────────────────────────────────────────────────────┘
+
+  entry.js
+    ├── import './utils.js'
+    │     ├── import './math.js'
+    │     └── import './format.js'
+    ├── import './styles.css'        ← css-loader + style-loader
+    ├── import logo from './logo.svg' ← file-loader / asset
+    └── import './config.json'
+
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │ entry.js │────▶│ utils.js │────▶│ math.js  │
+  └────┬─────┘     └────┬─────┘     └──────────┘
+       │                │
+       │                ▼
+       │          ┌──────────┐
+       │          │format.js │
+       │          └──────────┘
+       │
+       ├───▶ ┌────────────┐
+       │     │ styles.css  │  ← Loader 转为 JS 模块
+       │     └────────────┘
+       ├───▶ ┌────────────┐
+       │     │  logo.svg   │  ← Loader 输出 URL
+       │     └────────────┘
+       └───▶ ┌────────────┐
+             │ config.json │  ← Webpack 原生支持
+             └────────────┘</div>
+    </div>
+  </section>
+
+  <!-- ==================== 构建生命周期 ==================== -->
+  <section class="section" id="lifecycle">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">autorenew</span></div>
+        <h3>构建生命周期总览</h3>
+      </div>
+      <p>
+        Webpack 的构建过程由一系列<strong>生命周期钩子（Hooks）</strong>驱动。
+        Plugin 通过在特定钩子上注册回调函数来介入构建流程。整个生命周期分为三大阶段：
+        <strong>初始化</strong>、<strong>编译</strong>、<strong>输出</strong>。
+      </p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>1. 初始化阶段</h4>
+          <p>读取配置 → 合并默认配置 → 创建 Compiler 实例 → 初始化 Plugin</p>
+        </div>
+        <div class="timeline-item">
+          <h4>2. 编译阶段</h4>
+          <p>创建 Compilation → 从 Entry 开始编译 → 递归解析依赖 → 使用 Loader 转换模块</p>
+        </div>
+        <div class="timeline-item">
+          <h4>3. 优化与输出阶段</h4>
+          <p>Chunk 分割优化 → 代码压缩 → 生成 Asset → 写入文件系统</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">timeline</span></div>
+        <h3>完整构建流程图</h3>
+      </div>
+      <div class="diagram">  ┌──────────────────────────────────────────────────────────────────┐
+  │                    Webpack 构建生命周期                            │
+  └──────────────────────────────────────────────────────────────────┘
+
+  ┌─ 初始化 ──────────────────────────────────────────────────────────┐
+  │                                                                    │
+  │   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
+  │   │ 读取配置  │───▶│ 合并配置  │───▶│ 创建      │───▶│ 注册     │   │
+  │   │          │    │          │    │ Compiler │    │ Plugin   │   │
+  │   └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+  │                                                                    │
+  └────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─ 编译 ────────────────────────────────────────────────────────────┐
+  │                                                                    │
+  │   hooks.initialize                                                   │
+  │   hooks.run ──────────▶ 开始编译                                    │
+  │   hooks.compile                                                      │
+  │   hooks.compilation ──▶ 创建 Compilation 实例                       │
+  │   hooks.make ─────────▶ 从 Entry 开始构建 Module Graph              │
+  │                                                                    │
+  │   ┌─────────────────────── 对每个模块 ────────────────────────┐    │
+  │   │  hooks.buildModule ──▶ Loader 转换源文件                    │    │
+  │   │  hooks.succeedModule ─▶ 模块构建成功                        │    │
+  │   │  hooks.finishModules ─▶ 所有模块构建完成                     │    │
+  │   └─────────────────────────────────────────────────────────────┘    │
+  │                                                                    │
+  │   hooks.seal ─────────▶ 封装，开始优化                              │
+  │                                                                    │
+  └────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─ 优化与输出 ──────────────────────────────────────────────────────┐
+  │                                                                    │
+  │   hooks.optimize ────▶ 开始优化                                    │
+  │   hooks.optimizeChunks ──▶ Chunk 分割、Tree Shaking                 │
+  │   hooks.optimizeAssets ──▶ 代码压缩、资源优化                       │
+  │                                                                    │
+  │   hooks.emit ────────▶ 输出 Asset（写入前的最后修改机会）            │
+  │   hooks.afterEmit ───▶ 已写入文件系统                               │
+  │   hooks.done ────────▶ 构建完成 ✓                                  │
+  │   hooks.failed ──────▶ 构建失败 ✗                                  │
+  │                                                                    │
+  └────────────────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">list_alt</span></div>
+        <h3>关键钩子详解</h3>
+      </div>
+      <p>以下是 Plugin 开发中最常用的钩子，按构建顺序排列：</p>
+
+      <h4 style="font-size:15px;font-weight:500;margin:20px 0 10px;color:var(--md-primary)">🔧 Compiler 钩子（全局，只触发一次）</h4>
+      <pre><span class="cm">// Compiler 生命周期钩子</span>
+compiler.hooks.<span class="fn">initialize</span>          <span class="cm">// 初始化完成</span>
+compiler.hooks.<span class="fn">run</span>                 <span class="cm">// 开始编译（异步）</span>
+compiler.hooks.<span class="fn">compile</span>             <span class="cm">// 开始编译（同步）</span>
+compiler.hooks.<span class="fn">compilation</span>         <span class="cm">// 创建 Compilation 实例</span>
+compiler.hooks.<span class="fn">make</span>               <span class="cm">// 开始构建依赖图（异步）</span>
+compiler.hooks.<span class="fn">emit</span>               <span class="cm">// 资源写入前（异步，可修改 Asset）</span>
+compiler.hooks.<span class="fn">afterEmit</span>           <span class="cm">// 资源已写入（异步）</span>
+compiler.hooks.<span class="fn">done</span>               <span class="cm">// 构建完成（异步）</span>
+compiler.hooks.<span class="fn">failed</span>              <span class="cm">// 构建失败</span>
+compiler.hooks.<span class="fn">watchRun</span>            <span class="cm">// watch 模式下每次重新编译</span>
+compiler.hooks.<span class="fn">watchClose</span>          <span class="cm">// watch 模式关闭</span>
+compiler.hooks.<span class="fn">infrastructureLog</span>   <span class="cm">// 基础设施日志</span></pre>
+
+      <h4 style="font-size:15px;font-weight:500;margin:20px 0 10px;color:var(--md-primary)">📋 Compilation 钩子（每次编译触发一次）</h4>
+      <pre><span class="cm">// Compilation 生命周期钩子</span>
+compilation.hooks.<span class="fn">buildModule</span>       <span class="cm">// 模块开始构建前（可修改 Loader 参数）</span>
+compilation.hooks.<span class="fn">succeedModule</span>    <span class="cm">// 模块构建成功</span>
+compilation.hooks.<span class="fn">failModule</span>       <span class="cm">// 模块构建失败</span>
+compilation.hooks.<span class="fn">finishModules</span>    <span class="cm">// 所有模块构建完成</span>
+
+compilation.hooks.<span class="fn">seal</span>             <span class="cm">// 封装开始（不可再添加模块）</span>
+compilation.hooks.<span class="fn">optimize</span>         <span class="cm">// 优化开始</span>
+compilation.hooks.<span class="fn">optimizeChunks</span>    <span class="cm">// Chunk 优化（Tree Shaking 在此）</span>
+compilation.hooks.<span class="fn">optimizeAssets</span>    <span class="cm">// Asset 优化（压缩在此）</span>
+
+compilation.hooks.<span class="fn">processAssets</span>     <span class="cm">// 处理 Asset（推荐，取代 emit）</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">code</span></div>
+        <h3>单个模块的编译过程</h3>
+      </div>
+      <p>当 Webpack 处理一个模块时，内部经过以下步骤：</p>
+      <div class="diagram">  ┌────────────────────────────────────────────────────────────────┐
+  │                   单模块编译流程                                  │
+  └────────────────────────────────────────────────────────────────┘
+
+  源文件 (a.ts)
+      │
+      ▼
+  ┌────────────────┐
+  │  1. 创建 Module │  ← 根据文件类型创建对应 Module 子类
+  │     对象         │
+  └───────┬────────┘
+          │
+          ▼
+  ┌────────────────┐
+  │  2. 匹配 Loader │  ← 根据 module.rules 匹配并组合 Loader
+  │     (从右到左)   │
+  └───────┬────────┘
+          │
+          ▼
+  ┌────────────────┐
+  │  3. Loader 转换 │  ← ts-loader → babel-loader → ...
+  │     源码 → JS   │
+  └───────┬────────┘
+          │
+          ▼
+  ┌────────────────┐
+  │  4. Parser 解析 │  ← Acorn/JSParser 解析为 AST
+  │     AST         │
+  └───────┬────────┘
+          │
+          ▼
+  ┌────────────────┐
+  │  5. 提取依赖    │  ← 遍历 AST，找到 import/require
+  │     Dependency  │
+  └───────┬────────┘
+          │
+          ▼
+  ┌────────────────┐
+  │  6. 递归处理    │  ← 对每个依赖重复 1-5 步
+  │     依赖模块     │
+  └────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Compiler vs Compilation</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🏗️ Compiler</h4>
+          <ul>
+            <li>全局唯一实例</li>
+            <li>代表完整的构建环境</li>
+            <li>包含 webpack 完整配置</li>
+            <li>生命周期贯穿整个构建</li>
+            <li>Plugin 在此处注册</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>📋 Compilation</h4>
+          <ul>
+            <li>每次编译创建新实例</li>
+            <li>代表一次具体的构建过程</li>
+            <li>包含当次构建的模块和依赖</li>
+            <li>watch 模式下每次变化都重建</li>
+            <li>Module 和 Chunk 在此创建</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Plugin 开发 ==================== -->
+  <section class="section" id="plugin">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">extension</span></div>
+        <h3>Plugin 是什么？</h3>
+      </div>
+      <p>
+        Plugin 是 Webpack 的<strong>支柱</strong>。Webpack 自身就是由一系列内置 Plugin 构建的。
+        Plugin 可以介入构建的<strong>任何阶段</strong>，执行各种任务：打包优化、资源管理、环境变量注入等。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>Plugin vs Loader：</strong>Loader 是<strong>文件级别</strong>的转换（将 A 转为 B），Plugin 是<strong>构建级别</strong>的扩展（介入整个构建流程）。Plugin 的能力远大于 Loader。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">architecture</span></div>
+        <h3>Plugin 基本结构</h3>
+      </div>
+      <p>一个 Webpack Plugin 必须满足以下条件：</p>
+      <ul>
+        <li>是一个带有 <span class="inline-code">apply(compiler)</span> 方法的类</li>
+        <li>在 <span class="inline-code">apply</span> 方法中通过 <span class="inline-code">compiler.hooks.xxx.tap()</span> 注册钩子回调</li>
+        <li>插件名称必须使用<strong>驼峰式命名</strong>，且在 <span class="inline-code">apply</span> 方法中不能使用箭头函数</li>
+      </ul>
+      <pre><span class="cm">// 最简 Plugin 模板</span>
+<span class="kw">class</span> <span class="typ">MyPlugin</span> {
+  <span class="cm">// 必须实现 apply 方法</span>
+  <span class="fn">apply</span>(compiler) {
+    <span class="cm">// 获取插件名称，用于日志标识</span>
+    <span class="kw">const</span> pluginName = <span class="typ">MyPlugin</span>.name
+
+    <span class="cm">// 在 compiler 的 done 钩子上注册回调</span>
+    compiler.hooks.done.<span class="fn">tap</span>(pluginName, (stats) => {
+      console.<span class="fn">log</span>(<span class="str">'构建完成！'</span>)
+      console.<span class="fn">log</span>(<span class="str">`耗时: ${stats.endTime - stats.startTime}ms`</span>)
+    })
+  }
+}
+
+<span class="cm">// 使用</span>
+<span class="kw">module</span>.exports = {
+  plugins: [<span class="kw">new</span> <span class="typ">MyPlugin</span>()]
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">code</span></div>
+        <h3>实战：文件清单 Plugin</h3>
+      </div>
+      <p>一个实用的 Plugin，在构建完成后生成包含所有输出文件的 manifest.json：</p>
+      <pre><span class="kw">class</span> <span class="typ">ManifestPlugin</span> {
+  <span class="fn">apply</span>(compiler) {
+    <span class="kw">const</span> pluginName = <span class="str">'ManifestPlugin'</span>
+
+    <span class="cm">// 使用 emit 钩子 —— 资源写入前的最后机会</span>
+    compiler.hooks.emit.<span class="fn">tapAsync</span>(pluginName, (compilation, callback) => {
+      <span class="cm">// 获取所有输出资源</span>
+      <span class="kw">const</span> manifest = {
+        name: <span class="str">'My App'</span>,
+        buildTime: <span class="kw">new</span> <span class="typ">Date</span>().<span class="fn">toISOString</span>(),
+        files: {}
+      }
+
+      <span class="cm">// 遍历 compilation.assets 获取所有输出文件</span>
+      <span class="kw">for</span> (<span class="kw">const</span> [name, asset] <span class="kw">of</span> Object.<span class="fn">entries</span>(compilation.assets)) {
+        manifest.files[name] = {
+          size: asset.<span class="fn">size</span>(),
+          <span class="cm">// 对 JS/CSS 计算内容 hash</span>
+          hash: compilation.<span class="fn">getPath</span>(<span class="str">'[contenthash]'</span>, { filename: name })
+        }
+      }
+
+      <span class="cm">// 将 manifest.json 添加到输出资源</span>
+      <span class="kw">const</span> json = JSON.<span class="fn">stringify</span>(manifest, <span class="kw">null</span>, <span class="num">2</span>)
+      compilation.assets[<span class="str">'manifest.json'</span>] = {
+        <span class="fn">source</span>() { <span class="kw">return</span> json },
+        <span class="fn">size</span>() { <span class="kw">return</span> json.length }
+      }
+
+      <span class="fn">callback</span>()
+    })
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">build</span></div>
+        <h3>实战：构建通知 Plugin</h3>
+      </div>
+      <p>使用 Compiler 的多个钩子，在构建关键阶段输出日志：</p>
+      <pre><span class="kw">class</span> <span class="typ">BuildNotifierPlugin</span> {
+  <span class="kw">constructor</span>(options = {}) {
+    <span class="kw">this</span>.options = {
+      verbose: <span class="kw">false</span>,
+      ...options
+    }
+  }
+
+  <span class="fn">apply</span>(compiler) {
+    <span class="kw">const</span> name = <span class="str">'BuildNotifierPlugin'</span>
+    <span class="kw">const</span> startTime = <span class="kw">new</span> <span class="typ">Map</span>()
+
+    <span class="cm">// 1. 编译开始</span>
+    compiler.hooks.compile.<span class="fn">tap</span>(name, () => {
+      console.<span class="fn">log</span>(<span class="str">'🚀 编译开始...'</span>)
+      startTime.<span class="fn">set</span>(<span class="str">'compile'</span>, Date.<span class="fn">now</span>())
+    })
+
+    <span class="cm">// 2. 单个模块构建完成</span>
+    compiler.hooks.compilation.<span class="fn">tap</span>(name, (compilation) => {
+      compilation.hooks.succeedModule.<span class="fn">tap</span>(name, (module) => {
+        <span class="kw">if</span> (<span class="kw">this</span>.options.verbose) {
+          console.<span class="fn">log</span>(<span class="str">`  ✅ ${module.resource}`</span>)
+        }
+      })
+    })
+
+    <span class="cm">// 3. 所有资源即将写入</span>
+    compiler.hooks.emit.<span class="fn">tapAsync</span>(name, (compilation, callback) => {
+      <span class="kw">const</span> files = Object.<span class="fn">keys</span>(compilation.assets)
+      console.<span class="fn">log</span>(<span class="str">`📦 生成 ${files.length} 个资源文件`</span>)
+      <span class="fn">callback</span>()
+    })
+
+    <span class="cm">// 4. 构建完成</span>
+    compiler.hooks.done.<span class="fn">tap</span>(name, (stats) => {
+      <span class="kw">const</span> duration = Date.<span class="fn">now</span>() - startTime.<span class="fn">get</span>(<span class="str">'compile'</span>)
+      <span class="kw">if</span> (stats.hasErrors()) {
+        console.<span class="fn">log</span>((<span class="str">`❌ 构建失败 (${duration}ms)`</span>))
+      } <span class="kw">else</span> {
+        console.<span class="fn">log</span>(<span class="str">`✅ 构建成功！(${duration}ms)`</span>)
+      }
+    })
+
+    <span class="cm">// 5. 构建失败</span>
+    compiler.hooks.failed.<span class="fn">tap</span>(name, (error) => {
+      console.<span class="fn">error</span>(<span class="str">'💥 构建错误:'</span>, error.message)
+    })
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">edit_note</span></div>
+        <h3>实战：修改资源内容 Plugin</h3>
+      </div>
+      <p>使用 <span class="inline-code">processAssets</span> 钩子（推荐方式）修改输出资源：</p>
+      <pre><span class="kw">class</span> <span class="typ">BannerPlugin</span> {
+  <span class="kw">constructor</span>(options) {
+    <span class="kw">this</span>.banner = options.banner || <span class="str">''</span>
+  }
+
+  <span class="fn">apply</span>(compiler) {
+    <span class="kw">const</span> name = <span class="str">'BannerPlugin'</span>
+    <span class="kw">const</span> { Compilation } = compiler.webpack
+
+    compiler.hooks.compilation.<span class="fn">tap</span>(name, (compilation) => {
+      <span class="cm">// processAssets 是处理 Asset 的推荐钩子（取代 emit）</span>
+      <span class="cm">// PROCESS_ASSETS_STAGE_ADDITIONS = 100 —— 添加资源阶段</span>
+      compilation.hooks.processAssets.<span class="fn">tap</span>(
+        {
+          name,
+          stage: Compilation.PROCESS_ASSETS_STAGE_ADDITIONS
+        },
+        () => {
+          <span class="kw">for</span> (<span class="kw">const</span> [name, asset] <span class="kw">of</span> Object.<span class="fn">entries</span>(compilation.assets)) {
+            <span class="cm">// 只处理 .js 文件</span>
+            <span class="kw">if</span> (name.<span class="fn">endsWith</span>(<span class="str">'.js'</span>)) {
+              <span class="kw">const</span> original = asset.<span class="fn">source</span>()
+              <span class="kw">const</span> updated = <span class="str">`/** ${this.banner} */\n${original}`</span>
+
+              compilation.updateAsset(name, {
+                <span class="fn">source</span>() { <span class="kw">return</span> updated },
+                <span class="fn">size</span>() { <span class="kw">return</span> updated.length }
+              })
+            }
+          }
+        }
+      )
+    })
+  }
+}
+
+<span class="cm">// 使用</span>
+<span class="kw">new</span> <span class="typ">BannerPlugin</span>({
+  banner: <span class="str">'MyApp v1.0.0 | Built: 2024-01-15'</span>
+})</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>processAssets 阶段常量：</strong><br>
+          <span class="inline-code">STAGE_ADDITIONAL</span> (0) → <span class="inline-code">STAGE_PRE_PROCESS</span> (100) → <span class="inline-code">STAGE_ADDITIONS</span> (200) →
+          <span class="inline-code">STAGE_OPTIMIZE</span> (300) → <span class="inline-code">STAGE_OPTIMIZE_COUNT</span> (400) → <span class="inline-code">STAGE_DEV_TOOLING</span> (500) →
+          <span class="inline-code">STAGE_OPTIMIZE_COMPATIBILITY</span> (600) → <span class="inline-code">STAGE_OPTIMIZE_SIZE</span> (700) → <span class="inline-code">STAGE_SUMMARIZE</span> (1000) → <span class="inline-code">STAGE_OPTIMIZE_HASH</span> (2500)
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">smart_toy</span></div>
+        <h3>实战：自动外链 CDN Plugin</h3>
+      </div>
+      <p>一个更复杂的 Plugin，自动将匹配的依赖模块替换为 CDN 外链：</p>
+      <pre><span class="kw">class</span> <span class="typ">ExternalCDNPlugin</span> {
+  <span class="kw">constructor</span>(options) {
+    <span class="cm">// options.externals = { react: 'React', 'react-dom': 'ReactDOM' }</span>
+    <span class="kw">this</span>.externals = options.externals || {}
+  }
+
+  <span class="fn">apply</span>(compiler) {
+    <span class="kw">const</span> name = <span class="str">'ExternalCDNPlugin'</span>
+
+    <span class="cm">// 使用 compiler.hooks.externals 钩子</span>
+    compiler.hooks.<span class="fn">compile</span>.<span class="fn">tap</span>(name, (params) => {
+      <span class="kw">const</span> normalModuleFactory = params.normalModuleFactory
+
+      <span class="cm">// 拦截模块解析</span>
+      normalModuleFactory.hooks.<span class="fn">resolve</span>.<span class="fn">tapAsync</span>(name, (resolveData, callback) => {
+        <span class="kw">const</span> request = resolveData.request
+
+        <span class="kw">if</span> (<span class="kw">this</span>.externals[request]) {
+          <span class="cm">// 标记为外部依赖</span>
+          resolveData.dependencies.<span class="fn">forEach</span>(dep => {
+            dep.<span class="fn">setResourceIdentifier</span>(<span class="str">`external:${request}`</span>)
+          })
+        }
+
+        <span class="fn">callback</span>()
+      })
+    })
+
+    <span class="cm">// 更实用的方式：直接配置 externals + 生成 script 标签</span>
+    compiler.hooks.<span class="fn">compilation</span>.<span class="fn">tap</span>(name, (compilation) => {
+      compilation.hooks.<span class="fn">processAssets</span>.<span class="fn">tap</span>(
+        { name, stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE },
+        () => {
+          <span class="cm">// 在 HTML 中注入 CDN script 标签（需配合 html-webpack-plugin）</span>
+          <span class="kw">const</span> htmlFile = Object.<span class="fn">keys</span>(compilation.assets).<span class="fn">find</span>(f => f.<span class="fn">endsWith</span>(<span class="str">'.html'</span>))
+          <span class="kw">if</span> (!htmlFile) <span class="kw">return</span>
+
+          <span class="kw">let</span> html = compilation.assets[htmlFile].<span class="fn">source</span>()
+          <span class="kw">const</span> scripts = Object.<span class="fn">entries</span>(<span class="kw">this</span>.externals)
+            .<span class="fn">map</span>(([, url]) => <span class="str">`&lt;script src="${url}"&gt;&lt;/script&gt;`</span>)
+            .<span class="fn">join</span>(<span class="str">'\n  '</span>)
+
+          html = html.<span class="fn">replace</span>(<span class="str">'&lt;/head&gt;'</span>, <span class="str">`  ${scripts}\n&lt;/head&gt;`</span>)
+
+          compilation.<span class="fn">updateAsset</span>(htmlFile, {
+            <span class="fn">source</span>() { <span class="kw">return</span> html },
+            <span class="fn">size</span>() { <span class="kw">return</span> html.length }
+          })
+        }
+      )
+    })
+  }
+}
+
+<span class="cm">// 使用</span>
+<span class="kw">new</span> <span class="typ">ExternalCDNPlugin</span>({
+  externals: {
+    react: <span class="str">'https://unpkg.com/react@18/umd/react.production.min.js'</span>,
+    <span class="str">'react-dom'</span>: <span class="str">'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js'</span>
+  }
+})</pre>
+    </div>
+  </section>
+
+  <!-- ==================== Tapable 机制 ==================== -->
+  <section class="section" id="tapable">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">cable</span></div>
+        <h3>Tapable — Webpack 的事件系统</h3>
+      </div>
+      <p>
+        <strong>Tapable</strong> 是 Webpack 的插件架构核心，类似于 Node.js 的 EventEmitter，但功能更强大。
+        它提供了多种类型的 Hook，支持同步/异步、串行/并行/瀑布/熔断等执行模式。
+      </p>
+      <pre><span class="cm">// Tapable 核心 API</span>
+<span class="kw">const</span> { SyncHook, AsyncSeriesHook, AsyncParallelHook } = <span class="fn">require</span>(<span class="str">'tapable'</span>)
+
+<span class="cm">// 注册回调（tap = 拴住，即"挂钩子"）</span>
+hook.<span class="fn">tap</span>(name, callback)            <span class="cm">// 同步注册</span>
+hook.<span class="fn">tapAsync</span>(name, callback)        <span class="cm">// 异步注册（回调风格）</span>
+hook.<span class="fn">tapPromise</span>(name, callback)      <span class="cm">// 异步注册（Promise 风格）</span>
+
+<span class="cm">// 触发钩子</span>
+hook.<span class="fn">call</span>(...args)                   <span class="cm">// 同步触发</span>
+hook.<span class="fn">callAsync</span>(...args, callback)    <span class="cm">// 异步触发</span>
+hook.<span class="fn">promise</span>(...args)                <span class="cm">// Promise 触发</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">view_list</span></div>
+        <h3>Hook 类型一览</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>🔗 SyncHook</h4>
+          <p><strong>同步串行</strong>。注册的回调按顺序依次执行，返回值被忽略。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 SyncBailHook</h4>
+          <p><strong>同步熔断</strong>。回调返回非 undefined 时立即停止后续回调。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 SyncWaterfallHook</h4>
+          <p><strong>同步瀑布</strong>。每个回调的返回值作为下一个回调的第一个参数。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 SyncLoopHook</h4>
+          <p><strong>同步循环</strong>。回调返回 true 时重复执行当前回调。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⏳ AsyncParallelHook</h4>
+          <p><strong>异步并行</strong>。所有回调并行执行，全部完成后触发。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⏳ AsyncSeriesHook</h4>
+          <p><strong>异步串行</strong>。回调按顺序依次执行，前一个完成后才执行下一个。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⏳ AsyncSeriesBailHook</h4>
+          <p><strong>异步串行熔断</strong>。串行执行，回调返回非 undefined 时停止。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⏳ AsyncSeriesWaterfallHook</h4>
+          <p><strong>异步串行瀑布</strong>。串行执行，返回值传给下一个回调。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Hook 类型对比图</h3>
+      </div>
+      <div class="diagram">  ┌───────────────────────────────────────────────────────────────────┐
+  │                     Tapable Hook 执行模式                          │
+  └───────────────────────────────────────────────────────────────────┘
+
+  SyncHook（同步串行）           SyncBailHook（同步熔断）
+  ┌─────┐ ┌─────┐ ┌─────┐     ┌─────┐ ┌─────┐ ┌─────┐
+  │ cb1 │─▶│ cb2 │─▶│ cb3 │     │ cb1 │─▶│ cb2 │ STOP │
+  └─────┘ └─────┘ └─────┘     └─────┘ └──┬──┘ └─────┘
+  全部执行，忽略返回值                      │ 返回非 undefined
+                                          ▼ 停止后续
+
+  SyncWaterfallHook（同步瀑布）  AsyncParallelHook（异步并行）
+  ┌─────┐   ┌─────┐   ┌─────┐     ┌─────┐
+  │ cb1 │──▶│ cb2 │──▶│ cb3 │     │ cb1 │──┐
+  └──┬──┘   └──┬──┘   └──┬──┘     ├─────┤  │
+     │val      │val      │val     │ cb2 │──┼──▶ all done
+     ▼         ▼         ▼        ├─────┤  │
+  返回值传递给下一个               │ cb3 │──┘
+                                  └─────┘
+                                  并行执行，全部完成
+
+  AsyncSeriesHook（异步串行）
+  ┌─────┐ wait ┌─────┐ wait ┌─────┐
+  │ cb1 │─────▶│ cb2 │─────▶│ cb3 │
+  └─────┘      └─────┘      └─────┘
+  串行执行，前一个完成才执行下一个</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">code</span></div>
+        <h3>手写简版 Tapable</h3>
+      </div>
+      <p>理解 Tapable 的核心原理——维护一个回调列表，在触发时按特定模式执行：</p>
+      <pre><span class="cm">// 简版 SyncHook 实现</span>
+<span class="kw">class</span> <span class="typ">SyncHook</span> {
+  <span class="kw">constructor</span>(args = []) {
+    <span class="kw">this</span>.args = args       <span class="cm">// 参数名称列表（仅用于文档）</span>
+    <span class="kw">this</span>.taps = []          <span class="cm">// 注册的回调列表</span>
+  }
+
+  <span class="cm">// 注册回调</span>
+  <span class="fn">tap</span>(name, callback) {
+    <span class="kw">this</span>.taps.<span class="fn">push</span>({ name, callback })
+  }
+
+  <span class="cm">// 触发所有回调（串行执行）</span>
+  <span class="fn">call</span>(...args) {
+    <span class="kw">for</span> (<span class="kw">const</span> tap <span class="kw">of</span> <span class="kw">this</span>.taps) {
+      tap.callback(...args)
+    }
+  }
+}
+
+<span class="cm">// 简版 SyncBailHook 实现</span>
+<span class="kw">class</span> <span class="typ">SyncBailHook</span> {
+  <span class="kw">constructor</span>(args = []) {
+    <span class="kw">this</span>.taps = []
+  }
+
+  <span class="fn">tap</span>(name, callback) {
+    <span class="kw">this</span>.taps.<span class="fn">push</span>({ name, callback })
+  }
+
+  <span class="cm">// 熔断：回调返回非 undefined 时停止</span>
+  <span class="fn">call</span>(...args) {
+    <span class="kw">for</span> (<span class="kw">const</span> tap <span class="kw">of</span> <span class="kw">this</span>.taps) {
+      <span class="kw">const</span> result = tap.callback(...args)
+      <span class="kw">if</span> (result !== <span class="kw">undefined</span>) <span class="kw">return</span> result
+    }
+  }
+}
+
+<span class="cm">// 简版 SyncWaterfallHook 实现</span>
+<span class="kw">class</span> <span class="typ">SyncWaterfallHook</span> {
+  <span class="kw">constructor</span>(args = []) {
+    <span class="kw">this</span>.taps = []
+  }
+
+  <span class="fn">tap</span>(name, callback) {
+    <span class="kw">this</span>.taps.<span class="fn">push</span>({ name, callback })
+  }
+
+  <span class="cm">// 瀑布：返回值作为下一个回调的第一个参数</span>
+  <span class="fn">call</span>(...args) {
+    <span class="kw">let</span> [first, ...rest] = args
+    <span class="kw">for</span> (<span class="kw">const</span> tap <span class="kw">of</span> <span class="kw">this</span>.taps) {
+      <span class="kw">const</span> result = tap.callback(first, ...rest)
+      <span class="kw">if</span> (result !== <span class="kw">undefined</span>) first = result
+    }
+    <span class="kw">return</span> first
+  }
+}
+
+<span class="cm">// ─── 使用示例 ───</span>
+<span class="kw">const</span> hook = <span class="kw">new</span> <span class="typ">SyncHook</span>([<span class="str">'name'</span>, <span class="str">'age'</span>])
+
+hook.<span class="fn">tap</span>(<span class="str">'PluginA'</span>, (name, age) => {
+  console.<span class="fn">log</span>(<span class="str">`A: ${name} is ${age}`</span>)
+})
+hook.<span class="fn">tap</span>(<span class="str">'PluginB'</span>, (name, age) => {
+  console.<span class="fn">log</span>(<span class="str">`B: ${name} is ${age}`</span>)
+})
+
+hook.<span class="fn">call</span>(<span class="str">'Alice'</span>, <span class="num">25</span>)
+<span class="cm">// 输出: A: Alice is 25</span>
+<span class="cm">// 输出: B: Alice is 25</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">tips_and_updates</span></div>
+        <h3>Plugin 开发最佳实践</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📌 命名规范</h4>
+          <p>插件类使用 PascalCase，tap 时传入插件名称作为标识，便于调试。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🎯 选择合适的 Hook</h4>
+          <p>读取数据用 <span class="inline-code">afterXxx</span>，修改数据用 <span class="inline-code">xxx</span>，添加资源用 <span class="inline-code">emit</span>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⚡ 选择合适的执行方式</h4>
+          <p>纯同步操作用 <span class="inline-code">tap</span>，需要异步用 <span class="inline-code">tapPromise</span> 或 <span class="inline-code">tapAsync</span>。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🧪 测试你的 Plugin</h4>
+          <p>使用 <span class="inline-code">webpack</span> Node API 打包，检查 stats 和输出文件。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📖 使用 schema-utils</h4>
+          <p>用 JSON Schema 验证 options，提供友好的错误提示。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔒 遵循 Webpack 规范</h4>
+          <p>不要在 apply 中使用箭头函数；不要在 compiler 上挂自定义属性。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>深入理解 Webpack 内部机制，让你在构建优化和 Plugin 开发中游刃有余</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById(btn.dataset.tab).classList.add('active')
+    })
+  })
+</script>
+</body>
+</html>
