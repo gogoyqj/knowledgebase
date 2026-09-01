@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vite 深度解析 — 核心架构 · 构建生命周期 · Plugin 开发</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #6C3CE1;
+    --md-on-primary: #fff;
+    --md-primary-container: #EADDFF;
+    --md-on-primary-container: #21005D;
+    --md-secondary: #625B71;
+    --md-secondary-container: #E8DEF8;
+    --md-tertiary: #7D5260;
+    --md-tertiary-container: #FFD8E4;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F5F0FF;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 16px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #6C3CE1 0%, #9B6DFF 50%, #C9B2FF 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 620px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(108,60,225,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.purple { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.blue   { background: #D3E4FF; color: #001C3B; }
+  .card-icon.green  { background: #D0F5D8; color: #003D16; }
+  .card-icon.amber  { background: #FFF3C4; color: #5D4037; }
+  .card-icon.red    { background: #FFDAD6; color: #410002; }
+  .card-icon.teal   { background: #C8F7E5; color: #003D2E; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .chip.green {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+  .chip.amber {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1C1B1F;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+    white-space: pre; width: fit-content; max-width: 100%;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #D4BBFF; }
+  .fn  { color: #FFB4AB; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .prop { color: #89DDFF; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #F5F0FF;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  .banner.warn {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+  .banner.success {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+
+  /* ── Comparison Grid ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    margin: 16px 0 16px 20px;
+    padding-left: 28px;
+    border-left: 3px solid var(--md-primary-container);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -35px;
+    top: 6px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    border: 3px solid var(--md-primary-container);
+  }
+  .timeline-item h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-primary);
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">Vi</div>
+  <h1>Vite <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>核心架构 · 构建生命周期 · Plugin 开发</h2>
+  <p>深入理解 Vite 的双引擎架构、ESM 驱动的开发体验、Rollup 生产构建，以及如何开发自定义 Vite Plugin</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="structure">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">account_tree</span>
+    核心架构
+  </button>
+  <button class="tab-btn" data-tab="lifecycle">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">autorenew</span>
+    构建生命周期
+  </button>
+  <button class="tab-btn" data-tab="plugin">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">extension</span>
+    Plugin 开发
+  </button>
+  <button class="tab-btn" data-tab="hooks">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">cable</span>
+    插件钩子
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== 核心架构 ==================== -->
+  <section class="section active" id="structure">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">bolt</span></div>
+        <h3>Vite 是什么？</h3>
+      </div>
+      <p>
+        Vite（法语"快"的意思）是下一代前端构建工具。它利用浏览器原生 ESM 实现<strong>极速开发启动</strong>，
+        生产环境使用 <strong>Rollup</strong> 打包，兼顾开发体验与生产优化。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>Vite 的核心理念：<strong>开发时不打包</strong>。传统工具（Webpack）在启动时需要构建完整的依赖图，而 Vite 只在浏览器请求时才按需编译，冷启动速度提升 10-100 倍。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Vite vs Webpack 架构对比</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>📦 Webpack（打包优先）</h4>
+          <ul>
+            <li>启动时构建完整依赖图</li>
+            <li>所有模块打包成 bundle</li>
+            <li>HMR 需重新构建受影响的 chunk</li>
+            <li>启动时间随项目规模线性增长</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>⚡ Vite（按需编译）</h4>
+          <ul>
+            <li>启动时只预构建 node_modules 依赖</li>
+            <li>源码通过 ESM 按需加载</li>
+            <li>HMR 只更新单个模块，与项目规模无关</li>
+            <li>启动时间几乎恒定（毫秒级）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">schema</span></div>
+        <h3>双引擎架构</h3>
+      </div>
+      <p>Vite 采用<strong>开发 / 生产双引擎</strong>策略：开发环境用 esbuild + 原生 ESM，生产环境用 Rollup。</p>
+      <div class="diagram">┌──────────────────────────────────────────────────────────────────┐
+│                      Vite 双引擎架构                              │
+└──────────────────────────────────────────────────────────────────┘
+
+  ┌─ 开发环境 (Dev Server) ──────────────────────────────────────┐
+  │                                                               │
+  │   浏览器请求                                                    │
+  │       │                                                       │
+  │       ▼                                                       │
+  │   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐ │
+  │   │  Vite Dev    │────▶│   esbuild    │────▶│  原生 ESM    │ │
+  │   │  Server      │     │  (依赖预构建)  │     │  按需编译     │ │
+  │   │  (Koa)       │     └──────────────┘     └──────────────┘ │
+  │   └──────┬───────┘                                            │
+  │          │                                                    │
+  │          ▼                                                    │
+  │   ┌──────────────┐     ┌──────────────┐                      │
+  │   │  HMR WebSocket│    │  CSS / JSON  │                      │
+  │   │  热更新推送     │    │  即时转换     │                      │
+  │   └──────────────┘     └──────────────┘                      │
+  └───────────────────────────────────────────────────────────────┘
+
+  ┌─ 生产环境 (Build) ──────────────────────────────────────────┐
+  │                                                               │
+  │   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐ │
+  │   │  vite build  │────▶│    Rollup     │────▶│  优化产物     │ │
+  │   │              │     │  (打包 + 优化) │     │  (Tree Shake │ │
+  │   │              │     │              │     │   Code Split) │ │
+  │   └──────────────┘     └──────────────┘     └──────────────┘ │
+  └───────────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">dns</span></div>
+        <h3>核心模块</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">dns</span> Dev Server</h4>
+          <p>基于 Koa 的开发服务器，处理模块请求、HMR WebSocket、静态资源服务、API 代理。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">bolt</span> esbuild</h4>
+          <p>Go 编写的超快编译器。负责依赖预构建（node_modules 打包）和 TS/JSX 转译。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">extension</span> Plugin 系统</h4>
+          <p>兼容 Rollup 插件接口，扩展了 Vite 特有的钩子。开发和构建共享同一插件系统。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">sync</span> HMR</h4>
+          <p>基于 WebSocket 的热模块替换。精确更新变更模块，保持应用状态不丢失。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">css</span> CSS 处理</h4>
+          <p>原生支持 CSS / PostCSS / CSS Modules / Less / Sass，无需额外 Loader 配置。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">image</span> 静态资源</h4>
+          <p>支持 JSON、图片、字体、WebAssembly 等资源的导入和处理。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">settings</span></div>
+        <h3>配置文件结构</h3>
+      </div>
+      <pre><span class="cm">// vite.config.ts — 完整配置示例</span>
+<span class="kw">import</span> { defineConfig } <span class="kw">from</span> <span class="str">'vite'</span>
+<span class="kw">import</span> vue <span class="kw">from</span> <span class="str">'@vitejs/plugin-vue'</span>
+<span class="kw">import</span> { resolve } <span class="kw">from</span> <span class="str">'path'</span>
+
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="cm">// 项目根目录</span>
+  root: <span class="str">'.'</span>,
+
+  <span class="cm">// 开发服务器配置</span>
+  server: {
+    port: <span class="num">3000</span>,
+    open: <span class="kw">true</span>,
+    proxy: {
+      <span class="str">'/api'</span>: {
+        target: <span class="str">'http://localhost:8080'</span>,
+        changeOrigin: <span class="kw">true</span>
+      }
+    }
+  },
+
+  <span class="cm">// 构建配置</span>
+  build: {
+    outDir: <span class="str">'dist'</span>,
+    minify: <span class="str">'esbuild'</span>,
+    rollupOptions: {
+      input: {
+        main: <span class="fn">resolve</span>(__dirname, <span class="str">'index.html'</span>)
+      },
+      output: {
+        manualChunks: {
+          vendor: [<span class="str">'vue'</span>, <span class="str">'vue-router'</span>]
+        }
+      }
+    }
+  },
+
+  <span class="cm">// 插件</span>
+  plugins: [
+    <span class="fn">vue</span>()
+  ],
+
+  <span class="cm">// 路径别名</span>
+  resolve: {
+    alias: {
+      <span class="str">'@'</span>: <span class="fn">resolve</span>(__dirname, <span class="str">'src'</span>)
+    }
+  }
+})</pre>
+    </div>
+  </section>
+
+  <!-- ==================== 构建生命周期 ==================== -->
+  <section class="section" id="lifecycle">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">autorenew</span></div>
+        <h3>开发模式生命周期</h3>
+      </div>
+      <p>
+        Vite 开发服务器启动后，浏览器通过原生 ESM 请求模块。每个请求经过 Vite 的<strong>中间件管道</strong>处理。
+      </p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>1. 读取配置</h4>
+          <p>解析 vite.config.ts → 合并默认配置 → 解析环境变量</p>
+        </div>
+        <div class="timeline-item">
+          <h4>2. 创建插件容器</h4>
+          <p>实例化所有插件 → 调用 config / configResolved 钩子</p>
+        </div>
+        <div class="timeline-item">
+          <h4>3. 依赖预构建</h4>
+          <p>扫描 node_modules → esbuild 打包 CJS/UMD 为 ESM → 缓存到 node_modules/.vite</p>
+        </div>
+        <div class="timeline-item">
+          <h4>4. 启动 Dev Server</h4>
+          <p>创建 Koa 服务器 → 注册中间件 → 启动 WebSocket（HMR）→ 调用 configureServer 钩子</p>
+        </div>
+        <div class="timeline-item">
+          <h4>5. 按需编译</h4>
+          <p>浏览器请求模块 → 匹配插件钩子 → transform / load → 返回编译结果</p>
+        </div>
+        <div class="timeline-item">
+          <h4>6. HMR 热更新</h4>
+          <p>文件变化 → chokidar 监听 → 分析模块图 → 通过 WebSocket 推送更新</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">timeline</span></div>
+        <h3>开发模式请求流程</h3>
+      </div>
+      <div class="diagram">┌──────────────────────────────────────────────────────────────────┐
+│                  Vite Dev Server 请求流程                         │
+└──────────────────────────────────────────────────────────────────┘
+
+  浏览器
+    │
+    │  GET /index.html
+    ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Vite Dev Server (Koa 中间件管道)                                  │
+│                                                                    │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐      │
+│  │ indexHtml │──▶│ transform│──▶│  static  │──▶│  spa     │      │
+│  │ Middleware │   │ Middleware│   │ Middleware│   │ Fallback │      │
+│  └──────────┘   └──────────┘   └──────────┘   └──────────┘      │
+└──────────────────────────────────────────────────────────────────┘
+    │
+    │  <script type="module" src="/src/main.ts">
+    ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  模块请求处理                                                      │
+│                                                                    │
+│  /src/main.ts                                                      │
+│       │                                                            │
+│       ▼                                                            │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐      │
+│  │ resolve  │──▶│  load    │──▶│ transform│──▶│  返回     │      │
+│  │ (路径解析) │   │ (读取文件) │   │ (编译转换) │   │ (ESM)    │      │
+│  └──────────┘   └──────────┘   └──────────┘   └──────────┘      │
+│       │              │              │                              │
+│       ▼              ▼              ▼                              │
+│  plugin.resolve  plugin.load  plugin.transform                    │
+└──────────────────────────────────────────────────────────────────┘
+    │
+    │  import './style.css'
+    │  import logo from './logo.svg'
+    ▼
+  对每个 import 重复上述流程（按需编译，不打包）</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">build</span></div>
+        <h3>生产构建生命周期</h3>
+      </div>
+      <p>
+        生产环境 <span class="inline-code">vite build</span> 使用 Rollup 进行打包，流程与开发模式完全不同。
+      </p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>1. 读取配置 + 插件初始化</h4>
+          <p>解析配置 → 调用 config / configResolved 钩子</p>
+        </div>
+        <div class="timeline-item">
+          <h4>2. Rollup 打包</h4>
+          <p>从入口开始 → resolveId / load / transform 处理每个模块 → 构建模块图 → Tree Shaking</p>
+        </div>
+        <div class="timeline-item">
+          <h4>3. 代码生成</h4>
+          <p>Chunk 分割 → Code Splitting → 生成 AST → 输出代码</p>
+        </div>
+        <div class="timeline-item">
+          <h4>4. 资源优化</h4>
+          <p>代码压缩（esbuild/terser）→ CSS 优化 → 图片优化 → 生成 hash 文件名</p>
+        </div>
+        <div class="timeline-item">
+          <h4>5. 输出文件</h4>
+          <p>调用 generateBundle / writeBundle 钩子 → 写入 dist 目录</p>
+        </div>
+      </div>
+      <div class="diagram">┌──────────────────────────────────────────────────────────────────┐
+│                  Vite 生产构建流程                                 │
+└──────────────────────────────────────────────────────────────────┘
+
+  vite build
+      │
+      ▼
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │  config  │────▶│  resolve │────▶│   load   │
+  │  配置解析  │     │  模块解析  │     │  读取模块  │
+  └──────────┘     └──────────┘     └──────────┘
+                                          │
+                                          ▼
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │  output  │◀────│  chunk   │◀────│ transform│
+  │  输出文件  │     │  分包优化  │     │  编译转换  │
+  └────┬─────┘     └──────────┘     └──────────┘
+       │
+       ▼
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │  minify  │────▶│  hash    │────▶│  write   │
+  │  代码压缩  │     │  文件哈希  │     │  写入磁盘  │
+  └──────────┘     └──────────┘     └──────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">sync</span></div>
+        <h3>HMR 热更新流程</h3>
+      </div>
+      <div class="diagram">┌──────────────────────────────────────────────────────────────────┐
+│                    HMR 热更新流程                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+  文件系统 (chokidar 监听)
+      │
+      │  文件变化事件
+      ▼
+  ┌──────────────────┐
+  │  1. 分析变更模块   │
+  │     找到边界模块   │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │  2. 调用插件钩子   │
+  │  handleHotUpdate  │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │  3. 重新编译模块   │
+  │  transform 链     │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │  4. WebSocket 推送 │
+  │  { type: 'update' │
+  │    updates: [...] }│
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │  5. 浏览器处理     │
+  │  - CSS: 直接替换   │
+  │  - JS: 重新 import │
+  │    执行 HMR 回调   │
+  └──────────────────┘</div>
+    </div>
+  </section>
+
+  <!-- ==================== Plugin 开发 ==================== -->
+  <section class="section" id="plugin">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">extension</span></div>
+        <h3>Vite Plugin 是什么？</h3>
+      </div>
+      <p>
+        Vite 插件基于 <strong>Rollup 插件接口</strong>构建，扩展了 Vite 特有的钩子。
+        一个 Vite 插件就是一个<strong>返回插件配置对象的函数</strong>。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>Vite 插件 = <strong>Rollup 插件接口</strong> + <strong>Vite 独有钩子</strong>。这意味着一个 Vite 插件可以同时在开发和生产环境工作，且大部分 Rollup 插件可以直接在 Vite 中使用。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">architecture</span></div>
+        <h3>插件基本结构</h3>
+      </div>
+      <p>一个 Vite 插件是一个函数，返回一个包含钩子的对象：</p>
+      <pre><span class="cm">// Vite 插件基本模板</span>
+<span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">myPlugin</span>(): Plugin {
+  <span class="kw">return</span> {
+    <span class="cm">// 插件名称（用于日志和调试）</span>
+    name: <span class="str">'vite-plugin-my'</span>,
+
+    <span class="cm">// 应用顺序：'pre' | 'post' | 默认</span>
+    enforce: <span class="str">'pre'</span>,
+
+    <span class="cm">// 只在特定环境生效</span>
+    apply: <span class="str">'build'</span>,  <span class="cm">// 'build' | 'serve'</span>
+
+    <span class="cm">// ─── 配置钩子 ───</span>
+    <span class="fn">config</span>(config, { command }) {
+      <span class="cm">// 修改 Vite 配置</span>
+      <span class="kw">return</span> {
+        define: {
+          __APP_VERSION__: JSON.<span class="fn">stringify</span>(<span class="str">'1.0.0'</span>)
+        }
+      }
+    },
+
+    <span class="cm">// ─── 服务器钩子 ───</span>
+    <span class="fn">configureServer</span>(server) {
+      <span class="cm">// 自定义开发服务器中间件</span>
+      server.middlewares.<span class="fn">use</span>((req, res, next) => {
+        <span class="fn">next</span>()
+      })
+    },
+
+    <span class="cm">// ─── 转换钩子 ───</span>
+    <span class="fn">transform</span>(code, id) {
+      <span class="cm">// 转换模块内容</span>
+      <span class="kw">return</span> code
+    },
+
+    <span class="cm">// ─── 构建钩子 ───</span>
+    <span class="fn">generateBundle</span>(options, bundle) {
+      <span class="cm">// 处理输出 bundle</span>
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">code</span></div>
+        <h3>实战：环境变量注入插件</h3>
+      </div>
+      <p>一个实用的插件，自动注入构建信息到全局变量：</p>
+      <pre><span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">buildInfoPlugin</span>(): Plugin {
+  <span class="kw">return</span> {
+    name: <span class="str">'vite-plugin-build-info'</span>,
+    enforce: <span class="str">'pre'</span>,
+
+    <span class="fn">config</span>() {
+      <span class="kw">return</span> {
+        define: {
+          __BUILD_TIME__: JSON.<span class="fn">stringify</span>(<span class="kw">new</span> <span class="typ">Date</span>().<span class="fn">toISOString</span>()),
+          __BUILD_HASH__: JSON.<span class="fn">stringify</span>(
+            Math.<span class="fn">random</span>().<span class="fn">toString</span>(<span class="num">36</span>).<span class="fn">substring</span>(<span class="num">2</span>, <span class="num">10</span>)
+          ),
+          __NODE_ENV__: JSON.<span class="fn">stringify</span>(process.env.NODE_ENV)
+        }
+      }
+    }
+  }
+}
+
+<span class="cm">// 使用后，代码中可直接访问：</span>
+<span class="cm">// console.log('构建时间:', __BUILD_TIME__)</span>
+<span class="cm">// console.log('构建哈希:', __BUILD_HASH__)</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">build</span></div>
+        <h3>实战：虚拟模块插件</h3>
+      </div>
+      <p>创建一个虚拟模块，运行时动态生成内容（不对应真实文件）：</p>
+      <pre><span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">virtualModulePlugin</span>(): Plugin {
+  <span class="kw">const</span> virtualModuleId = <span class="str">'virtual:config'</span>
+  <span class="kw">const</span> resolvedVirtualModuleId = <span class="str">'\0'</span> + virtualModuleId
+
+  <span class="kw">return</span> {
+    name: <span class="str">'vite-plugin-virtual-config'</span>,
+
+    <span class="cm">// 1. 解析虚拟模块 ID</span>
+    <span class="fn">resolveId</span>(id) {
+      <span class="kw">if</span> (id === virtualModuleId) {
+        <span class="kw">return</span> resolvedVirtualModuleId
+      }
+    },
+
+    <span class="cm">// 2. 加载虚拟模块内容</span>
+    <span class="fn">load</span>(id) {
+      <span class="kw">if</span> (id === resolvedVirtualModuleId) {
+        <span class="kw">return</span> <span class="str">`
+          export const config = {
+            apiUrl: '${process.env.API_URL || "http://localhost:3000"}',
+            version: '${process.env.npm_package_version || "0.0.0"}',
+            debug: ${process.env.NODE_ENV !== 'production'}
+          }
+        `</span>
+      }
+    }
+  }
+}
+
+<span class="cm">// 使用：import { config } from 'virtual:config'</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">transform</span></div>
+        <h3>实战：代码转换插件</h3>
+      </div>
+      <p>在模块加载时转换代码内容（类似 Loader 的功能）：</p>
+      <pre><span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">svgComponentPlugin</span>(): Plugin {
+  <span class="kw">return</span> {
+    name: <span class="str">'vite-plugin-svg-component'</span>,
+    enforce: <span class="str">'pre'</span>,
+
+    <span class="cm">// 转换 .svg?component 导入为 Vue/React 组件</span>
+    <span class="async fn">transform</span>(code, id) {
+      <span class="kw">if</span> (!id.<span class="fn">endsWith</span>(<span class="str">'.svg?component'</span>)) <span class="kw">return</span>
+
+      <span class="cm">// 读取 SVG 内容</span>
+      <span class="kw">const</span> svgPath = id.<span class="fn">replace</span>(<span class="str">'?component'</span>, <span class="str">''</span>)
+      <span class="kw">const</span> fs = <span class="fn">require</span>(<span class="str">'fs'</span>)
+      <span class="kw">const</span> svgContent = fs.<span class="fn">readFileSync</span>(svgPath, <span class="str">'utf-8'</span>)
+
+      <span class="cm">// 转为 Vue 组件</span>
+      <span class="kw">return</span> <span class="str">`
+        &lt;template&gt;
+          ${svgContent}
+        &lt;/template&gt;
+        &lt;script&gt;
+        export default { name: 'SvgIcon' }
+        &lt;/script&gt;
+      `</span>
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">http</span></div>
+        <h3>实战：开发服务器中间件插件</h3>
+      </div>
+      <p>通过 <span class="inline-code">configureServer</span> 钩子扩展开发服务器：</p>
+      <pre><span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">apiMockPlugin</span>(): Plugin {
+  <span class="kw">return</span> {
+    name: <span class="str">'vite-plugin-api-mock'</span>,
+    apply: <span class="str">'serve'</span>,  <span class="cm">// 仅开发环境</span>
+
+    <span class="fn">configureServer</span>(server) {
+      <span class="cm">// 在 Vite 内部中间件之前注入</span>
+      server.middlewares.<span class="fn">use</span>((req, res, next) => {
+        <span class="cm">// 拦截 /api/mock/* 请求</span>
+        <span class="kw">if</span> (req.url?.<span class="fn">startsWith</span>(<span class="str">'/api/mock/'</span>)) {
+          <span class="kw">const</span> mockName = req.url.<span class="fn">replace</span>(<span class="str">'/api/mock/'</span>, <span class="str">''</span>)
+
+          <span class="cm">// 返回模拟数据</span>
+          res.<span class="fn">setHeader</span>(<span class="str">'Content-Type'</span>, <span class="str">'application/json'</span>)
+          res.<span class="fn">end</span>(JSON.<span class="fn">stringify</span>({
+            code: <span class="num">200</span>,
+            data: { mock: <span class="kw">true</span>, name: mockName },
+            message: <span class="str">'Mock response'</span>
+          }))
+          <span class="kw">return</span>
+        }
+        <span class="fn">next</span>()
+      })
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">edit_note</span></div>
+        <h3>实战：HTML 转换插件</h3>
+      </div>
+      <p>使用 <span class="inline-code">transformIndexHtml</span> 钩子修改 HTML 内容：</p>
+      <pre><span class="kw">import</span> <span class="kw">type</span> { Plugin } <span class="kw">from</span> <span class="str">'vite'</span>
+
+<span class="kw">export default function</span> <span class="fn">htmlMetaPlugin</span>(options: {
+  title?: string
+  description?: string
+}): Plugin {
+  <span class="kw">return</span> {
+    name: <span class="str">'vite-plugin-html-meta'</span>,
+
+    <span class="cm">// 转换 index.html</span>
+    <span class="fn">transformIndexHtml</span>(html) {
+      <span class="kw">return</span> html.<span class="fn">replace</span>(
+        <span class="str">'&lt;head&gt;'</span>,
+        <span class="str">`&lt;head&gt;
+          &lt;meta name="description" content="${options.description || ''}"&gt;
+          &lt;meta property="og:title" content="${options.title || ''}"&gt;
+          &lt;meta property="og:description" content="${options.description || ''}"&gt;
+        `</span>
+      )
+    }
+  }
+}
+
+<span class="cm">// 使用</span>
+<span class="fn">htmlMetaPlugin</span>({
+  title: <span class="str">'My App'</span>,
+  description: <span class="str">'A modern web application'</span>
+})</pre>
+    </div>
+  </section>
+
+  <!-- ==================== 插件钩子 ==================== -->
+  <section class="section" id="hooks">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">cable</span></div>
+        <h3>Vite 插件钩子总览</h3>
+      </div>
+      <p>Vite 插件钩子分为三类：<strong>通用钩子</strong>（Rollup 兼容）、<strong>构建钩子</strong>（仅构建）、<strong>服务器钩子</strong>（仅开发）。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">settings</span></div>
+        <h3>通用钩子（开发 + 构建）</h3>
+      </div>
+      <pre><span class="cm">// 通用钩子 — 开发和构建环境都会调用</span>
+
+<span class="cm">// ─── 配置阶段 ───</span>
+<span class="fn">config</span>(config, { command, mode })
+  <span class="cm">// 返回部分配置对象，深度合并到 Vite 配置中</span>
+  <span class="cm">// command: 'serve' | 'build'</span>
+
+<span class="fn">configResolved</span>(config)
+  <span class="cm">// 配置解析完成后调用，可读取最终配置</span>
+  <span class="cm">// 此时配置已合并，不可再修改</span>
+
+<span class="fn">configureServer</span>(server)        <span class="cm">// ⭐ Vite 独有</span>
+  <span class="cm">// 配置开发服务器，注入自定义中间件</span>
+
+<span class="fn">configurePreviewServer</span>(server)  <span class="cm">// ⭐ Vite 独有</span>
+  <span class="cm">// 配置预览服务器</span>
+
+<span class="cm">// ─── 模块解析阶段 ───</span>
+<span class="fn">resolveId</span>(source, importer, options)
+  <span class="cm">// 自定义模块解析逻辑</span>
+  <span class="cm">// 返回 ID 字符串表示接管解析</span>
+  <span class="cm">// 返回 null 表示使用默认解析</span>
+
+<span class="fn">load</span>(id)
+  <span class="cm">// 自定义模块加载逻辑</span>
+  <span class="cm">// 返回代码字符串表示接管加载</span>
+
+<span class="fn">transform</span>(code, id)
+  <span class="cm">// 转换模块代码</span>
+  <span class="cm">// 返回转换后的代码或 { code, map }</span>
+
+<span class="cm">// ─── 输出阶段 ───</span>
+<span class="fn">buildStart</span>(options)
+  <span class="cm">// 构建开始时调用</span>
+
+<span class="fn">buildEnd</span>(error)
+  <span class="cm">// 构建结束时调用（bundle 生成前）</span>
+
+<span class="fn">generateBundle</span>(options, bundle, isWrite)
+  <span class="cm">// bundle 生成后、写入前调用</span>
+  <span class="cm">// 可修改、添加、删除 bundle 中的文件</span>
+
+<span class="fn">writeBundle</span>(options, bundle)
+  <span class="cm">// bundle 写入磁盘后调用</span>
+
+<span class="fn">closeBundle</span>()
+  <span class="cm">// 构建完全结束后调用</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">dns</span></div>
+        <h3>Vite 独有钩子</h3>
+      </div>
+      <pre><span class="cm">// Vite 独有钩子 — 不在 Rollup 接口中</span>
+
+<span class="cm">// ─── HTML 转换 ───</span>
+<span class="fn">transformIndexHtml</span>(html, ctx)
+  <span class="cm">// 转换 index.html</span>
+  <span class="cm">// ctx: { path, filename, server?, bundle?, chunk? }</span>
+  <span class="cm">// 可返回：修改后的 HTML | Tag 描述符数组 | void</span>
+
+<span class="cm">// ─── HMR ───</span>
+<span class="fn">handleHotUpdate</span>(ctx)
+  <span class="cm">// 自定义 HMR 更新逻辑</span>
+  <span class="cm">// ctx: { file, timestamp, modules, read, server }</span>
+  <span class="cm">// 返回 HMR 模块数组表示接管更新</span>
+  <span class="cm">// 返回空数组表示阻止更新</span>
+
+<span class="cm">// ─── 环境变量 ───</span>
+<span class="fn">transformIndexHtml</span>  <span class="cm">// 也可用于注入环境变量到 HTML</span>
+
+<span class="cm">// ─── 开发服务器 ───</span>
+<span class="fn">configureServer</span>(server)
+  <span class="cm">// server.middlewares.use(...) — 注册中间件</span>
+  <span class="cm">// server.ws.send(...) — 发送 WebSocket 消息</span>
+  <span class="cm">// server.watcher — chokidar 文件监听实例</span></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">view_list</span></div>
+        <h3>钩子执行顺序</h3>
+      </div>
+      <div class="diagram">┌──────────────────────────────────────────────────────────────────┐
+│                  Vite 插件钩子执行顺序                              │
+└──────────────────────────────────────────────────────────────────┘
+
+  ┌─ 配置阶段 ─────────────────────────────────────────────────────┐
+  │                                                                 │
+  │  config ──▶ configResolved ──▶ configureServer (dev)            │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─ 模块处理阶段（每个模块请求触发）────────────────────────────────┐
+  │                                                                 │
+  │  resolveId ──▶ load ──▶ transform                               │
+  │                                                                 │
+  │  顺序：enforce: 'pre' 插件 → 默认插件 → enforce: 'post' 插件     │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─ HTML 处理 ────────────────────────────────────────────────────┐
+  │                                                                 │
+  │  transformIndexHtml                                            │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─ 输出阶段（仅构建）─────────────────────────────────────────────┐
+  │                                                                 │
+  │  buildStart ──▶ buildEnd ──▶ generateBundle ──▶ writeBundle     │
+  │                                              ──▶ closeBundle    │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘
+
+  ┌─ HMR 阶段（仅开发，文件变化时）─────────────────────────────────┐
+  │                                                                 │
+  │  handleHotUpdate                                               │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">tips_and_updates</span></div>
+        <h3>插件开发最佳实践</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📌 命名规范</h4>
+          <p>插件名称使用 <span class="inline-code">vite-plugin-xxx</span> 格式，便于 npm 搜索和社区发现。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🎯 enforce 控制顺序</h4>
+          <p><span class="inline-code">'pre'</span> 在核心插件前执行，<span class="inline-code">'post'</span> 在之后。默认在核心插件之间。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔍 apply 限定环境</h4>
+          <p><span class="inline-code">'serve'</span> 仅开发，<span class="inline-code">'build'</span> 仅构建。避免不必要的插件逻辑。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>⚡ 过滤文件</h4>
+          <p>在 transform 中用 <span class="inline-code">id.includes()</span> 或正则过滤，避免处理无关文件影响性能。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🗺️ Source Map</h4>
+          <p>transform 返回 <span class="inline-code">{ code, map }</span> 以支持 Source Map 调试。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🧪 测试插件</h4>
+          <p>使用 <span class="inline-code">createServer()</span> / <span class="inline-code">build()</span> API 编写集成测试。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Vite Plugin vs Webpack Plugin</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>📦 Webpack Plugin</h4>
+          <ul>
+            <li>类 + <span class="inline-code">apply(compiler)</span> 方法</li>
+            <li>通过 <span class="inline-code">compiler.hooks.xxx.tap()</span> 注册</li>
+            <li>基于 Tapable 事件系统</li>
+            <li>钩子数量多，粒度细</li>
+            <li>需要理解 Compiler / Compilation</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>⚡ Vite Plugin</h4>
+          <ul>
+            <li>函数返回配置对象</li>
+            <li>钩子直接作为对象属性</li>
+            <li>基于 Rollup 插件接口</li>
+            <li>钩子更少，更直观</li>
+            <li>兼容 Rollup 插件生态</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Vite 让前端开发回归纯粹——快速启动、即时反馈、专注业务</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById(btn.dataset.tab).classList.add('active')
+    })
+  })
+</script>
+</body>
+</html>
