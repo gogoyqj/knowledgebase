@@ -24,5 +24,6 @@
   { "name": "server-debug", "src": "server-debug.html" },
   { "name": "socket-transfer", "src": "socket-transfer.html" },
   { "name": "ssr", "src": "ssr.html" },
-  { "name": "vue", "src": "vue.html" }
+  { "name": "vue", "src": "vue.html" },
+  { "name": "webGPU", "src": "webGPU.html" }
 ]
