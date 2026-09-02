@@ -663,7 +663,241 @@ obs.<span class="fn">observe</span>({ entryTypes: [<span class="str">'measure'</
   </div>
 </div>
 
-<!-- ========== 7. 总结 ========== -->
+<!-- ========== 7. 更新与热更新 ========== -->
+<div class="section" id="update">
+  <div class="section-title"><span class="material-icons-outlined">system_update</span> 更新与热更新</div>
+
+  <div class="card">
+    <h3>两种更新策略</h3>
+    <pre>
+<span class="cmt">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    Electron 更新策略                            │</span>
+<span class="cmt">├─────────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">│   主进程代码改了 ──→ 必须发版 ──→ electron-updater 全量更新     │</span>
+<span class="cmt">│   (Node.js / 原生模块 / IPC / preload)                          │</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">│   渲染进程代码改了 ──→ 热更新 Bundle ──→ 用户无感知刷新        │</span>
+<span class="cmt">│   (UI / 业务逻辑 / 样式 / 前端框架)                             │</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">└─────────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>electron-updater 全量更新</h3>
+    <p>配合 <code>electron-builder</code> 使用，支持全量/差量更新，自动签名验证。</p>
+    <pre><span class="cmt">// main.js — 更新管理器</span>
+<span class="kw">const</span> { autoUpdater } = <span class="fn">require</span>(<span class="str">'electron-updater'</span>)
+<span class="kw">const</span> log = <span class="fn">require</span>(<span class="str">'electron-log'</span>)
+
+<span class="kw">class</span> <span class="typ">UpdateManager</span> {
+  <span class="fn">constructor</span>(mainWindow) {
+    <span class="kw">this</span>.mainWindow = mainWindow
+    <span class="kw">this</span>.<span class="fn">setup</span>()
+  }
+
+  <span class="fn">setup</span>() {
+    autoUpdater.logger = log
+    autoUpdater.autoDownload = <span class="kw">false</span>       <span class="cmt">// 不自动下载，先询问用户</span>
+    autoUpdater.autoInstallOnAppQuit = <span class="kw">true</span> <span class="cmt">// 退出时自动安装</span>
+
+    <span class="cmt">// 发现新版本</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'update-available'</span>, <span class="kw">async</span> (info) =&gt; {
+      <span class="kw">const</span> { response } = <span class="kw">await</span> dialog.<span class="fn">showMessageBox</span>({
+        type: <span class="str">'info'</span>,
+        buttons: [<span class="str">'立即更新'</span>, <span class="str">'稍后'</span>],
+        title: <span class="str">'发现新版本'</span>,
+        message: <span class="str">`版本 ${info.version} 已发布`</span>
+      })
+      <span class="kw">if</span> (response === <span class="num">0</span>) autoUpdater.<span class="fn">downloadUpdate</span>()
+    })
+
+    <span class="cmt">// 下载进度</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'download-progress'</span>, (progress) =&gt; {
+      <span class="kw">this</span>.mainWindow.<span class="fn">setProgressBar</span>(progress.percent / <span class="num">100</span>)
+    })
+
+    <span class="cmt">// 下载完成，提示重启</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'update-downloaded'</span>, () =&gt; {
+      dialog.<span class="fn">showMessageBox</span>({
+        type: <span class="str">'info'</span>,
+        buttons: [<span class="str">'重启'</span>, <span class="str">'稍后'</span>],
+        title: <span class="str">'更新就绪'</span>,
+        message: <span class="str">'新版本已下载，重启后生效'</span>
+      }).<span class="fn">then</span>(() =&gt; autoUpdater.<span class="fn">quitAndInstall</span>())
+    })
+
+    autoUpdater.<span class="fn">on</span>(<span class="str">'error'</span>, (err) =&gt; log.<span class="fn">error</span>(<span class="str">'更新失败:'</span>, err))
+  }
+
+  <span class="fn">checkForUpdates</span>() { autoUpdater.<span class="fn">checkForUpdates</span>() }
+}</pre>
+    <p>配置 <code>package.json</code>：</p>
+    <pre>{
+  <span class="str">"build"</span>: {
+    <span class="str">"publish"</span>: [{
+      <span class="str">"provider"</span>: <span class="str">"generic"</span>,           <span class="cmt">// 或 "github" / "s3"</span>
+      <span class="str">"url"</span>: <span class="str">"https://your-server.com/releases/"</span>
+    }]
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3>热更新原理（Bundle Hot Update）</h3>
+    <p>只更新渲染进程的前端资源（JS/CSS/HTML），不涉及主进程，用户无感知。</p>
+    <pre>
+<span class="cmt">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    热更新流程                                │</span>
+<span class="cmt">├──────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   App 启动                                                   │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   请求服务器 /api/version                                    │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   本地版本 === 远程版本? ──→ 是 ──→ 加载本地 Bundle          │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     否                                                       │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   下载增量 ZIP 包                                            │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   SHA256 校验 ──→ 失败 ──→ 回退到内置版本                   │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     成功                                                     │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   解压覆盖 userData/bundle/                                  │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   通知渲染进程 reload ──→ 用户无感知刷新                    │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">└──────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>热更新实现</h3>
+    <pre><span class="cmt">// main.js — 热更新管理器</span>
+<span class="kw">const</span> fs = <span class="fn">require</span>(<span class="str">'fs'</span>)
+<span class="kw">const</span> path = <span class="fn">require</span>(<span class="str">'path'</span>)
+<span class="kw">const</span> crypto = <span class="fn">require</span>(<span class="str">'crypto'</span>)
+<span class="kw">const</span> AdmZip = <span class="fn">require</span>(<span class="str">'adm-zip'</span>)
+
+<span class="kw">class</span> <span class="typ">HotUpdater</span> {
+  <span class="fn">constructor</span>() {
+    <span class="kw">this</span>.bundleDir = path.<span class="fn">join</span>(app.<span class="fn">getPath</span>(<span class="str">'userData'</span>), <span class="str">'bundle'</span>)
+    <span class="kw">this</span>.currentVersion = <span class="str">'1.0.0'</span>
+  }
+
+  <span class="cmt">// 启动时检查更新</span>
+  <span class="kw">async</span> <span class="fn">checkAndUpdate</span>() {
+    <span class="kw">try</span> {
+      <span class="cmt">// 1. 获取远程版本信息</span>
+      <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'https://your-server.com/api/version'</span>)
+      <span class="kw">const</span> { version, downloadUrl, sha256 } = <span class="kw">await</span> res.<span class="fn">json</span>()
+
+      <span class="cmt">// 2. 版本对比</span>
+      <span class="kw">if</span> (<span class="kw">this</span>.<span class="fn">compareVersion</span>(version, <span class="kw">this</span>.currentVersion) &lt;= <span class="num">0</span>) <span class="kw">return</span>
+
+      <span class="cmt">// 3. 下载增量包</span>
+      <span class="kw">const</span> zipPath = path.<span class="fn">join</span>(app.<span class="fn">getPath</span>(<span class="str">'temp'</span>), <span class="str">'hot-update.zip'</span>)
+      <span class="kw">await</span> <span class="kw">this</span>.<span class="fn">download</span>(downloadUrl, zipPath)
+
+      <span class="cmt">// 4. 完整性校验</span>
+      <span class="kw">const</span> hash = <span class="kw">this</span>.<span class="fn">sha256File</span>(zipPath)
+      <span class="kw">if</span> (hash !== sha256) <span class="kw">throw new</span> <span class="typ">Error</span>(<span class="str">'SHA256 校验失败'</span>)
+
+      <span class="cmt">// 5. 解压覆盖</span>
+      <span class="kw">const</span> zip = <span class="kw">new</span> <span class="typ">AdmZip</span>(zipPath)
+      zip.<span class="fn">extractAllTo</span>(<span class="kw">this</span>.bundleDir, <span class="kw">true</span>)
+
+      <span class="cmt">// 6. 更新版本号</span>
+      <span class="kw">this</span>.currentVersion = version
+
+      <span class="cmt">// 7. 通知渲染进程刷新</span>
+      mainWindow.webContents.<span class="fn">send</span>(<span class="str">'hot-reload'</span>)
+    } <span class="kw">catch</span> (e) {
+      log.<span class="fn">error</span>(<span class="str">'热更新失败，使用内置版本:'</span>, e)
+    }
+  }
+
+  <span class="cmt">// 加载入口：优先用热更新的 bundle</span>
+  <span class="fn">getIndexPath</span>() {
+    <span class="kw">const</span> hotPath = path.<span class="fn">join</span>(<span class="kw">this</span>.bundleDir, <span class="str">'index.html'</span>)
+    <span class="kw">if</span> (fs.<span class="fn">existsSync</span>(hotPath)) <span class="kw">return</span> hotPath
+    <span class="kw">return</span> path.<span class="fn">join</span>(__dirname, <span class="str">'dist/index.html'</span>)  <span class="cmt">// 内置版本</span>
+  }
+
+  <span class="fn">sha256File</span>(filePath) {
+    <span class="kw">const</span> data = fs.<span class="fn">readFileSync</span>(filePath)
+    <span class="kw">return</span> crypto.<span class="fn">createHash</span>(<span class="str">'sha256'</span>).<span class="fn">update</span>(data).<span class="fn">digest</span>(<span class="str">'hex'</span>)
+  }
+}</pre>
+    <p>渲染进程监听：</p>
+    <pre><span class="cmt">// renderer.js</span>
+<span class="kw">const</span> { ipcRenderer } = <span class="fn">require</span>(<span class="str">'electron'</span>)
+ipcRenderer.<span class="fn">on</span>(<span class="str">'hot-reload'</span>, () =&gt; {
+  window.location.<span class="fn">reload</span>()
+})</pre>
+  </div>
+
+  <div class="card">
+    <h3>什么能热更新，什么不能</h3>
+    <table>
+      <tr><th>改动类型</th><th>能热更新?</th><th>原因</th></tr>
+      <tr><td>UI 样式、组件</td><td>✅</td><td>纯渲染进程</td></tr>
+      <tr><td>前端业务逻辑</td><td>✅</td><td>纯渲染进程</td></tr>
+      <tr><td>React / Vue 版本</td><td>✅</td><td>只在渲染进程跑</td></tr>
+      <tr><td>新增/修改 IPC 调用</td><td>❌</td><td>主进程 handler 要改</td></tr>
+      <tr><td>新增原生模块</td><td>❌</td><td>需要 Node.js 原生能力</td></tr>
+      <tr><td>修改 preload.js</td><td>❌</td><td>主进程加载，启动时执行</td></tr>
+      <tr><td>升级 Electron 版本</td><td>❌</td><td>整个运行时替换</td></tr>
+      <tr><td>修改主进程配置</td><td>❌</td><td>如窗口大小、菜单等</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>方案对比</h3>
+    <table>
+      <tr><th></th><th>electron-updater</th><th>Bundle 热更新</th></tr>
+      <tr><td><strong>更新内容</strong></td><td>整个应用</td><td>仅前端资源</td></tr>
+      <tr><td><strong>主进程更新</strong></td><td>✅</td><td>❌</td></tr>
+      <tr><td><strong>用户体验</strong></td><td>提示重启</td><td>无感知刷新</td></tr>
+      <tr><td><strong>代码签名</strong></td><td>必须</td><td>不需要</td></tr>
+      <tr><td><strong>实现复杂度</strong></td><td>低（开箱即用）</td><td>中（自建服务端）</td></tr>
+      <tr><td><strong>适用场景</strong></td><td>通用，低频发版</td><td>UI 高频迭代</td></tr>
+    </table>
+    <pre>
+<span class="cmt">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    推荐组合策略                              │</span>
+<span class="cmt">├──────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   electron-updater  ──→  主进程 + 原生模块变更时发版        │</span>
+<span class="cmt">│         +                                                     │</span>
+<span class="cmt">│   Bundle 热更新    ──→  前端代码高频迭代，80%+ 场景覆盖     │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   结果：发版频率大幅降低，大部分更新用户无感知              │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">└──────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>注意事项与限制</h3>
+    <ul>
+      <li><strong>回退机制</strong> — 热更新失败时必须能回退到内置 Bundle，不能让应用挂掉</li>
+      <li><strong>完整性校验</strong> — 下载的 ZIP 必须做 SHA256 校验，防止中间人篡改</li>
+      <li><strong>版本兼容</strong> — 热更新的 Bundle 版本必须与当前主进程版本兼容，否则 IPC 会出错</li>
+      <li><strong>macOS 签名</strong> — 全量更新必须代码签名，否则 macOS Gatekeeper 会拦截</li>
+      <li><strong>Windows Defender</strong> — 未签名的安装包可能被误报为病毒</li>
+      <li><strong>增量包大小</strong> — 热更新 ZIP 应尽量小，只包含变更文件</li>
+      <li><strong>并发安全</strong> — 多窗口场景下，热更新通知要广播到所有窗口</li>
+      <li><strong>electron-log</strong> — 更新过程必须记录日志，方便排查问题</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ========== 8. 总结 ========== -->
 <div class="section" id="summary">
   <div class="section-title"><span class="material-icons-outlined">summarize</span> 一句话总结</div>
 
@@ -677,6 +911,7 @@ obs.<span class="fn">observe</span>({ entryTypes: [<span class="str">'measure'</
       <tr><td><strong>代理函数</strong></td><td>纯管道，只负责传数据，不携带 this、闭包、原型链等自身状态</td></tr>
       <tr><td><strong>Bindings</strong></td><td>C++ 函数注册到 V8 中，JS 直接调用，不是代理是绑定，和 React Native JSI 原理相同</td></tr>
       <tr><td><strong>性能优化</strong></td><td>启动按需加载、渲染虚拟列表、内存及时清理、IPC 批量调用、打包代码分割</td></tr>
+      <tr><td><strong>更新策略</strong></td><td>主进程改了必须发版（electron-updater），渲染进程改了热更新 Bundle（用户无感知）</td></tr>
     </table>
   </div>
 </div>
