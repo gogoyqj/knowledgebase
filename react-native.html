@@ -1156,6 +1156,336 @@ env-&gt;RegisterNatives(clazz, methods, ...);</code></pre>
   <tr><td>8</td><td>React 组件</td><td><code>src/index.tsx</code></td><td>✓</td><td>✓</td></tr>
 </table>
 
+<!-- ==================== 拆包 ==================== -->
+<h2>14. 拆包（Bundle Splitting）</h2>
+
+<p>RN 默认将所有 JS 打成一个 <code>index.bundle</code>，拆包将其分为<strong>基础包</strong>和<strong>业务包</strong>，实现按需加载与独立更新。</p>
+
+<div class="arch-diagram">┌─────────────────────────────────┐
+│         基础包 (common)          │
+│  React, React Native, 公共库    │
+│  → 预置在 App 中，随版本更新     │
+├─────────────────────────────────┤
+│         业务包 (business)        │
+│  各业务页面、业务组件             │
+│  → 可独立下发，实现热更新        │
+└─────────────────────────────────┘</div>
+
+<h3>14.1 Metro 拆包实践</h3>
+
+<p>通过多个 entry 文件生成独立 bundle：</p>
+
+<pre><code><span style="color:var(--muted)"># 生成基础包（公共依赖）</span>
+npx react-native bundle \
+  --platform android \
+  --dev false \
+  --entry-file index.common.js \
+  --bundle-output common.bundle \
+  --assets-dest ./assets
+
+<span style="color:var(--muted)"># 生成业务包（增量模块）</span>
+npx react-native bundle \
+  --platform android \
+  --dev false \
+  --entry-file index.business.js \
+  --bundle-output business.bundle \
+  --assets-dest ./assets</code></pre>
+
+<h3>14.2 Native 侧加载多 Bundle</h3>
+
+<p><strong>Android：</strong></p>
+<pre><code><span style="color:var(--muted)">// 加载基础包</span>
+ReactInstanceManagerBuilder builder = ReactInstanceManager.builder()
+    .setApplication(application)
+    .setBundleAssetName(<span style="color:var(--green)">"common.bundle"</span>);
+
+<span style="color:var(--muted">// 运行时动态加载业务包</span>
+reactInstanceManager.getReactHost()
+    .loadBundleFromAsset(getAssets(), <span style="color:var(--green)">"business.bundle"</span>);</code></pre>
+
+<p><strong>iOS：</strong></p>
+<pre><code><span style="color:var(--muted)">// 基础包</span>
+NSURL *commonURL = [[NSBundle mainBundle] URLForResource:<span style="color:var(--green)">@"common"</span>
+                                          withExtension:<span style="color:var(--green)">@"bundle"</span>];
+RCTBridge *bridge = [[RCTBridge alloc] initWithBundleURL:commonURL
+                                          moduleProvider:nil
+                                            launchOptions:nil];
+
+<span style="color:var(--muted)">// 动态加载业务包</span>
+[bridge loadBundleURL:businessURL];</code></pre>
+
+<h3>14.3 常用拆包工具</h3>
+
+<table>
+  <tr><th>工具</th><th>说明</th></tr>
+  <tr><td><code>splitscreen</code> (Airbnb)</td><td>早期方案，已不活跃</td></tr>
+  <tr><td><code>metro-bundle-splitter</code></td><td>社区方案</td></tr>
+  <tr><td><code>thunder-js</code> (京东)</td><td>支持多 bundle 拆包</td></tr>
+  <tr><td>Hermes bytecode</td><td>按模块编译为字节码，天然支持按需加载</td></tr>
+</table>
+
+<!-- ==================== 热更新 ==================== -->
+<h2>15. 热更新（OTA Update）</h2>
+
+<p>热更新允许在不经过应用商店审核的情况下，向用户下发新的 JS Bundle 或资源。</p>
+
+<h3>15.1 主流方案对比</h3>
+
+<table>
+  <tr><th>方案</th><th>维护方</th><th>特点</th></tr>
+  <tr><td><code>CodePush</code></td><td>Microsoft (开源)</td><td>最成熟，RN 生态标准方案</td></tr>
+  <tr><td><code>pushy</code></td><td>reactnative.cn</td><td>中文文档，国内访问快</td></tr>
+  <tr><td><code>expo-updates</code></td><td>Expo</td><td>Expo 生态，配置简单</td></tr>
+  <tr><td>自建 OTA</td><td>自行维护</td><td>完全可控，大厂常用</td></tr>
+</table>
+
+<h3>15.2 CodePush 接入示例</h3>
+
+<pre><code><span style="color:var(--muted)">// App.js — 包装根组件</span>
+import codePush from <span style="color:var(--green)">'react-native-code-push'</span>;
+
+const App = () =&gt; &lt;RootStack /&gt;;
+
+export default codePush({
+  checkFrequency: codePush.CheckFrequency.ON_APP_RESUME,
+  installMode: codePush.InstallMode.ON_NEXT_RESTART,
+})(App);</code></pre>
+
+<pre><code><span style="color:var(--muted)"># 发布更新</span>
+appcenter codepush release-react \
+  -a &lt;owner&gt;/&lt;app&gt; \
+  -d Production \
+  --description <span style="color:var(--green)">"修复首页样式"</span></code></pre>
+
+<h3>15.3 pushy 方案（国内推荐）</h3>
+
+<pre><code><span style="color:var(--muted)"># 安装</span>
+npm install react-native-update
+cd ios &amp;&amp; pod install</code></pre>
+
+<pre><code><span style="color:var(--muted)">// 使用</span>
+import { usePushy } from <span style="color:var(--green)">'react-native-update'</span>;
+
+const { checkUpdate, downloadUpdate, switchVersion } = usePushy();
+
+async function onCheckUpdate() {
+  const info = await checkUpdate();
+  if (info.expired) {
+    <span style="color:var(--muted)">// 整包更新（应用商店）</span>
+    Linking.openURL(info.downloadUrl);
+  } else if (info.update) {
+    <span style="color:var(--muted)">// 热更新</span>
+    const hash = await downloadUpdate(info);
+    if (hash) {
+      switchVersion(hash); <span style="color:var(--muted)">// 立即切换</span>
+    }
+  }
+}</code></pre>
+
+<h3>15.4 Diff 增量更新</h3>
+
+<p>通过 bsdiff 生成差量包，减小下载体积：</p>
+
+<pre><code><span style="color:var(--muted)"># 生成差量包</span>
+bsdiff old_business.bundle new_business.bundle patch.bin
+
+<span style="color:var(--muted)"># 客户端合并</span>
+bspatch old_business.bundle hot_business.bundle patch.bin</code></pre>
+
+<!-- ==================== 拆包 + 热更新架构 ==================== -->
+<h2>16. 拆包 + 热更新 架构</h2>
+
+<div class="arch-diagram">┌──────────────────────────────────────────────┐
+│                  App 安装包                    │
+│  ┌────────────┐  ┌────────────────────────┐  │
+│  │  基础包     │  │  业务包 v1.0 (预置)     │  │
+│  │  (随版本)   │  │  (可被热更新替换)       │  │
+│  └────────────┘  └────────────────────────┘  │
+└──────────────────────────────────────────────┘
+         │                    │
+         │              热更新下发
+         │                    ▼
+         │         ┌────────────────────┐
+         │         │  业务包 v1.1 (OTA)  │
+         │         │  diff patch / 全量  │
+         │         └────────────────────┘
+         │
+    ┌────▼────┐
+    │  Native  │  ← 原生代码只能通过应用商店更新
+    │  Modules │
+    └─────────┘</div>
+
+<h3>关键实践</h3>
+
+<table>
+  <tr><th>实践</th><th>说明</th></tr>
+  <tr><td>基础包稳定</td><td>只含 RN 框架 + 公共组件，版本迭代慢</td></tr>
+  <tr><td>业务包轻量</td><td>每个业务包 100KB~500KB，下载快</td></tr>
+  <tr><td>diff 更新</td><td>bsdiff 生成差量包，进一步减小体积</td></tr>
+  <tr><td>版本兼容性</td><td>业务包与基础包版本兼容性校验</td></tr>
+  <tr><td>回滚机制</td><td>更新失败自动回退到上一版本</td></tr>
+</table>
+
+<!-- ==================== 平台政策合规 ==================== -->
+<h2>17. 平台政策合规性</h2>
+
+<h3>17.1 Apple App Store — Guideline 2.5.2</h3>
+
+<div class="note">
+  <strong>原文：</strong>Apps should not download or install standalone code, but may dynamically load content and resources provided that the code does not change the primary purpose of the app.
+</div>
+
+<table>
+  <tr><th>行为</th><th>合规</th><th>说明</th></tr>
+  <tr><td>热更新 JS Bundle</td><td style="color:var(--green)">✅ 合规</td><td>JS 属于"动态加载的内容和资源"</td></tr>
+  <tr><td>下载图片/配置/JSON</td><td style="color:var(--green)">✅ 合规</td><td>普通资源</td></tr>
+  <tr><td>下载 Hermes 字节码 (.hbc)</td><td style="color:var(--green)">✅ 合规</td><td>字节码由解释器执行，不算 standalone code</td></tr>
+  <tr><td>下载 .dylib / .framework</td><td style="color:var(--red)">❌ 违规</td><td>禁止下载可执行二进制</td></tr>
+  <tr><td>热更新改变 App 主要用途</td><td style="color:var(--red)">❌ 违规</td><td>不能改变 App 的主要功能</td></tr>
+</table>
+
+<h3>17.2 Google Play — Device and Network Abuse</h3>
+
+<div class="note">
+  <strong>原文：</strong>An app may not modify, replace, or update itself using any method other than Google Play's update mechanism. It may not download executable code (e.g. dex, native libraries).
+</div>
+
+<table>
+  <tr><th>行为</th><th>合规</th><th>说明</th></tr>
+  <tr><td>热更新 JS Bundle</td><td style="color:var(--green)">✅ 合规</td><td>JS 不是 dex/native library</td></tr>
+  <tr><td>下载 JSON/配置/图片</td><td style="color:var(--green)">✅ 合规</td><td>普通资源</td></tr>
+  <tr><td>下载 .dex 文件</td><td style="color:var(--red)">❌ 违规</td><td>明确禁止</td></tr>
+  <tr><td>下载 .so 文件</td><td style="color:var(--red)">❌ 违规</td><td>明确禁止 native library</td></tr>
+</table>
+
+<h3>17.3 各方案合规性总览</h3>
+
+<table>
+  <tr><th>方案</th><th>Apple</th><th>Google</th><th>备注</th></tr>
+  <tr><td>CodePush / pushy</td><td style="color:var(--green)">✅</td><td style="color:var(--green)">✅</td><td>最安全，大量 App 在用</td></tr>
+  <tr><td>expo-updates</td><td style="color:var(--green)">✅</td><td style="color:var(--green)">✅</td><td>Expo 官方方案</td></tr>
+  <tr><td>自建 JS OTA</td><td style="color:var(--green)">✅</td><td style="color:var(--green)">✅</td><td>需注意安全校验</td></tr>
+  <tr><td>拆包 + JS 热更新</td><td style="color:var(--green)">✅</td><td style="color:var(--green)">✅</td><td>纯 JS 层面，完全合规</td></tr>
+  <tr><td>JSPatch (ObjC hotfix)</td><td style="color:var(--yellow)">⚠️</td><td style="color:var(--green)">✅</td><td>Apple 曾发警告邮件</td></tr>
+  <tr><td>Tinker (Android dex)</td><td>—</td><td style="color:var(--red)">❌</td><td>下载 dex 违反 Google 政策</td></tr>
+</table>
+
+<div class="warn">
+  <strong>核心原则：</strong>JS 是解释型语言，不属于平台定义的"可执行代码"。只要不下载原生二进制、不改变 App 主要用途、不绕过审核，热更新完全合法。
+</div>
+
+<!-- ==================== Native 模块热更新限制 ==================== -->
+<h2>18. Native 模块热更新限制</h2>
+
+<p>C++ 编写的 native 模块编译后是 <code>.so</code>（Android）或 <code>.framework/.dylib</code>（iOS），属于平台明确禁止动态下载的可执行二进制，<strong>不能热更新</strong>。</p>
+
+<div class="arch-diagram">C++ Native Module
+       │
+       ▼ 编译
+┌──────────────────────────────────────┐
+│  Android: libxxx.so (native library) │  ← Google 禁止下载
+│  iOS: xxx.framework (Mach-O binary)  │  ← Apple 禁止下载
+└──────────────────────────────────────┘</div>
+
+<h3>18.1 替代方案：逻辑下沉到 JS 层</h3>
+
+<div class="arch-diagram">┌─────────────────────────────────┐
+│  JS 层 (可热更新)                │
+│  ┌───────────────────────────┐  │
+│  │  业务逻辑、算法、配置      │  │
+│  │  → 用 JS/TS 实现          │  │
+│  └───────────────────────────┘  │
+├─────────────────────────────────┤
+│  Native 层 (不可热更新)          │
+│  ┌───────────────────────────┐  │
+│  │  只保留 JS 做不到的事      │  │
+│  │  硬件访问、系统 API、性能  │  │
+│  └───────────────────────────┘  │
+└─────────────────────────────────┘</div>
+
+<p><strong>原则：native 只做薄壳，业务逻辑放 JS。</strong></p>
+
+<h3>18.2 替代方案对比</h3>
+
+<table>
+  <tr><th>方案</th><th>思路</th><th>适用场景</th></tr>
+  <tr><td>逻辑下沉 JS</td><td>业务逻辑用 JS 实现，native 只提供底层能力</td><td>大多数场景</td></tr>
+  <tr><td>Hermes 字节码</td><td>JS → .hbc 字节码，可 OTA 下发</td><td>需要接近 native 性能</td></tr>
+  <tr><td>配置化驱动</td><td>native 引擎固定，通过 JSON 配置控制行为</td><td>参数可变、算法固定</td></tr>
+  <tr><td>插件化架构</td><td>native 是平台，JS 是可热更新的插件</td><td>大型应用</td></tr>
+</table>
+
+<h3>18.3 配置化驱动示例</h3>
+
+<div class="arch-diagram">┌─────────────────────────────────────────────┐
+│  Native C++ 模块 (固定，不热更新)             │
+│  ┌────────────────────────────────────────┐ │
+│  │  通用引擎：解析配置、执行规则           │ │
+│  └────────────────────────────────────────┘ │
+│              ▲                               │
+│              │ 读取                           │
+│  ┌────────────────────────────────────────┐ │
+│  │  配置文件 (JSON/Protobuf)              │ │  ← 可热更新 ✅
+│  │  规则、参数、阈值、映射表               │ │
+│  └────────────────────────────────────────┘ │
+└─────────────────────────────────────────────┘</div>
+
+<pre><code><span style="color:var(--muted)">// C++ native 模块：通用引擎（固定，不热更新）</span>
+class ImageProcessor {
+  void process(const Config&amp; config) {
+    <span style="color:var(--muted)">// 算法固定，参数从热更新的配置文件读取</span>
+    float brightness = config.getFloat(<span style="color:var(--green)">"brightness"</span>, 1.0);
+    float contrast = config.getFloat(<span style="color:var(--green)">"contrast"</span>, 1.0);
+  }
+};</code></pre>
+
+<pre><code><span style="color:var(--muted)">// config.json — 可通过 OTA 热更新</span>
+{
+  <span style="color:var(--green)">"brightness"</span>: 1.2,
+  <span style="color:var(--green)">"contrast"</span>: 0.9,
+  <span style="color:var(--green)">"filters"</span>: [<span style="color:var(--green)">"sharpen"</span>, <span style="color:var(--green)">"denoise"</span>],
+  <span style="color:var(--green)">"algorithm_version"</span>: <span style="color:var(--green)">"v3"</span>
+}</code></pre>
+
+<h3>18.4 能热更新 vs 不能热更新</h3>
+
+<table>
+  <tr><th>能热更新 ✅</th><th>不能热更新 ❌</th></tr>
+  <tr><td>JS Bundle</td><td>.so / .dylib / .framework</td></tr>
+  <tr><td>Hermes 字节码 (.hbc)</td><td>.dex / .aar</td></tr>
+  <tr><td>JSON / 配置文件</td><td>C++/ObjC/Java/Swift 编译产物</td></tr>
+  <tr><td>图片 / 音视频资源</td><td>原生编译的任何二进制</td></tr>
+</table>
+
+<div class="tip">
+  <strong>设计原则：</strong>把 native 模块当作"硬件"——它提供能力，但不包含可变的业务逻辑。所有可能变化的部分，全部放到 JS 层。
+</div>
+
+<!-- ==================== 审核应对 ==================== -->
+<h2>19. 审核被拒时的应对</h2>
+
+<h3>Apple</h3>
+<ul>
+  <li>说明 JS bundle 属于动态内容，符合 Guideline 2.5.2</li>
+  <li>提供热更新的内容说明文档</li>
+  <li>强调 App 主要功能未改变</li>
+</ul>
+
+<h3>Google</h3>
+<ul>
+  <li>说明未下载任何 dex / native library</li>
+  <li>JS 属于解释型脚本，不在禁止范围内</li>
+  <li>提供技术架构说明</li>
+</ul>
+
+<h3>高风险行为（应避免）</h3>
+<ul>
+  <li>热更新后 App 变成完全不同的应用</li>
+  <li>下载并加载原生二进制文件</li>
+  <li>用热更新绕过 App Store / Google Play 审核</li>
+  <li>热更新引入审核时未声明的功能（如支付、定位等敏感权限）</li>
+</ul>
+
 <footer>
   <p>React Native C++ Plugin Guide — 基于 react-native-circle-plugin 实践总结</p>
   <p>方案推荐：新项目优先 Expo Modules，需要底层控制用 JSI，极致性能用 Nitro。</p>
