@@ -1,4 +1,5 @@
 [
+  { "name": "adengine", "src": "adengine.html" },
   { "name": "crdt", "src": "crdt.html" },
   { "name": "design", "src": "design.html" },
   { "name": "electron", "src": "electron.html" },
