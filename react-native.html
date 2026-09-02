@@ -1486,6 +1486,430 @@ class ImageProcessor {
   <li>热更新引入审核时未声明的功能（如支付、定位等敏感权限）</li>
 </ul>
 
+<!-- ==================== 常见坑与解决方案 ==================== -->
+<h2>20. 常见坑与解决方案</h2>
+
+<h3>20.1 列表卡顿（最常见）</h3>
+
+<p><code>FlatList</code> 数据量大时掉帧，通常是因为每次渲染都创建新函数和新对象。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 每次渲染都创建新函数和新对象</span>
+&lt;FlatList
+  data={items}
+  renderItem={({ item }) =&gt; (
+    &lt;TouchableOpacity onPress={() =&gt; handleClick(item)}&gt;
+      &lt;Text&gt;{item.name}&lt;/Text&gt;
+    &lt;/TouchableOpacity&gt;
+  )}
+  style={{ marginTop: 10 }}  <span style="color:var(--red)">// 每次渲染新对象</span>
+/&gt;</code></pre>
+
+<pre><code><span style="color:var(--green)">// ✅ 优化</span>
+const renderItem = useCallback(({ item }) =&gt; (
+  &lt;Item name={item.name} onPress={handleClick} /&gt;
+), []);
+
+&lt;FlatList
+  data={items}
+  renderItem={renderItem}
+  keyExtractor={keyExtractor}
+  getItemLayout={getItemLayout}      <span style="color:var(--muted)">// 跳过布局计算</span>
+  maxToRenderPerBatch={10}
+  windowSize={5}
+  removeClippedSubviews={true}       <span style="color:var(--muted)">// Android 离屏裁剪</span>
+  initialNumToRender={10}
+/&gt;</code></pre>
+
+<div class="tip">
+  <strong>核心原则：</strong>能用 FlatList 就不用 ScrollView + .map()；提供 keyExtractor 和 getItemLayout；renderItem 用 useCallback 包裹；列表项组件用 React.memo 包裹。
+</div>
+
+<h3>20.2 不必要的重渲染</h3>
+
+<p>父组件更新导致子组件全部跟着渲染。</p>
+
+<pre><code><span style="color:var(--green)">// ✅ 用 React.memo + useCallback</span>
+const ExpensiveChild = React.memo(function ExpensiveChild({ data, onPress }) {
+  return &lt;HeavyComponent data={data} onPress={onPress} /&gt;;
+});
+
+function Parent() {
+  const [count, setCount] = useState(0);
+  const data = useMemo(() =&gt; ({ id: 1 }), []);
+  const onPress = useCallback(() =&gt; {}, []);
+  return (
+    &lt;View&gt;
+      &lt;Text&gt;{count}&lt;/Text&gt;
+      &lt;ExpensiveChild data={data} onPress={onPress} /&gt;
+    &lt;/View&gt;
+  );
+}</code></pre>
+
+<p><strong>排查工具：</strong>Flipper → React DevTools → Highlight Updates</p>
+
+<h3>20.3 图片内存泄漏</h3>
+
+<p>大量图片或大图导致 OOM 崩溃。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 加载原图，无尺寸限制</span>
+&lt;Image source={{ uri: 'https://example.com/huge.jpg' }} /&gt;
+
+<span style="color:var(--green)">// ✅ 指定尺寸 + 缓存</span>
+&lt;Image
+  source={{ uri: 'https://example.com/huge.jpg' }}
+  style={{ width: 200, height: 200 }}
+  resizeMode="cover"
+  fadeDuration={0}           <span style="color:var(--muted)">// Android 关闭渐显动画</span>
+/&gt;
+
+<span style="color:var(--green)">// ✅ 列表中使用 FastImage</span>
+import FastImage from 'react-native-fast-image';
+
+&lt;FastImage
+  source={{ uri: url, priority: FastImage.priority.normal }}
+  style={{ width: 100, height: 100 }}
+  resizeMode={FastImage.resizeMode.cover}
+/&gt;</code></pre>
+
+<div class="warn">
+  <strong>Android：</strong>在 AndroidManifest.xml 中设置 largeHeap="true" 只是治标，根本解决是控制图片尺寸和数量。
+</div>
+
+<h3>20.4 动画掉帧</h3>
+
+<p>JS 线程和 UI 线程通信导致动画卡顿。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ JS 线程驱动动画（掉帧）</span>
+Animated.timing(opacity, {
+  toValue: 1,
+  duration: 300,
+  useNativeDriver: false,  <span style="color:var(--red)">// 走 JS 线程</span>
+}).start();
+
+<span style="color:var(--green)">// ✅ 用原生驱动</span>
+Animated.timing(opacity, {
+  toValue: 1,
+  duration: 300,
+  useNativeDriver: true,   <span style="color:var(--green)">// 走 UI 线程，不掉帧</span>
+}).start();
+
+<span style="color:var(--green)">// ✅ 复杂动画用 Reanimated（UI 线程运行）</span>
+import Animated, {
+  useSharedValue, useAnimatedStyle, withTiming,
+} from 'react-native-reanimated';</code></pre>
+
+<table>
+  <tr><th>场景</th><th>推荐方案</th></tr>
+  <tr><td>简单动画（透明度、位移）</td><td><code>Animated</code> + <code>useNativeDriver: true</code></td></tr>
+  <tr><td>复杂手势动画</td><td><code>react-native-reanimated</code></td></tr>
+  <tr><td>布局动画</td><td><code>LayoutAnimation</code>（Android 需额外配置）</td></tr>
+</table>
+
+<h3>20.5 Android 返回键行为</h3>
+
+<p>Android 按返回键直接退出 App，而不是返回上一页。</p>
+
+<pre><code><span style="color:var(--green)">// ✅ 处理 Android 返回键</span>
+import { BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+
+function Screen() {
+  useFocusEffect(
+    useCallback(() =&gt; {
+      const onBackPress = () =&gt; {
+        if (isModalOpen) {
+          closeModal();
+          return true;  <span style="color:var(--muted)">// 拦截</span>
+        }
+        return false;   <span style="color:var(--muted)">// 交给系统处理</span>
+      };
+      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () =&gt; BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+    }, [isModalOpen])
+  );
+}</code></pre>
+
+<h3>20.6 键盘遮挡输入框</h3>
+
+<pre><code><span style="color:var(--green)">// ✅ 方案一：KeyboardAvoidingView</span>
+&lt;KeyboardAvoidingView
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  style={{ flex: 1 }}
+&gt;
+  &lt;ScrollView&gt;
+    &lt;TextInput placeholder="输入..." /&gt;
+  &lt;/ScrollView&gt;
+&lt;/KeyboardAvoidingView&gt;
+
+<span style="color:var(--green)">// ✅ 方案二：react-native-keyboard-aware-scroll-view</span>
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+
+&lt;KeyboardAwareScrollView style={{ flex: 1 }}&gt;
+  &lt;TextInput placeholder="输入..." /&gt;
+&lt;/KeyboardAwareScrollView&gt;</code></pre>
+
+<div class="note">
+  <strong>Android 额外配置：</strong>AndroidManifest.xml 中设置 <code>android:windowSoftInputMode="adjustResize"</code>。
+</div>
+
+<h3>20.7 状态栏高度差异</h3>
+
+<p>刘海屏、打孔屏、不同 Android 厂商状态栏高度不一致。</p>
+
+<pre><code><span style="color:var(--green)">// ✅ 动态获取</span>
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function Header() {
+  const insets = useSafeAreaInsets();
+  return (
+    &lt;View style={{ paddingTop: insets.top, backgroundColor: '#fff' }}&gt;
+      &lt;Text&gt;标题&lt;/Text&gt;
+    &lt;/View&gt;
+  );
+}
+
+<span style="color:var(--muted)">// Android 状态栏高度</span>
+const STATUSBAR_HEIGHT = Platform.OS === 'android'
+  ? StatusBar.currentHeight || 0
+  : 0;</code></pre>
+
+<h3>20.8 导航状态丢失</h3>
+
+<p>Tab 切换后页面状态丢失、重新挂载。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 每次切 Tab 都重新渲染</span>
+&lt;Tab.Screen name="Home" component={HomeScreen} /&gt;
+
+<span style="color:var(--green)">// ✅ 懒加载 + 状态保持</span>
+&lt;Tab.Navigator
+  screenOptions={{
+    lazy: true,                    <span style="color:var(--muted)">// 懒加载</span>
+    unmountOnBlur: false,          <span style="color:var(--muted)">// 切走不卸载</span>
+  }}
+&gt;
+  &lt;Tab.Screen name="Home" component={HomeScreen} /&gt;
+&lt;/Tab.Navigator&gt;</code></pre>
+
+<h3>20.9 导航传参序列化</h3>
+
+<p>传给 route 的参数必须可序列化，函数/类实例会丢失。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 传函数（序列化后丢失）</span>
+navigation.navigate('Detail', { onSave: () =&gt; {} });
+
+<span style="color:var(--green)">// ✅ 用全局状态管理（Zustand/Redux）或 route 回传结果</span>
+navigation.navigate('Detail', { id: 1 });
+<span style="color:var(--muted">// Detail 页面通过 route 回传</span>
+navigation.navigate('Home', { saved: true });</code></pre>
+
+<h3>20.10 网络请求在后台被取消</h3>
+
+<pre><code><span style="color:var(--green)">// ✅ 请求重试 + 前台恢复</span>
+import { AppState } from 'react-native';
+
+function useNetworkRequest() {
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() =&gt; {
+    const sub = AppState.addEventListener('change', nextState =&gt; {
+      if (appState.current.match(/background/) &amp;&amp; nextState === 'active') {
+        retryFailedRequests();  <span style="color:var(--muted)">// 回到前台，重新发起失败的请求</span>
+      }
+      appState.current = nextState;
+    });
+    return () =&gt; sub.remove();
+  }, []);
+}</code></pre>
+
+<h3>20.11 JSON 解析崩溃</h3>
+
+<p>后端返回非标准 JSON 或空响应导致崩溃。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 直接解析（空响应会崩溃）</span>
+const data = await response.json();
+
+<span style="color:var(--green)">// ✅ 安全解析</span>
+async function safeFetch(url) {
+  try {
+    const response = await fetch(url);
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn('Parse error:', e);
+    return null;
+  }
+}</code></pre>
+
+<h3>20.12 iOS Pod Install 失败</h3>
+
+<pre><code><span style="color:var(--muted)"># ✅ 标准修复流程</span>
+cd ios
+pod deintegrate
+pod cache clean --all
+rm -rf Pods Podfile.lock
+pod install --repo-update
+
+<span style="color:var(--muted"># M1/M2 Mac 兼容模式</span>
+arch -x86_64 pod install</code></pre>
+
+<h3>20.13 Android 构建缓慢</h3>
+
+<pre><code><span style="color:var(--muted)"># ✅ gradle.properties 优化</span>
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+org.gradle.parallel=true
+org.gradle.caching=true
+org.gradle.daemon=true
+
+<span style="color:var(--muted)"># ✅ debug 时只构建需要的 ABI</span>
+ndk {
+  abiFilters 'arm64-v8a'
+}</code></pre>
+
+<h3>20.14 Metro 缓存导致的诡异问题</h3>
+
+<p>改了代码但不生效，或出现莫名报错。</p>
+
+<pre><code><span style="color:var(--muted)"># ✅ 清缓存重启</span>
+npx react-native start --reset-cache
+
+<span style="color:var(--muted)"># 或者手动清理</span>
+rm -rf /tmp/metro-*
+rm -rf /tmp/haste-map-*
+watchman watch-del-all</code></pre>
+
+<h3>20.15 Android 阴影不生效</h3>
+
+<p><code>shadowColor</code> / <code>shadowOffset</code> 只在 iOS 生效。</p>
+
+<pre><code><span style="color:var(--green)">// ✅ 跨平台阴影</span>
+const shadow = Platform.select({
+  ios: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  android: {
+    elevation: 5,  <span style="color:var(--muted)">// Android 用 elevation</span>
+  },
+});</code></pre>
+
+<h3>20.16 字体在 Android 上被截断</h3>
+
+<pre><code><span style="color:var(--green)">// ✅ 增加行高 + 去掉额外 padding</span>
+&lt;Text style={{
+  fontFamily: 'CustomFont',
+  fontSize: 16,
+  lineHeight: 24,
+  includeFontPadding: false,  <span style="color:var(--muted)">// Android: 去掉额外 padding</span>
+}}&gt;
+  Hello World
+&lt;/Text&gt;</code></pre>
+
+<h3>20.17 flex: 1 不生效</h3>
+
+<p>子组件 <code>flex: 1</code> 没有撑满父容器，通常是因为父容器没有明确高度。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 父容器没有明确高度</span>
+&lt;View&gt;                    <span style="color:var(--red)">{/* height 未定义 */}</span>
+  &lt;View style={{ flex: 1 }} /&gt;  <span style="color:var(--red)">{/* 不生效 */}</span>
+&lt;/View&gt;
+
+<span style="color:var(--green)">// ✅ 确保父容器有确定高度</span>
+&lt;View style={{ flex: 1 }}&gt;     <span style="color:var(--green)">{/* 或明确 height */}</span>
+  &lt;View style={{ flex: 1 }} /&gt; <span style="color:var(--green)">{/* 生效 */}</span>
+&lt;/View&gt;</code></pre>
+
+<div class="note">
+  <strong>规则：</strong>flex 需要父容器有确定的尺寸才能生效。嵌套 ScrollView 时尤其注意。
+</div>
+
+<h3>20.18 Native Module 线程问题</h3>
+
+<p>Native Module 回调在后台线程，更新 UI 会崩溃。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 在后台线程回调</span>
+reactContext.getJSModule(RCTDeviceEventEmitter.class)
+    .emit("onProgress", params);
+
+<span style="color:var(--green)">// ✅ 切到主线程</span>
+new Handler(Looper.getMainLooper()).post(() -&gt; {
+    reactContext.getJSModule(RCTDeviceEventEmitter.class)
+        .emit("onProgress", params);
+});</code></pre>
+
+<pre><code><span style="color:var(--green)">// iOS</span>
+dispatch_async(dispatch_get_main_queue(), ^{
+    self.onProgress(@{@"progress": @(0.5)});
+});</code></pre>
+
+<h3>20.19 Native Module 内存泄漏</h3>
+
+<p>Native Module 持有 ReactContext 引用导致内存泄漏。</p>
+
+<pre><code><span style="color:var(--red)">// ❌ 持有 Activity 引用</span>
+public class MyModule extends ReactContextBaseJavaModule {
+    private Activity mActivity;  <span style="color:var(--red)">// 泄漏！</span>
+}
+
+<span style="color:var(--green)">// ✅ 在 onCatalystInstanceDestroy 释放资源</span>
+public class MyModule extends ReactContextBaseJavaModule {
+    @Override
+    public void onCatalystInstanceDestroy() {
+        if (mHandler != null) {
+            mHandler.removeCallbacksAndMessages(null);
+        }
+    }
+}</code></pre>
+
+<h3>20.20 Flipper 导致崩溃</h3>
+
+<p>Flipper 在某些 RN 版本上导致启动崩溃。</p>
+
+<pre><code><span style="color:var(--muted)"># ✅ 构建时禁用 Flipper</span>
+NO_FLIPPER=1 pod install</code></pre>
+
+<pre><code><span style="color:var(--muted)">// iOS Podfile 中条件禁用</span>
+if ENV['NO_FLIPPER'] == '1'
+  <span style="color:var(--muted)"># 禁用 Flipper</span>
+end</code></pre>
+
+<!-- ==================== 调试技巧速查 ==================== -->
+<h2>21. 调试技巧速查</h2>
+
+<table>
+  <tr><th>问题</th><th>工具 / 方法</th></tr>
+  <tr><td>JS 报错</td><td>LogBox（开发模式）、Sentry（生产）</td></tr>
+  <tr><td>性能掉帧</td><td>Performance Monitor、Flipper</td></tr>
+  <tr><td>网络请求</td><td>Flipper → Network、Charles</td></tr>
+  <tr><td>布局问题</td><td>Flipper → Layout Inspector</td></tr>
+  <tr><td>原生崩溃</td><td>Xcode Console、Android Logcat</td></tr>
+  <tr><td>内存泄漏</td><td>Xcode Instruments、Android Profiler</td></tr>
+  <tr><td>不重渲染</td><td>React DevTools → Highlight Updates</td></tr>
+</table>
+
+<!-- ==================== 坑与解法速查 ==================== -->
+<h2>22. 坑与解法速查表</h2>
+
+<table>
+  <tr><th>坑</th><th>解法</th></tr>
+  <tr><td>列表卡</td><td>FlatList + memo + getItemLayout</td></tr>
+  <tr><td>重渲染多</td><td>memo + useMemo + useCallback</td></tr>
+  <tr><td>键盘遮挡</td><td>KeyboardAvoidingView</td></tr>
+  <tr><td>Android 阴影</td><td>elevation</td></tr>
+  <tr><td>动画掉帧</td><td>useNativeDriver / Reanimated</td></tr>
+  <tr><td>Pod 报错</td><td>deintegrate + clean + reinstall</td></tr>
+  <tr><td>Metro 诡异</td><td>--reset-cache</td></tr>
+  <tr><td>字体截断</td><td>lineHeight + includeFontPadding: false</td></tr>
+  <tr><td>返回键</td><td>BackHandler</td></tr>
+  <tr><td>状态栏</td><td>SafeAreaInsets</td></tr>
+  <tr><td>flex 不生效</td><td>确保父容器有确定高度</td></tr>
+  <tr><td>导航状态丢失</td><td>lazy: true + unmountOnBlur: false</td></tr>
+  <tr><td>JSON 解析崩溃</td><td>先 text() 再 JSON.parse</td></tr>
+  <tr><td>Native 线程</td><td>主线程回调</td></tr>
+</table>
+
 <footer>
   <p>React Native C++ Plugin Guide — 基于 react-native-circle-plugin 实践总结</p>
   <p>方案推荐：新项目优先 Expo Modules，需要底层控制用 JSI，极致性能用 Nitro。</p>
