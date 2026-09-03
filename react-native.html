@@ -1910,6 +1910,304 @@ end</code></pre>
   <tr><td>Native 线程</td><td>主线程回调</td></tr>
 </table>
 
+<!-- ==================== 热更新崩溃回滚 ==================== -->
+<h2>23. 热更新崩溃回滚</h2>
+
+<p>核心问题：JS Bundle 坏了 → 启动就崩 → JS 层根本没机会执行回滚逻辑，所以回滚必须由 <strong>Native 层</strong>兜底。</p>
+
+<h3>方案一：标记确认机制（推荐）</h3>
+
+<div class="arch-diagram">
+┌──────────────────────────────────────────────────────────────────┐
+│                     标记确认机制流程                              │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   下载新 Bundle ──→ 写入本地 ──→ 标记 status = "pending"        │
+│                                         │                        │
+│                                         ▼                        │
+│                                  App 启动加载新 Bundle           │
+│                                         │                        │
+│                              ┌──────────┴──────────┐            │
+│                              │                      │            │
+│                           启动成功              启动崩溃          │
+│                              │                      │            │
+│                              ▼                      ▼            │
+│                     status = "confirmed"    下次启动检测到       │
+│                                             pending 状态         │
+│                                              → 回滚旧 Bundle     │
+│                                              → status =          │
+│                                                "rollback"        │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>Android 实现</h3>
+
+<pre><code>// BundleManager.java — 核心回滚逻辑
+public class BundleManager {
+
+  private static final String PREFS_NAME = "hot_update";
+  private static final String KEY_STATUS  = "bundle_status";
+  private static final String KEY_VERSION = "bundle_version";
+
+  // 三种状态
+  private static final String STATUS_PENDING   = "pending";    // 刚下载，未确认
+  private static final String STATUS_CONFIRMED = "confirmed";  // 启动成功，已确认
+  private static final String STATUS_ROLLBACK  = "rollback";   // 已回滚
+
+  /**
+   * 启动时调用 — 决定加载哪个 Bundle
+   */
+  public static String getBundlePath(Context context) {
+    SharedPreferences prefs =
+      context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+    String status = prefs.getString(KEY_STATUS, STATUS_CONFIRMED);
+
+    if (STATUS_PENDING.equals(status)) {
+      // 上次更新后还没确认成功 → 启动崩溃了 → 回滚
+      Log.e("HotUpdate", "检测到 pending 状态，回滚");
+      rollback(context);
+      return getBuiltinBundle(context);
+    }
+
+    // 已确认，尝试加载热更新 Bundle
+    String hotBundle = getHotBundlePath(context);
+    if (new File(hotBundle).exists()) {
+      return hotBundle;
+    }
+    return getBuiltinBundle(context);
+  }
+
+  /**
+   * 下载新 Bundle 后调用 — 标记为 pending
+   */
+  public static void markPending(Context context, String version) {
+    context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+      .edit()
+      .putString(KEY_STATUS, STATUS_PENDING)
+      .putString(KEY_VERSION, version)
+      .apply();
+  }
+
+  /**
+   * App 启动成功后调用 — 确认有效
+   * 延迟 3 秒，确保过了崩溃窗口期
+   */
+  public static void confirmCurrentBundle() {
+    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+      App.getContext()
+        .getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        .edit()
+        .putString(KEY_STATUS, STATUS_CONFIRMED)
+        .apply();
+      Log.i("HotUpdate", "Bundle 已确认有效");
+    }, 3000);
+  }
+
+  /**
+   * 回滚到内置版本
+   */
+  private static void rollback(Context context) {
+    // 删除热更新的 Bundle
+    new File(getHotBundlePath(context)).delete();
+
+    context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+      .edit()
+      .putString(KEY_STATUS, STATUS_ROLLBACK)
+      .apply();
+  }
+}</code></pre>
+
+<pre><code>// MainApplication.java — 启动成功后确认
+public class MainApplication extends Application {
+  @Override
+  public void onCreate() {
+    super.onCreate();
+    BundleManager.confirmCurrentBundle();  // 延迟确认
+  }
+}</code></pre>
+
+<h3>iOS 实现</h3>
+
+<pre><code>// BundleManager.m
+@implementation BundleManager
+
++ (NSString *)getBundlePath {
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSString *status = [defaults stringForKey:@"bundle_status"];
+
+  if ([status isEqualToString:@"pending"]) {
+    NSLog(@"[HotUpdate] 检测到 pending 状态，回滚");
+    [self rollback];
+    return [self builtinBundlePath];
+  }
+
+  NSString *hotPath = [self hotBundlePath];
+  if ([[NSFileManager defaultManager] fileExistsAtPath:hotPath]) {
+    return hotPath;
+  }
+  return [self builtinBundlePath];
+}
+
++ (void)markPending:(NSString *)version {
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  [defaults setObject:@"pending"   forKey:@"bundle_status"];
+  [defaults setObject:version      forKey:@"bundle_version"];
+  [defaults synchronize];
+}
+
++ (void)confirmCurrentBundle {
+  // 延迟 3 秒确认，避免误判
+  dispatch_after(
+    dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
+    dispatch_get_main_queue(), ^{
+      NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+      [d setObject:@"confirmed" forKey:@"bundle_status"];
+      [d synchronize];
+      NSLog(@"[HotUpdate] Bundle 已确认有效");
+  });
+}
+
++ (void)rollback {
+  [[NSFileManager defaultManager]
+    removeItemAtPath:[self hotBundlePath] error:nil];
+
+  NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+  [d setObject:@"rollback" forKey:@"bundle_status"];
+  [d synchronize];
+}
+
+@end</code></pre>
+
+<pre><code>// AppDelegate.m
+- (BOOL)application:(UIApplication *)application
+    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+  // ... 正常初始化
+  return YES;
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+  [BundleManager confirmCurrentBundle];  // 完全启动后确认
+}</code></pre>
+
+<h3>方案二：启动计数器（双保险）</h3>
+
+<div class="arch-diagram">
+┌──────────────────────────────────────────────────────────────────┐
+│                     启动计数器流程                                │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   App 启动                                                       │
+│     │                                                            │
+│     ▼                                                            │
+│   距上次启动 &lt; 10 秒?                                            │
+│     │                                                            │
+│     ├── 否 ──→ 重置计数 = 0，正常启动                            │
+│     │                                                            │
+│     是                                                           │
+│     ▼                                                            │
+│   计数 +1                                                        │
+│     │                                                            │
+│     ▼                                                            │
+│   计数 >= 3?                                                     │
+│     │                                                            │
+│     ├── 否 ──→ 正常启动，等待确认                                │
+│     │                                                            │
+│     是                                                           │
+│     ▼                                                            │
+│   触发回滚，计数归零                                              │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+</div>
+
+<pre><code>// CrashGuard.java — 连续崩溃检测
+public class CrashGuard {
+
+  private static final String PREFS = "crash_guard";
+  private static final String KEY_COUNT     = "boot_count";
+  private static final String KEY_LAST_TIME = "last_boot_time";
+  private static final int    MAX_CRASH     = 3;          // 连续 3 次
+  private static final long   WINDOW_MS     = 10_000;     // 10 秒窗口
+
+  public static void onAppStart(Context context) {
+    SharedPreferences prefs =
+      context.getSharedPreferences(PREFS, MODE_PRIVATE);
+    long lastBoot = prefs.getLong(KEY_LAST_TIME, 0);
+    int  count    = prefs.getInt(KEY_COUNT, 0);
+    long now      = System.currentTimeMillis();
+
+    if (now - lastBoot < WINDOW_MS) {
+      count++;
+      Log.w("CrashGuard", "疑似崩溃，连续第 " + count + " 次");
+      if (count >= MAX_CRASH) {
+        Log.e("CrashGuard", "连续崩溃 " + count + " 次，回滚");
+        BundleManager.rollback(context);
+        count = 0;
+      }
+    } else {
+      count = 0;  // 超过窗口期，重置
+    }
+
+    prefs.edit()
+      .putInt(KEY_COUNT, count)
+      .putLong(KEY_LAST_TIME, now)
+      .apply();
+  }
+
+  /** App 完全启动后调用 */
+  public static void onAppReady(Context context) {
+    context.getSharedPreferences(PREFS, MODE_PRIVATE)
+      .edit()
+      .putInt(KEY_COUNT, 0)
+      .apply();
+  }
+}</code></pre>
+
+<h3>方案三：CodePush 风格（生产级）</h3>
+
+<div class="arch-diagram">
+┌──────────────────────────────────────────────────────────────────┐
+│                   CodePush 回滚机制                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   1. 安装更新时，旧 Bundle 不删除，移到 backup 目录              │
+│   2. 新 Bundle 标记为 "latest"                                   │
+│   3. 启动时加载 latest                                           │
+│   4. JS 层调用 CodePush.notifyAppReady()                         │
+│      → 确认成功，删除 backup                                     │
+│   5. 超时未调用（默认 1 秒）                                     │
+│      → Native 层认为崩溃，自动回滚到 backup                      │
+│   6. 连续失败 N 次 → 标记该版本不可用，不再尝试                  │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>方案对比</h3>
+
+<table>
+  <tr><th></th><th>标记确认</th><th>启动计数器</th><th>CodePush 风格</th></tr>
+  <tr><td><strong>原理</strong></td><td>pending → confirmed</td><td>连续崩溃 N 次回滚</td><td>超时未 confirm 就回滚</td></tr>
+  <tr><td><strong>误判风险</strong></td><td>低（延迟确认）</td><td>中（系统杀进程可能误判）</td><td>低（显式确认）</td></tr>
+  <tr><td><strong>实现复杂度</strong></td><td>低</td><td>中</td><td>高</td></tr>
+  <tr><td><strong>需要 JS 配合</strong></td><td>不需要</td><td>不需要</td><td>需要调 notifyAppReady</td></tr>
+  <tr><td><strong>推荐场景</strong></td><td>通用</td><td>崩溃频繁的场景</td><td>生产级应用</td></tr>
+</table>
+
+<div class="warn">
+<strong>回滚设计原则：</strong>
+<ul>
+  <li><strong>回滚逻辑必须在 Native 层</strong> — JS Bundle 坏了，JS 层根本跑不起来</li>
+  <li><strong>旧 Bundle 不能立即删除</strong> — 必须保留到确认成功，否则没有东西可以回滚</li>
+  <li><strong>确认要有延迟</strong> — 很多崩溃发生在渲染阶段，不是 Application.onCreate</li>
+  <li><strong>回滚后上报服务器</strong> — 标记该版本有问题，防止其他用户继续下载</li>
+  <li><strong>内置 Bundle 是最后防线</strong> — 热更新 Bundle 和内置 Bundle 必须分开存储，永远不能被覆盖</li>
+</ul>
+</div>
+
+<div class="tip">
+<strong>推荐组合：</strong>标记确认机制 + 启动计数器双保险，简单可靠，覆盖大部分场景。
+</div>
+
 <footer>
   <p>React Native C++ Plugin Guide — 基于 react-native-circle-plugin 实践总结</p>
   <p>方案推荐：新项目优先 Expo Modules，需要底层控制用 JSI，极致性能用 Nitro。</p>
