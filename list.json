@@ -3,6 +3,7 @@
   { "name": "android-pit", "src": "android-pit.html" },
   { "name": "crdt", "src": "crdt.html" },
   { "name": "design", "src": "design.html" },
+  { "name": "dmux", "src": "dmux.html" },
   { "name": "electron", "src": "electron.html" },
   { "name": "log", "src": "log.html" },
   { "name": "mongodb", "src": "mongodb.html" },
