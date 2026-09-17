@@ -1,11 +1,8 @@
 {
-  "name": "@figma-ui-verifier/mcp",
+  "name": "@figma-ui-verifier/skill",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": {
-    "figma-verify-mcp": "./dist/index.js"
-  },
   "exports": {
     ".": "./dist/index.js"
   },
@@ -15,9 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@figma-ui-verifier/verifier": "0.1.0",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "puppeteer": "^24.0.0"
+    "@figma-ui-verifier/verifier": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
