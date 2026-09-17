@@ -1,0 +1,13 @@
+{
+  "name": "figma-ui-verifier",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build -ws",
+    "test": "npm run test -ws",
+    "lint": "npm run lint -ws"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
