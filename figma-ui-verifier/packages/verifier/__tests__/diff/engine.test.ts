@@ -65,4 +65,54 @@ describe('diffNodes', () => {
     expect(result.extra).toHaveLength(0);
     expect(result.diffs).toHaveLength(0);
   });
+
+  it('should use Hungarian fallback for unmatched nodes with similar position', () => {
+    // Figma has node '3:1' at (100, 100, 200, 50)
+    // DOM has node 'dom-1' at (102, 98, 198, 52) — close enough for IoU match
+    const figma = [makeNode({ id: '3:1', x: 100, y: 100, width: 200, height: 50, type: 'FRAME' })];
+    const dom = [makeNode({ id: 'dom-1', x: 102, y: 98, width: 198, height: 52, type: 'FRAME' })];
+
+    const result = diffNodes(figma, dom, DEFAULT_CONFIG);
+
+    // Hungarian should match these based on spatial proximity
+    expect(result.matched).toHaveLength(1);
+    expect(result.missing).toHaveLength(0);
+    expect(result.extra).toHaveLength(0);
+    expect(result.fallbackMatched).toBe(1);
+    expect(result.matched[0].figma.id).toBe('3:1');
+    expect(result.matched[0].dom.id).toBe('dom-1');
+  });
+
+  it('should not match nodes with very different positions via Hungarian', () => {
+    // Figma node at top-left, DOM node at bottom-right — low IoU
+    const figma = [makeNode({ id: '3:1', x: 0, y: 0, width: 50, height: 50, type: 'FRAME' })];
+    const dom = [makeNode({ id: 'dom-1', x: 1000, y: 1000, width: 50, height: 50, type: 'FRAME' })];
+
+    const result = diffNodes(figma, dom, DEFAULT_CONFIG);
+
+    expect(result.matched).toHaveLength(0);
+    expect(result.missing).toHaveLength(1);
+    expect(result.extra).toHaveLength(1);
+    expect(result.fallbackMatched).toBe(0);
+  });
+
+  it('should prefer ID matching over Hungarian fallback', () => {
+    // Two nodes: one with matching ID, one without
+    const figma = [
+      makeNode({ id: '1:1', x: 10, y: 10, width: 100, height: 100 }),
+      makeNode({ id: '2:1', x: 200, y: 200, width: 100, height: 100 }),
+    ];
+    const dom = [
+      makeNode({ id: '1:1', x: 10, y: 10, width: 100, height: 100 }),
+      makeNode({ id: 'dom-1', x: 202, y: 198, width: 98, height: 102 }),
+    ];
+
+    const result = diffNodes(figma, dom, DEFAULT_CONFIG);
+
+    // '1:1' matched by ID, '2:1' matched by Hungarian to 'dom-1'
+    expect(result.matched).toHaveLength(2);
+    expect(result.missing).toHaveLength(0);
+    expect(result.extra).toHaveLength(0);
+    expect(result.fallbackMatched).toBe(1);
+  });
 });

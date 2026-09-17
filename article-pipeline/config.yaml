@@ -1,0 +1,68 @@
+# Article Pipeline v2.0 Configuration
+# ─────────────────────────────────────
+
+# 风格提取配置
+style:
+  # 默认风格画像路径（如果未指定作者）
+  default_profile: null
+  # 分析维度权重
+  weights:
+    sentence_pattern: 0.25    # 句式偏好
+    vocabulary: 0.20          # 用词风格
+    paragraph_rhythm: 0.15    # 段落节奏
+    emotional_tone: 0.15      # 情感基调
+    rhetoric: 0.10            # 常用修辞
+    opening_closing: 0.15     # 开头结尾模式
+
+# 写作配置
+writing:
+  # 生成大纲数量
+  outline_count: 3
+  # 文章目标字数
+  target_words: 2500
+  # 是否允许AI生成后人工修改
+  allow_human_edit: true
+
+# 审查配置
+review:
+  # 去AI味强度: light / moderate / aggressive
+  deai_intensity: "moderate"
+  # 查重相似度阈值 (0-1)
+  plagiarism_threshold: 0.3
+  # 风险检测 - 敏感词库路径
+  sensitive_words_path: null
+  # 合规红线
+  blocked_topics:
+    - "政治敏感"
+    - "宗教极端"
+    - "种族歧视"
+    - "暴力色情"
+    - "虚假信息"
+
+# 封面图配置
+cover:
+  # 输出尺寸
+  width: 900
+  height: 383
+  # 默认主题色
+  primary_color: "#6750A4"
+  # 字体（macOS默认PingFang）
+  font_family: "PingFang SC"
+
+# 微信公众号配置
+wechat:
+  app_id: ""          # 填入你的 AppID
+  app_secret: ""      # 填入你的 AppSecret
+  author: "skia"
+  design_theme: "economist"
+  creation_source_type: 1
+
+# 飞书通知配置
+feishu:
+  enabled: false
+  app_id: ""
+  app_secret: ""
+  recipients: []
+
+# 输出目录
+output_dir: "./output"

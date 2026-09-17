@@ -5,16 +5,19 @@ import { compareColor } from './comparators/color.js';
 import { compareTypography } from './comparators/typography.js';
 import { compareEffects } from './comparators/effects.js';
 import { compareAutoLayout } from './comparators/auto-layout.js';
+import { hungarianMatch } from '../match/matcher.js';
 
 export interface DiffOutput {
   matched: MatchedPair[];
   missing: NormalizedNode[];
   extra: NormalizedNode[];
   diffs: DiffResult[];
+  /** How many pairs were matched by Hungarian fallback */
+  fallbackMatched: number;
 }
 
 /**
- * Diff 主引擎：ID 匹配 + 逐属性对比
+ * Diff 主引擎：ID 匹配 + 匈牙利算法兜底 + 逐属性对比
  */
 export function diffNodes(
   figmaNodes: NormalizedNode[],
@@ -45,7 +48,25 @@ export function diffNodes(
   // 剩余的 DOM 节点为多余
   const extra = Array.from(domMap.values());
 
-  // 2. 对每对匹配节点调用 comparators
+  // 2. 匈牙利算法兜底：对 ID 未匹配的节点尝试空间+类型匹配
+  let fallbackMatched = 0;
+  if (missing.length > 0 && extra.length > 0) {
+    const fallbackPairs = hungarianMatch(missing, extra);
+
+    for (const pair of fallbackPairs) {
+      matched.push(pair);
+      // 从 missing 和 extra 中移除已匹配的节点
+      const missIdx = missing.findIndex(m => m.id === pair.figma.id);
+      if (missIdx !== -1) missing.splice(missIdx, 1);
+
+      const extraIdx = extra.findIndex(e => e.id === pair.dom.id);
+      if (extraIdx !== -1) extra.splice(extraIdx, 1);
+
+      fallbackMatched++;
+    }
+  }
+
+  // 3. 对每对匹配节点调用 comparators
   const diffs: DiffResult[] = [];
   const { tolerances } = config;
 
@@ -57,7 +78,7 @@ export function diffNodes(
     diffs.push(...compareAutoLayout(pair.figma, pair.dom, tolerances));
   }
 
-  return { matched, missing, extra, diffs };
+  return { matched, missing, extra, diffs, fallbackMatched };
 }
 
 /**
