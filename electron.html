@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electron — 工作原理与性能优化</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #E1BEE7;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-dim: #F5F5F5;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0,0,0,0.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+    --md-radius-xs: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px 16px;
+    box-shadow: 0 2px 4px var(--md-shadow);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: 0.02em; }
+  .top-bar .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; font-weight: 300; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+  .chip .material-icons-outlined { font-size: 16px; }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 14px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .material-icons-outlined { font-size: 20px; }
+
+  .card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px var(--md-shadow); }
+  .card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--md-on-surface); }
+  .card h4 { font-size: 14px; font-weight: 500; margin: 12px 0 6px; color: var(--md-on-surface); }
+  .card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); line-height: 1.7; }
+  .card ul, .card ol { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  code {
+    font-family: 'Roboto Mono', monospace; font-size: 12.5px;
+    background: var(--md-surface-dim); padding: 2px 6px;
+    border-radius: 4px; color: var(--md-primary);
+  }
+  pre {
+    background: #263238; color: #EEFFFF;
+    padding: 16px 20px; border-radius: var(--md-radius-sm);
+    overflow-x: auto; font-family: 'Roboto Mono', monospace;
+    font-size: 12.5px; line-height: 1.7;
+    margin: 12px 0;
+    white-space: pre; width: fit-content; max-width: 100%;
+  }
+  pre .kw { color: #C792EA; }
+  pre .fn { color: #82AAFF; }
+  pre .str { color: #C3E88D; }
+  pre .cmt { color: #546E7A; }
+  pre .typ { color: #FFCB6B; }
+  pre .var { color: #F78C6C; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 500;
+    color: var(--md-on-surface-variant); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--md-outline-variant); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--md-primary-light); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--md-primary-container); color: #1565C0; }
+  .badge-green  { background: var(--md-secondary-container); color: #00695C; }
+  .badge-purple { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .badge-red    { background: var(--md-error-container); color: var(--md-error); }
+
+  .flow {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; padding: 20px 0;
+  }
+  .flow-node {
+    padding: 10px 18px; border-radius: var(--md-radius-sm);
+    font-size: 13px; font-weight: 500; text-align: center;
+    min-width: 110px;
+  }
+  .flow-node.primary   { background: var(--md-primary-container); color: #1565C0; }
+  .flow-node.secondary { background: var(--md-secondary-container); color: #00695C; }
+  .flow-node.tertiary  { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .flow-node.surface   { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+  .flow-arrow {
+    font-size: 20px; color: var(--md-outline);
+    display: flex; align-items: center;
+  }
+
+  .accent-block {
+    border-left: 4px solid var(--md-primary);
+    padding: 12px 16px; margin: 12px 0;
+    background: var(--md-primary-light); border-radius: 0 var(--md-radius-xs) var(--md-radius-xs) 0;
+    font-size: 13px; color: var(--md-on-surface-variant);
+  }
+  .accent-block.green { border-color: var(--md-secondary); background: var(--md-secondary-container); }
+  .accent-block.red { border-color: var(--md-error); background: var(--md-error-container); }
+
+  .diagram-box {
+    background: var(--md-surface-container);
+    border: 2px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 24px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .diagram-box pre {
+    background: transparent; color: var(--md-on-surface);
+    text-align: left; display: inline-block; margin: 0;
+    white-space: pre; width: fit-content;
+  }
+  .diagram-box pre .box  { color: var(--md-primary); }
+  .diagram-box pre .arr  { color: var(--md-outline); }
+  .diagram-box pre .note { color: var(--md-on-surface-variant); }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    margin: 0 4px 6px 0;
+  }
+
+  .toc {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .toc h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--md-on-surface); }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin-bottom: 4px; }
+  .toc a {
+    color: var(--md-primary); text-decoration: none; font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .toc a:hover { text-decoration: underline; }
+  .toc .material-icons-outlined { font-size: 16px; }
+
+  .highlight { background: #FFF9C4; padding: 1px 4px; border-radius: 3px; }
+  .strike { text-decoration: line-through; opacity: 0.6; }
+
+  hr { border: none; border-top: 1px solid var(--md-outline-variant); margin: 24px 0; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>Electron — 工作原理与性能优化</h1>
+  <div class="subtitle">Chromium + Node.js 融合架构 · V8 Context 隔离 · contextBridge 通信 · Bindings 机制 · 性能分析</div>
+</div>
+
+<div class="container">
+
+<div class="chip-row">
+  <span class="chip"><span class="material-icons-outlined">memory</span>Chromium + Node.js</span>
+  <span class="chip"><span class="material-icons-outlined">layers</span>V8 Isolate / Context</span>
+  <span class="chip"><span class="material-icons-outlined">swap_horiz</span>contextBridge</span>
+  <span class="chip"><span class="material-icons-outlined">build</span>C++ Bindings</span>
+  <span class="chip"><span class="material-icons-outlined">speed</span>性能优化</span>
+</div>
+
+<div class="toc">
+  <h3>目录</h3>
+  <ul>
+    <li><a href="#arch"><span class="material-icons-outlined">account_tree</span> 核心架构与进程模型</a></li>
+    <li><a href="#v8"><span class="material-icons-outlined">memory</span> V8 Isolate 与 Context 隔离</a></li>
+    <li><a href="#bridge"><span class="material-icons-outlined">swap_horiz</span> contextBridge 跨 Context 通信</a></li>
+    <li><a href="#proxy"><span class="material-icons-outlined">call_merge</span> 函数代理与 Promise 代理</a></li>
+    <li><a href="#bindings"><span class="material-icons-outlined">build</span> C++ Bindings 机制</a></li>
+    <li><a href="#perf"><span class="material-icons-outlined">speed</span> 性能分析与优化</a></li>
+    <li><a href="#summary"><span class="material-icons-outlined">summarize</span> 一句话总结</a></li>
+  </ul>
+</div>
+
+<!-- ========== 1. 核心架构 ========== -->
+<div class="section" id="arch">
+  <div class="section-title"><span class="material-icons-outlined">account_tree</span> 核心架构与进程模型</div>
+
+  <div class="card">
+    <h3>本质：Chromium + Node.js 的 C++ 层融合</h3>
+    <p>Electron 不是两个独立运行时拼在一起，而是在 <strong>同一个 V8 Isolate</strong> 中同时注入 Chromium 的 Web API 和 Node.js 的系统 API，通过 Context 隔离访问权限。</p>
+  </div>
+
+  <div class="diagram-box">
+    <pre>
+<span class="box">┌─────────────────────────────────────────────────────────────┐</span>
+<span class="box">│</span>                      <span class="note">一个 V8 Isolate</span>                        <span class="box">│</span>
+<span class="box">│</span>                                                             <span class="box">│</span>
+<span class="box">│</span>  <span class="box">┌─────────────────────┐</span>   <span class="box">┌─────────────────────┐</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span> Context A (preload) <span class="box">│</span>   <span class="box">│</span> Context B (页面)    <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span>                     <span class="box">│</span>   <span class="box">│</span>                     <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span> Chromium Web API ✓  <span class="box">│</span>   <span class="box">│</span> Chromium Web API ✓  <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span> Node.js API ✓       <span class="box">│</span>   <span class="box">│</span> Node.js API ✗       <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span> require ✓           <span class="box">│</span>   <span class="box">│</span> require ✗           <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">│</span> fs / process ✓      <span class="box">│</span>   <span class="box">│</span> fs / process ✗      <span class="box">│</span>       <span class="box">│</span>
+<span class="box">│</span>  <span class="box">└─────────────────────┘</span>   <span class="box">└─────────────────────┘</span>       <span class="box">│</span>
+<span class="box">│</span>            <span class="arr">↕ contextBridge 克隆通信</span>                        <span class="box">│</span>
+<span class="box">└─────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>进程模型（单窗口）</h3>
+      <table>
+        <tr><th>进程</th><th>数量</th><th>作用</th></tr>
+        <tr><td><strong>主进程</strong></td><td>1</td><td>管理窗口、系统 API、IPC</td></tr>
+        <tr><td><strong>渲染进程</strong></td><td>每窗口 1</td><td>页面渲染 + preload</td></tr>
+        <tr><td>GPU 进程</td><td>1</td><td>硬件加速（Chromium 内部）</td></tr>
+        <tr><td>网络进程</td><td>1</td><td>网络请求（Chromium 内部）</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>启动流程</h3>
+      <div class="flow">
+        <div class="flow-node primary">C++ 启动</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node primary">Chromium 初始化</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node primary">Node.js 初始化</div>
+      </div>
+      <div class="flow">
+        <div class="flow-node secondary">app.whenReady</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node secondary">创建 BrowserWindow</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node secondary">loadFile / loadURL</div>
+      </div>
+      <div class="flow">
+        <div class="flow-node tertiary">加载 preload.js</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node tertiary">contextBridge 注入</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node tertiary">加载页面 JS</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accent-block">
+    <strong>关键误解澄清：</strong>preload.js 不是独立进程，它和页面 JS 运行在同一个渲染进程中，只是在不同的 V8 Context 里执行。
+  </div>
+</div>
+
+<!-- ========== 2. V8 Isolate 与 Context ========== -->
+<div class="section" id="v8">
+  <div class="section-title"><span class="material-icons-outlined">memory</span> V8 Isolate 与 Context 隔离</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>概念层级</h3>
+      <table>
+        <tr><th>概念</th><th>含义</th></tr>
+        <tr><td><code>V8 Isolate</code></td><td>一个引擎实例 = 一个线程 + 一个堆 + 一个 GC</td></tr>
+        <tr><td><code>V8 Context</code></td><td>一个执行上下文 = 独立的 globalThis + 内置对象</td></tr>
+      </table>
+      <p style="margin-top:8px">一个 Isolate 可以有多个 Context，它们共享同一个堆，但各自有不同的全局对象。</p>
+    </div>
+    <div class="card">
+      <h3>隔离机制</h3>
+      <p>不是线程隔离，不是进程隔离，是 <strong>V8 Context 隔离</strong>。</p>
+      <p>本质：同一个 V8 Isolate 中创建两个 Context，每个 Context 有自己的 <code>globalThis</code>，互相看不到对方的全局变量。</p>
+      <p>底层调用 <code>v8::Context::New(isolate)</code>（C++ API），不是 Node.js 的 <code>vm.createContext()</code>（那是 JS 层封装）。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>contextIsolation 配置效果</h3>
+    <div class="grid-2">
+      <div>
+        <h4><span class="badge badge-red">关闭</span> 不安全</h4>
+        <pre><span class="cmt">// preload 和页面共享同一个 Context</span>
+<span class="cmt">// 页面可以直接: window.require('fs')</span>
+<span class="cmt">// 恶意网页可以读写任意文件</span></pre>
+      </div>
+      <div>
+        <h4><span class="badge badge-green">开启</span> 默认安全</h4>
+        <pre><span class="cmt">// preload 和页面在不同 Context 中</span>
+<span class="cmt">// 页面看不到 require / process</span>
+<span class="cmt">// 必须通过 contextBridge 暴露 API</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="accent-block">
+    <strong>只有一个 V8 实例：</strong>Chromium 和 Node.js 共享同一个 V8 Isolate。Node.js 不是独立的 JS 引擎，它是一组用 C++ 写的模块（fs, http, path...），通过 V8 的 binding 机制注册到同一个 V8 实例中。两者的事件循环（libuv + Chromium MessagePump）也合并为一个。
+  </div>
+</div>
+
+<!-- ========== 3. contextBridge ========== -->
+<div class="section" id="bridge">
+  <div class="section-title"><span class="material-icons-outlined">swap_horiz</span> contextBridge 跨 Context 通信</div>
+
+  <div class="card">
+    <h3>contextBridge 是什么</h3>
+    <p>一个 <strong>API 桥接工具</strong>，作用是让 preload 脚本把指定的函数/数据安全地暴露给页面 JS 使用。本质就是往页面的 <code>window</code> 上注入属性，但通过 C++ 层实现跨 Context 的属性注入。</p>
+    <pre><span class="cmt">// preload.js</span>
+<span class="kw">const</span> { contextBridge, ipcRenderer } = <span class="fn">require</span>(<span class="str">'electron'</span>)
+
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'electronAPI'</span>, {
+  <span class="fn">getUser</span>: (id) =&gt; ipcRenderer.<span class="fn">invoke</span>(<span class="str">'get-user'</span>, id),
+  <span class="fn">saveFile</span>: (data) =&gt; ipcRenderer.<span class="fn">invoke</span>(<span class="str">'file:save'</span>, data),
+  <span class="fn">onUpdate</span>: (cb) =&gt; ipcRenderer.<span class="fn">on</span>(<span class="str">'update'</span>, (_, d) =&gt; <span class="fn">cb</span>(d)),
+})</pre>
+  </div>
+
+  <div class="card">
+    <h3>通信机制：结构化克隆 + Context 切换</h3>
+    <p>不是序列化（JSON），不是 IPC，是 V8 层面的对象遍历 + 在目标 Context 中直接创建新对象。</p>
+
+    <div class="flow">
+      <div class="flow-node surface">页面调用 proxy.getUser(123)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node primary">参数克隆到 preload Context</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node secondary">执行真实函数</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node primary">返回值克隆回页面 Context</div>
+    </div>
+
+    <h4>数据传递规则</h4>
+    <table>
+      <tr><th>类型</th><th>传递方式</th><th>说明</th></tr>
+      <tr><td>number / string / boolean / null / undefined</td><td>直接复制</td><td>V8 内部 immutable，零开销</td></tr>
+      <tr><td>普通对象 / 数组</td><td>递归克隆</td><td>在目标 Context 创建新对象</td></tr>
+      <tr><td>Date / RegExp / Map / Set / TypedArray</td><td>递归克隆</td><td>重建实例</td></tr>
+      <tr><td>函数</td><td>转为代理函数</td><td>调用时穿越 Context 边界</td></tr>
+      <tr><td>Promise</td><td>转为代理 Promise</td><td>.then/.catch 桥接状态</td></tr>
+      <tr><td><span class="strike">Symbol / WeakMap / WeakRef / DOM 节点</span></td><td><span class="strike">不可传递</span></td><td>返回 undefined</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>循环引用处理</h3>
+    <p>内部维护 <code>visited</code> 集合 + <code>cache</code> 映射（原始对象 → 克隆对象），遇到已访问的对象时返回已克隆的引用，而不是无限递归。</p>
+    <pre><span class="kw">const</span> a = { name: <span class="str">'A'</span> }
+<span class="kw">const</span> b = { name: <span class="str">'B'</span> }
+a.friend = b;  b.friend = a  <span class="cmt">// 循环引用</span>
+
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'data'</span>, { a, b })
+
+<span class="cmt">// 页面中</span>
+window.data.a.friend === window.data.b        <span class="cmt">// true ✓</span>
+window.data.a.friend.friend.friend.name       <span class="cmt">// 'B' 'A' 'B' ...</span></pre>
+    <div class="accent-block green">
+      循环引用关系完整保留。核心：<strong>先创建空壳放入 cache，再递归填充属性，遇到已访问对象从 cache 取出已创建的克隆。</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>exposeInMainWorld 命名冲突</h3>
+    <p>直接覆盖已有全局变量，没有警告。解决方案：用唯一命名空间。</p>
+    <pre><span class="cmt">// ✓ 推荐：单一命名空间，带项目前缀</span>
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'myAppName'</span>, {
+  window: { minimize, maximize, close },
+  file: { open, save },
+  onUpdate: (cb) =&gt; { ... }
+})
+
+<span class="cmt">// ✗ 避免：多个顶级 key、太通用的名字</span>
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'api'</span>, { ... })      <span class="cmt">// 容易冲突</span>
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'config'</span>, { ... })   <span class="cmt">// 容易冲突</span></pre>
+  </div>
+</div>
+
+<!-- ========== 4. 函数代理与 Promise 代理 ========== -->
+<div class="section" id="proxy">
+  <div class="section-title"><span class="material-icons-outlined">call_merge</span> 函数代理与 Promise 代理</div>
+
+  <div class="card">
+    <h3>函数代理</h3>
+    <p>代理函数是一个<strong>全新的函数对象</strong>，和原始函数只在调用时有数据桥接，其他时候毫无关联。</p>
+    <div class="grid-2">
+      <div>
+        <h4>能用的（管道模式）</h4>
+        <pre><span class="cmt">// 无状态，只传数据</span>
+(id) =&gt; ipcRenderer.<span class="fn">invoke</span>(<span class="str">'get-user'</span>, id)
+
+<span class="cmt">// 带简单校验</span>
+(data) =&gt; {
+  <span class="kw">if</span> (!data.path) <span class="kw">throw</span> <span class="kw">new</span> <span class="typ">Error</span>(<span class="str">'invalid'</span>)
+  <span class="kw">return</span> ipcRenderer.<span class="fn">invoke</span>(<span class="str">'save'</span>, data)
+}</pre>
+      </div>
+      <div>
+        <h4>不能用的（依赖自身状态）</h4>
+        <pre><span class="cmt">// 依赖闭包 — 丢失</span>
+<span class="kw">const</span> count = 0
+<span class="fn">exposeInMainWorld</span>(<span class="str">'inc'</span>, () =&gt; count++)
+
+<span class="cmt">// 依赖 this — 指向不对</span>
+<span class="fn">exposeInMainWorld</span>(<span class="str">'obj'</span>, {
+  value: 0,
+  <span class="fn">inc</span>() { <span class="kw">this</span>.value++ }
+})</pre>
+      </div>
+    </div>
+
+    <div class="accent-block red">
+      <strong>代理函数丢失的特性：</strong><code>name</code>、<code>length</code>、<code>prototype</code>、<code>this</code> 指向、闭包变量、<code>Symbol</code> 属性、<code>WeakMap</code> 关联、<code>arguments.callee</code>。本质就是一个只负责传数据的管道。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Promise 代理</h3>
+    <p>preload 返回的 Promise 在页面 Context 中创建一个新的 Promise 壳，原始 Promise 的结果通过 <code>.then/.catch</code> 桥接过来。</p>
+    <div class="flow">
+      <div class="flow-node surface">页面调用 proxy.getUser(123)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node primary">preload 执行 ipcRenderer.invoke</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node secondary">返回 preload 的 Promise</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node tertiary">创建页面 Promise 壳</div>
+    </div>
+    <p style="margin-top:8px">原始 Promise 的 <code>.then</code> 注册回调，resolved 时把值克隆到页面 Context 并 resolve 页面的 Promise。整个 <code>.then</code> 链都在页面 Context 中执行，只有第一次返回值是跨 Context 的。</p>
+  </div>
+
+  <div class="card">
+    <h3>函数作为参数（回调）</h3>
+    <p>页面传函数给 preload 时，contextBridge 在 preload Context 中创建代理，调用时切回页面 Context 执行原始函数。回调在页面 Context 中执行，能访问 DOM。</p>
+    <pre><span class="cmt">// preload.js</span>
+contextBridge.<span class="fn">exposeInMainWorld</span>(<span class="str">'api'</span>, {
+  <span class="fn">onProgress</span>: (callback) =&gt; {
+    ipcRenderer.<span class="fn">on</span>(<span class="str">'download:progress'</span>, (_, data) =&gt; {
+      <span class="fn">callback</span>(data)  <span class="cmt">// data 克隆到页面 Context，callback 在页面执行</span>
+    })
+  }
+})
+
+<span class="cmt">// 页面中 — callback 能操作 DOM</span>
+window.api.<span class="fn">onProgress</span>((data) =&gt; {
+  document.<span class="fn">getElementById</span>(<span class="str">'bar'</span>).style.width = data.percent + <span class="str">'%'</span>
+})</pre>
+  </div>
+</div>
+
+<!-- ========== 5. Bindings ========== -->
+<div class="section" id="bindings">
+  <div class="section-title"><span class="material-icons-outlined">build</span> C++ Bindings 机制</div>
+
+  <div class="card">
+    <h3>什么是 Bindings</h3>
+    <p>把 C++ 函数注册到 V8 中，让 JS 能直接调用。不是代理（拦截转发），是<strong>绑定（注册 + 直接调用）</strong>。</p>
+    <pre><span class="cmt">// C++ 绑定函数</span>
+<span class="kw">void</span> <span class="fn">ReadFileSync</span>(<span class="kw">const</span> FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  <span class="typ">String</span>::Utf8Value path(isolate, args[<span class="var">0</span>]);
+  <span class="kw">int</span> fd = <span class="fn">open</span>(*path, O_RDONLY);    <span class="cmt">// POSIX 系统调用</span>
+  <span class="fn">read</span>(fd, buf, size);               <span class="cmt">// 读文件</span>
+  args.<span class="fn">GetReturnValue</span>().<span class="fn">Set</span>(<span class="fn">Buffer::New</span>(isolate, buf, size));
+}
+
+<span class="cmt">// 注册到 V8</span>
+<span class="fn">NODE_SET_METHOD</span>(target, <span class="str">"readFileSync"</span>, ReadFileSync)</pre>
+    <p style="margin-top:8px">JS 调用 <code>fs.readFileSync()</code> 时，V8 查表找到 C++ 函数地址，直接执行。</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Node.js Bindings</h3>
+      <table>
+        <tr><th>JS API</th><th>底层实现</th></tr>
+        <tr><td>fs.readFile()</td><td>POSIX read()</td></tr>
+        <tr><td>http.get()</td><td>libuv socket</td></tr>
+        <tr><td>crypto.createHash</td><td>OpenSSL</td></tr>
+        <tr><td>child_process</td><td>fork()/exec()</td></tr>
+        <tr><td>worker_threads</td><td>pthread</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Chromium Bindings</h3>
+      <table>
+        <tr><th>JS API</th><th>底层实现</th></tr>
+        <tr><td>document.create</td><td>Blink DOM 树</td></tr>
+        <tr><td>fetch()</td><td>Chromium 网络栈</td></tr>
+        <tr><td>canvas.getContext</td><td>Skia 图形库</td></tr>
+        <tr><td>audio.play()</td><td>WebAudio 引擎</td></tr>
+        <tr><td>WebSocket</td><td>Chromium WebSocket</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>与 React Native JSI 的对比</h3>
+    <p>原理完全相同：把 C++ 函数注册到 JS 引擎中，JS 直接调用 C++，同步执行，没有序列化。</p>
+    <table>
+      <tr><th></th><th>Electron Bindings</th><th>React Native JSI</th></tr>
+      <tr><td>JS 引擎</td><td>V8</td><td>JSC / Hermes</td></tr>
+      <tr><td>注册方式</td><td>V8 FunctionTemplate</td><td>JSI HostObject / HostFunction</td></tr>
+      <tr><td>历史</td><td>从一开始就这样</td><td>2022 年新架构替换旧 Bridge</td></tr>
+      <tr><td>旧方案</td><td>无（V8 binding 是现成的）</td><td>JSON Bridge（异步、序列化开销大）</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ========== 6. 性能优化 ========== -->
+<div class="section" id="perf">
+  <div class="section-title"><span class="material-icons-outlined">speed</span> 性能分析与优化</div>
+
+  <div class="card">
+    <h3>分析工具</h3>
+    <table>
+      <tr><th>工具</th><th>适用场景</th><th>用法</th></tr>
+      <tr><td><strong>Chrome DevTools</strong></td><td>渲染进程</td><td>Performance / Memory 面板</td></tr>
+      <tr><td><code>chrome://inspect</code></td><td>主进程</td><td><code>electron --inspect=9229 main.js</code></td></tr>
+      <tr><td><code>chrome://tracing</code></td><td>系统级 trace</td><td><code>contentTracing.startRecording()</code></td></tr>
+      <tr><td><code>process.memoryUsage()</code></td><td>内存监控</td><td>rss / heapTotal / heapUsed</td></tr>
+      <tr><td><code>performance.memory</code></td><td>渲染进程内存</td><td>jsHeapSizeLimit / usedJSHeapSize</td></tr>
+      <tr><td><code>perf_hooks</code></td><td>精确计时</td><td>Node.js 内置模块，微秒精度</td></tr>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>启动优化</h3>
+      <ul>
+        <li><strong>按需加载</strong> — <code>require()</code> 放到函数内，启动时不加载</li>
+        <li><strong>延迟初始化</strong> — 数据库连接等放到首次使用时</li>
+        <li><strong>隐藏窗口预创建</strong> — <code>show: false</code> + <code>ready-to-show</code> 事件</li>
+        <li><strong>窗口池</strong> — 复用窗口而不是每次创建销毁</li>
+        <li><strong>代码分割</strong> — 路由级别 <code>import()</code>，只加载当前页面</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>渲染优化</h3>
+      <ul>
+        <li><strong>虚拟列表</strong> — 只渲染可见区域（react-window）</li>
+        <li><strong>减少重渲染</strong> — React.memo / useMemo / useCallback</li>
+        <li><strong>图片优化</strong> — WebP + 懒加载 + 合适尺寸</li>
+        <li><strong>Web Worker</strong> — 重计算移到 Worker，不阻塞 UI</li>
+        <li><strong>流式处理</strong> — 大文件用 Stream，不一次性读入内存</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>内存优化</h3>
+      <ul>
+        <li><strong>事件监听器及时移除</strong> — <code>ipcRenderer.removeListener()</code></li>
+        <li><strong>定时器及时清理</strong> — <code>clearInterval()</code></li>
+        <li><strong>限制缓存大小</strong> — LRU 缓存，避免只增不减</li>
+        <li><strong>主动 GC</strong> — <code>global.gc()</code>（需 <code>--expose-gc</code>）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>IPC 优化</h3>
+      <ul>
+        <li><strong>批量调用</strong> — 合并多次小 IPC 为一次</li>
+        <li><strong>减少数据量</strong> — 只传必要字段，不传整个大对象</li>
+        <li><strong>流式传输</strong> — 大数据用流，不一次性传完</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>打包优化</h3>
+    <pre><span class="cmt">// vite.config.js</span>
+<span class="kw">export default</span> {
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [<span class="str">'react'</span>, <span class="str">'react-dom'</span>],   <span class="cmt">// 框架单独打包</span>
+          utils: [<span class="str">'lodash'</span>, <span class="str">'dayjs'</span>]       <span class="cmt">// 工具库单独打包</span>
+        }
+      }
+    },
+    minify: <span class="str">'terser'</span>,
+    terserOptions: { compress: { drop_console: <span class="kw">true</span> } }
+  }
+}</pre>
+    <ul>
+      <li><code>asar: true</code> — 打包成 asar，减少文件数</li>
+      <li>移除不需要的平台架构（只构建 x64 或 arm64）</li>
+      <li>tree-shaking 移除未使用代码</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>perf_hooks 精确计时</h3>
+    <pre><span class="kw">const</span> { performance, PerformanceObserver } = <span class="fn">require</span>(<span class="str">'perf_hooks'</span>)
+
+<span class="cmt">// 方法1: performance.now() — 微秒精度，单调递增</span>
+<span class="kw">const</span> start = performance.<span class="fn">now</span>()
+<span class="cmt">// ... 操作</span>
+console.<span class="fn">log</span>(performance.<span class="fn">now</span>() - start, <span class="str">'ms'</span>)
+
+<span class="cmt">// 方法2: mark + measure</span>
+performance.<span class="fn">mark</span>(<span class="str">'start'</span>)
+<span class="cmt">// ... 操作</span>
+performance.<span class="fn">mark</span>(<span class="str">'end'</span>)
+performance.<span class="fn">measure</span>(<span class="str">'耗时'</span>, <span class="str">'start'</span>, <span class="str">'end'</span>)
+
+<span class="cmt">// 方法3: PerformanceObserver 监听</span>
+<span class="kw">const</span> obs = <span class="kw">new</span> <span class="typ">PerformanceObserver</span>((items) =&gt; {
+  items.<span class="fn">getEntries</span>().<span class="fn">forEach</span>(e =&gt; console.<span class="fn">log</span>(e.name, e.duration))
+})
+obs.<span class="fn">observe</span>({ entryTypes: [<span class="str">'measure'</span>] })</pre>
+  </div>
+</div>
+
+<!-- ========== 7. 更新与热更新 ========== -->
+<div class="section" id="update">
+  <div class="section-title"><span class="material-icons-outlined">system_update</span> 更新与热更新</div>
+
+  <div class="card">
+    <h3>两种更新策略</h3>
+    <pre>
+<span class="cmt">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    Electron 更新策略                            │</span>
+<span class="cmt">├─────────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">│   主进程代码改了 ──→ 必须发版 ──→ electron-updater 全量更新     │</span>
+<span class="cmt">│   (Node.js / 原生模块 / IPC / preload)                          │</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">│   渲染进程代码改了 ──→ 热更新 Bundle ──→ 用户无感知刷新        │</span>
+<span class="cmt">│   (UI / 业务逻辑 / 样式 / 前端框架)                             │</span>
+<span class="cmt">│                                                                 │</span>
+<span class="cmt">└─────────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>electron-updater 全量更新</h3>
+    <p>配合 <code>electron-builder</code> 使用，支持全量/差量更新，自动签名验证。</p>
+    <pre><span class="cmt">// main.js — 更新管理器</span>
+<span class="kw">const</span> { autoUpdater } = <span class="fn">require</span>(<span class="str">'electron-updater'</span>)
+<span class="kw">const</span> log = <span class="fn">require</span>(<span class="str">'electron-log'</span>)
+
+<span class="kw">class</span> <span class="typ">UpdateManager</span> {
+  <span class="fn">constructor</span>(mainWindow) {
+    <span class="kw">this</span>.mainWindow = mainWindow
+    <span class="kw">this</span>.<span class="fn">setup</span>()
+  }
+
+  <span class="fn">setup</span>() {
+    autoUpdater.logger = log
+    autoUpdater.autoDownload = <span class="kw">false</span>       <span class="cmt">// 不自动下载，先询问用户</span>
+    autoUpdater.autoInstallOnAppQuit = <span class="kw">true</span> <span class="cmt">// 退出时自动安装</span>
+
+    <span class="cmt">// 发现新版本</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'update-available'</span>, <span class="kw">async</span> (info) =&gt; {
+      <span class="kw">const</span> { response } = <span class="kw">await</span> dialog.<span class="fn">showMessageBox</span>({
+        type: <span class="str">'info'</span>,
+        buttons: [<span class="str">'立即更新'</span>, <span class="str">'稍后'</span>],
+        title: <span class="str">'发现新版本'</span>,
+        message: <span class="str">`版本 ${info.version} 已发布`</span>
+      })
+      <span class="kw">if</span> (response === <span class="num">0</span>) autoUpdater.<span class="fn">downloadUpdate</span>()
+    })
+
+    <span class="cmt">// 下载进度</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'download-progress'</span>, (progress) =&gt; {
+      <span class="kw">this</span>.mainWindow.<span class="fn">setProgressBar</span>(progress.percent / <span class="num">100</span>)
+    })
+
+    <span class="cmt">// 下载完成，提示重启</span>
+    autoUpdater.<span class="fn">on</span>(<span class="str">'update-downloaded'</span>, () =&gt; {
+      dialog.<span class="fn">showMessageBox</span>({
+        type: <span class="str">'info'</span>,
+        buttons: [<span class="str">'重启'</span>, <span class="str">'稍后'</span>],
+        title: <span class="str">'更新就绪'</span>,
+        message: <span class="str">'新版本已下载，重启后生效'</span>
+      }).<span class="fn">then</span>(() =&gt; autoUpdater.<span class="fn">quitAndInstall</span>())
+    })
+
+    autoUpdater.<span class="fn">on</span>(<span class="str">'error'</span>, (err) =&gt; log.<span class="fn">error</span>(<span class="str">'更新失败:'</span>, err))
+  }
+
+  <span class="fn">checkForUpdates</span>() { autoUpdater.<span class="fn">checkForUpdates</span>() }
+}</pre>
+    <p>配置 <code>package.json</code>：</p>
+    <pre>{
+  <span class="str">"build"</span>: {
+    <span class="str">"publish"</span>: [{
+      <span class="str">"provider"</span>: <span class="str">"generic"</span>,           <span class="cmt">// 或 "github" / "s3"</span>
+      <span class="str">"url"</span>: <span class="str">"https://your-server.com/releases/"</span>
+    }]
+  }
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3>热更新原理（Bundle Hot Update）</h3>
+    <p>只更新渲染进程的前端资源（JS/CSS/HTML），不涉及主进程，用户无感知。</p>
+    <pre>
+<span class="cmt">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    热更新流程                                │</span>
+<span class="cmt">├──────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   App 启动                                                   │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   请求服务器 /api/version                                    │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   本地版本 === 远程版本? ──→ 是 ──→ 加载本地 Bundle          │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     否                                                       │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   下载增量 ZIP 包                                            │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   SHA256 校验 ──→ 失败 ──→ 回退到内置版本                   │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     成功                                                     │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   解压覆盖 userData/bundle/                                  │</span>
+<span class="cmt">│     │                                                        │</span>
+<span class="cmt">│     ▼                                                        │</span>
+<span class="cmt">│   通知渲染进程 reload ──→ 用户无感知刷新                    │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">└──────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>热更新实现</h3>
+    <pre><span class="cmt">// main.js — 热更新管理器</span>
+<span class="kw">const</span> fs = <span class="fn">require</span>(<span class="str">'fs'</span>)
+<span class="kw">const</span> path = <span class="fn">require</span>(<span class="str">'path'</span>)
+<span class="kw">const</span> crypto = <span class="fn">require</span>(<span class="str">'crypto'</span>)
+<span class="kw">const</span> AdmZip = <span class="fn">require</span>(<span class="str">'adm-zip'</span>)
+
+<span class="kw">class</span> <span class="typ">HotUpdater</span> {
+  <span class="fn">constructor</span>() {
+    <span class="kw">this</span>.bundleDir = path.<span class="fn">join</span>(app.<span class="fn">getPath</span>(<span class="str">'userData'</span>), <span class="str">'bundle'</span>)
+    <span class="kw">this</span>.currentVersion = <span class="str">'1.0.0'</span>
+  }
+
+  <span class="cmt">// 启动时检查更新</span>
+  <span class="kw">async</span> <span class="fn">checkAndUpdate</span>() {
+    <span class="kw">try</span> {
+      <span class="cmt">// 1. 获取远程版本信息</span>
+      <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'https://your-server.com/api/version'</span>)
+      <span class="kw">const</span> { version, downloadUrl, sha256 } = <span class="kw">await</span> res.<span class="fn">json</span>()
+
+      <span class="cmt">// 2. 版本对比</span>
+      <span class="kw">if</span> (<span class="kw">this</span>.<span class="fn">compareVersion</span>(version, <span class="kw">this</span>.currentVersion) &lt;= <span class="num">0</span>) <span class="kw">return</span>
+
+      <span class="cmt">// 3. 下载增量包</span>
+      <span class="kw">const</span> zipPath = path.<span class="fn">join</span>(app.<span class="fn">getPath</span>(<span class="str">'temp'</span>), <span class="str">'hot-update.zip'</span>)
+      <span class="kw">await</span> <span class="kw">this</span>.<span class="fn">download</span>(downloadUrl, zipPath)
+
+      <span class="cmt">// 4. 完整性校验</span>
+      <span class="kw">const</span> hash = <span class="kw">this</span>.<span class="fn">sha256File</span>(zipPath)
+      <span class="kw">if</span> (hash !== sha256) <span class="kw">throw new</span> <span class="typ">Error</span>(<span class="str">'SHA256 校验失败'</span>)
+
+      <span class="cmt">// 5. 解压覆盖</span>
+      <span class="kw">const</span> zip = <span class="kw">new</span> <span class="typ">AdmZip</span>(zipPath)
+      zip.<span class="fn">extractAllTo</span>(<span class="kw">this</span>.bundleDir, <span class="kw">true</span>)
+
+      <span class="cmt">// 6. 更新版本号</span>
+      <span class="kw">this</span>.currentVersion = version
+
+      <span class="cmt">// 7. 通知渲染进程刷新</span>
+      mainWindow.webContents.<span class="fn">send</span>(<span class="str">'hot-reload'</span>)
+    } <span class="kw">catch</span> (e) {
+      log.<span class="fn">error</span>(<span class="str">'热更新失败，使用内置版本:'</span>, e)
+    }
+  }
+
+  <span class="cmt">// 加载入口：优先用热更新的 bundle</span>
+  <span class="fn">getIndexPath</span>() {
+    <span class="kw">const</span> hotPath = path.<span class="fn">join</span>(<span class="kw">this</span>.bundleDir, <span class="str">'index.html'</span>)
+    <span class="kw">if</span> (fs.<span class="fn">existsSync</span>(hotPath)) <span class="kw">return</span> hotPath
+    <span class="kw">return</span> path.<span class="fn">join</span>(__dirname, <span class="str">'dist/index.html'</span>)  <span class="cmt">// 内置版本</span>
+  }
+
+  <span class="fn">sha256File</span>(filePath) {
+    <span class="kw">const</span> data = fs.<span class="fn">readFileSync</span>(filePath)
+    <span class="kw">return</span> crypto.<span class="fn">createHash</span>(<span class="str">'sha256'</span>).<span class="fn">update</span>(data).<span class="fn">digest</span>(<span class="str">'hex'</span>)
+  }
+}</pre>
+    <p>渲染进程监听：</p>
+    <pre><span class="cmt">// renderer.js</span>
+<span class="kw">const</span> { ipcRenderer } = <span class="fn">require</span>(<span class="str">'electron'</span>)
+ipcRenderer.<span class="fn">on</span>(<span class="str">'hot-reload'</span>, () =&gt; {
+  window.location.<span class="fn">reload</span>()
+})</pre>
+  </div>
+
+  <div class="card">
+    <h3>什么能热更新，什么不能</h3>
+    <table>
+      <tr><th>改动类型</th><th>能热更新?</th><th>原因</th></tr>
+      <tr><td>UI 样式、组件</td><td>✅</td><td>纯渲染进程</td></tr>
+      <tr><td>前端业务逻辑</td><td>✅</td><td>纯渲染进程</td></tr>
+      <tr><td>React / Vue 版本</td><td>✅</td><td>只在渲染进程跑</td></tr>
+      <tr><td>新增/修改 IPC 调用</td><td>❌</td><td>主进程 handler 要改</td></tr>
+      <tr><td>新增原生模块</td><td>❌</td><td>需要 Node.js 原生能力</td></tr>
+      <tr><td>修改 preload.js</td><td>❌</td><td>主进程加载，启动时执行</td></tr>
+      <tr><td>升级 Electron 版本</td><td>❌</td><td>整个运行时替换</td></tr>
+      <tr><td>修改主进程配置</td><td>❌</td><td>如窗口大小、菜单等</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>方案对比</h3>
+    <table>
+      <tr><th></th><th>electron-updater</th><th>Bundle 热更新</th></tr>
+      <tr><td><strong>更新内容</strong></td><td>整个应用</td><td>仅前端资源</td></tr>
+      <tr><td><strong>主进程更新</strong></td><td>✅</td><td>❌</td></tr>
+      <tr><td><strong>用户体验</strong></td><td>提示重启</td><td>无感知刷新</td></tr>
+      <tr><td><strong>代码签名</strong></td><td>必须</td><td>不需要</td></tr>
+      <tr><td><strong>实现复杂度</strong></td><td>低（开箱即用）</td><td>中（自建服务端）</td></tr>
+      <tr><td><strong>适用场景</strong></td><td>通用，低频发版</td><td>UI 高频迭代</td></tr>
+    </table>
+    <pre>
+<span class="cmt">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="cmt">│                    推荐组合策略                              │</span>
+<span class="cmt">├──────────────────────────────────────────────────────────────┤</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   electron-updater  ──→  主进程 + 原生模块变更时发版        │</span>
+<span class="cmt">│         +                                                     │</span>
+<span class="cmt">│   Bundle 热更新    ──→  前端代码高频迭代，80%+ 场景覆盖     │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">│   结果：发版频率大幅降低，大部分更新用户无感知              │</span>
+<span class="cmt">│                                                              │</span>
+<span class="cmt">└──────────────────────────────────────────────────────────────┘</span></pre>
+  </div>
+
+  <div class="card">
+    <h3>注意事项与限制</h3>
+    <ul>
+      <li><strong>回退机制</strong> — 热更新失败时必须能回退到内置 Bundle，不能让应用挂掉</li>
+      <li><strong>完整性校验</strong> — 下载的 ZIP 必须做 SHA256 校验，防止中间人篡改</li>
+      <li><strong>版本兼容</strong> — 热更新的 Bundle 版本必须与当前主进程版本兼容，否则 IPC 会出错</li>
+      <li><strong>macOS 签名</strong> — 全量更新必须代码签名，否则 macOS Gatekeeper 会拦截</li>
+      <li><strong>Windows Defender</strong> — 未签名的安装包可能被误报为病毒</li>
+      <li><strong>增量包大小</strong> — 热更新 ZIP 应尽量小，只包含变更文件</li>
+      <li><strong>并发安全</strong> — 多窗口场景下，热更新通知要广播到所有窗口</li>
+      <li><strong>electron-log</strong> — 更新过程必须记录日志，方便排查问题</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ========== 8. 总结 ========== -->
+<div class="section" id="summary">
+  <div class="section-title"><span class="material-icons-outlined">summarize</span> 一句话总结</div>
+
+  <div class="card">
+    <table>
+      <tr><th>模块</th><th>一句话</th></tr>
+      <tr><td><strong>进程模型</strong></td><td>主进程（Node.js）+ 渲染进程（Chromium + Node.js bindings）+ GPU/网络进程（Chromium 内部）</td></tr>
+      <tr><td><strong>V8 Isolate</strong></td><td>整个应用只有一个 V8 实例，Chromium 和 Node.js 共享同一个堆和 GC</td></tr>
+      <tr><td><strong>Context 隔离</strong></td><td>同一个 Isolate 中创建多个 Context，各自有不同的 globalThis，不是线程隔离也不是进程隔离</td></tr>
+      <tr><td><strong>contextBridge</strong></td><td>跨 Context 的属性注入器，通过结构化克隆传递数据，函数转为代理函数，Promise 转为代理 Promise</td></tr>
+      <tr><td><strong>代理函数</strong></td><td>纯管道，只负责传数据，不携带 this、闭包、原型链等自身状态</td></tr>
+      <tr><td><strong>Bindings</strong></td><td>C++ 函数注册到 V8 中，JS 直接调用，不是代理是绑定，和 React Native JSI 原理相同</td></tr>
+      <tr><td><strong>性能优化</strong></td><td>启动按需加载、渲染虚拟列表、内存及时清理、IPC 批量调用、打包代码分割</td></tr>
+      <tr><td><strong>更新策略</strong></td><td>主进程改了必须发版（electron-updater），渲染进程改了热更新 Bundle（用户无感知）</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

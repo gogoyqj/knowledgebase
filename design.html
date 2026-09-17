@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Design Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    :root {
+      --md-primary: #1565C0;
+      --md-primary-light: #1E88E5;
+      --md-primary-dark: #0D47A1;
+      --md-accent: #FF6D00;
+      --md-surface: #FFFFFF;
+      --md-background: #F5F5F5;
+      --md-on-surface: #212121;
+      --md-on-surface-medium: #666666;
+      --md-on-surface-light: #9E9E9E;
+      --md-error: #D32F2F;
+      --md-success: #388E3C;
+      --md-warning: #F57F17;
+      --md-divider: rgba(0,0,0,0.12);
+      --md-shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+      --md-shadow-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+      --md-shadow-3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+      --md-shadow-4: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+      --md-radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--md-background);
+      color: var(--md-on-surface);
+      line-height: 1.6;
+    }
+
+    /* App Bar */
+    .app-bar {
+      background: var(--md-primary);
+      color: white;
+      padding: 16px 24px;
+      box-shadow: var(--md-shadow-2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-bar h1 {
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .app-bar .subtitle {
+      font-size: 14px;
+      opacity: 0.87;
+      margin-top: 4px;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+    }
+
+    /* Side Navigation */
+    .side-nav {
+      position: sticky;
+      top: 80px;
+      height: fit-content;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+
+    .nav-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      padding: 16px;
+    }
+
+    .nav-card h3 {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--md-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      color: var(--md-on-surface-medium);
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: rgba(21, 101, 192, 0.08);
+      color: var(--md-primary);
+    }
+
+    .nav-item .material-icons {
+      font-size: 18px;
+      margin-right: 12px;
+    }
+
+    /* Main Content */
+    .main-content {
+      min-width: 0;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--md-divider);
+    }
+
+    .card-header h2 {
+      font-size: 24px;
+      font-weight: 400;
+      color: var(--md-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-header h2 .material-icons {
+      color: var(--md-primary);
+    }
+
+    .card-content {
+      padding: 24px;
+    }
+
+    /* Step Cards */
+    .step-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      margin-bottom: 16px;
+      border-left: 4px solid var(--md-primary);
+      transition: box-shadow 0.2s;
+    }
+
+    .step-card:hover {
+      box-shadow: var(--md-shadow-2);
+    }
+
+    .step-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .step-number {
+      width: 36px;
+      height: 36px;
+      background: var(--md-primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      font-size: 16px;
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+    }
+
+    .step-content {
+      padding: 0 20px 20px 72px;
+      color: var(--md-on-surface-medium);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    /* Concept Grid */
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .concept-card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      box-shadow: var(--md-shadow-1);
+      padding: 20px;
+      transition: all 0.2s;
+      border-top: 3px solid var(--md-primary-light);
+    }
+
+    .concept-card:hover {
+      box-shadow: var(--md-shadow-2);
+      transform: translateY(-2px);
+    }
+
+    .concept-card h4 {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .concept-card p {
+      font-size: 14px;
+      color: var(--md-on-surface-medium);
+      line-height: 1.6;
+    }
+
+    /* Tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .data-table thead {
+      background: var(--md-primary);
+      color: white;
+    }
+
+    .data-table th {
+      padding: 14px 16px;
+      text-align: left;
+      font-weight: 500;
+    }
+
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-divider);
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(21, 101, 192, 0.04);
+    }
+
+    /* Lists */
+    .md-list {
+      list-style: none;
+    }
+
+    .md-list li {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-divider);
+      display: flex;
+      align-items: flex-start;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .md-list li:last-child {
+      border-bottom: none;
+    }
+
+    .md-list li .material-icons {
+      color: var(--md-primary);
+      margin-right: 12px;
+      font-size: 20px;
+      margin-top: 2px;
+    }
+
+    /* Code Blocks */
+    code {
+      font-family: 'Roboto Mono', monospace;
+      background: #E3F2FD;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--md-primary-dark);
+    }
+
+    pre {
+      background: #263238;
+      color: #ECEFF1;
+      padding: 16px;
+      border-radius: var(--md-radius);
+      overflow-x: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* Tags */
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 500;
+      margin: 4px;
+    }
+
+    .tag-blue { background: #E3F2FD; color: #1565C0; }
+    .tag-green { background: #E8F5E9; color: #2E7D32; }
+    .tag-orange { background: #FFF3E0; color: #E65100; }
+    .tag-purple { background: #F3E5F5; color: #7B1FA2; }
+    .tag-red { background: #FFEBEE; color: #C62828; }
+
+    /* Diagram placeholder */
+    .diagram {
+      background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+      border-radius: var(--md-radius);
+      padding: 24px;
+      text-align: center;
+      margin: 16px 0;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .diagram .material-icons {
+      font-size: 48px;
+      color: var(--md-primary);
+      margin-bottom: 12px;
+    }
+
+    .diagram p {
+      color: var(--md-primary-dark);
+      font-size: 14px;
+    }
+
+    /* Flow diagram */
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 20px;
+    }
+
+    .flow-step {
+      background: var(--md-primary);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: var(--md-primary-light);
+      font-size: 24px;
+    }
+
+    /* Metric cards */
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .metric-card {
+      background: linear-gradient(135deg, var(--md-primary) 0%, var(--md-primary-light) 100%);
+      color: white;
+      padding: 20px;
+      border-radius: var(--md-radius);
+      text-align: center;
+    }
+
+    .metric-card .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .metric-card .label {
+      font-size: 12px;
+      opacity: 0.87;
+      margin-top: 4px;
+    }
+
+    /* Comparison section */
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .comparison-col {
+      background: var(--md-surface);
+      border-radius: var(--md-radius);
+      padding: 20px;
+      border-top: 3px solid;
+    }
+
+    .comparison-col.pros { border-color: var(--md-success); }
+    .comparison-col.cons { border-color: var(--md-error); }
+
+    .comparison-col h4 {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .comparison-col h4 .material-icons {
+      font-size: 20px;
+    }
+
+    .comparison-col.pros h4 { color: var(--md-success); }
+    .comparison-col.cons h4 { color: var(--md-error); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      .side-nav {
+        position: static;
+        max-height: none;
+      }
+
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+
+      .concept-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- App Bar -->
+<header class="app-bar">
+  <h1>System Design Guide</h1>
+  <p class="subtitle">Based on The System Design Primer — How to approach system design interviews</p>
+</header>
+
+<div class="container">
+
+  <!-- Side Navigation -->
+  <nav class="side-nav">
+    <div class="nav-card">
+      <h3>Contents</h3>
+      <a class="nav-item" href="#process">
+        <span class="material-icons">format_list_numbered</span>
+        Design Process
+      </a>
+      <a class="nav-item" href="#scalability">
+        <span class="material-icons">trending_up</span>
+        Scalability
+      </a>
+      <a class="nav-item" href="#performance">
+        <span class="material-icons">speed</span>
+        Performance
+      </a>
+      <a class="nav-item" href="#availability">
+        <span class="material-icons">cloud_queue</span>
+        Availability
+      </a>
+      <a class="nav-item" href="#dns">
+        <span class="material-icons">dns</span>
+        DNS
+      </a>
+      <a class="nav-item" href="#cdn">
+        <span class="material-icons">public</span>
+        CDN
+      </a>
+      <a class="nav-item" href="#load-balancer">
+        <span class="material-icons">balance</span>
+        Load Balancer
+      </a>
+      <a class="nav-item" href="#reverse-proxy">
+        <span class="material-icons">swap_horiz</span>
+        Reverse Proxy
+      </a>
+      <a class="nav-item" href="#application">
+        <span class="material-icons">developer_board</span>
+        Application Layer
+      </a>
+      <a class="nav-item" href="#database">
+        <span class="material-icons">storage</span>
+        Database
+      </a>
+      <a class="nav-item" href="#cache">
+        <span class="material-icons">cached</span>
+        Cache
+      </a>
+      <a class="nav-item" href="#async">
+        <span class="material-icons">queue</span>
+        Asynchronism
+      </a>
+      <a class="nav-item" href="#communication">
+        <span class="material-icons">sync_alt</span>
+        Communication
+      </a>
+      <a class="nav-item" href="#security">
+        <span class="material-icons">security</span>
+        Security
+      </a>
+      <a class="nav-item" href="#examples">
+        <span class="material-icons">assignment</span>
+        Design Examples
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Step-by-Step Process -->
+    <section id="process" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">format_list_numbered</span>
+          How to Approach a System Design Problem
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="margin-bottom: 20px; color: var(--md-on-surface-medium); font-size: 14px;">
+          Follow this 4-step framework to tackle any system design question in interviews or real-world projects.
+        </p>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">1</div>
+            <div class="step-title">Outline Use Cases, Constraints & Assumptions</div>
+          </div>
+          <div class="step-content">
+            <ul style="list-style: disc; padding-left: 20px;">
+              <li>Who will use it? How many users?</li>
+              <li>What are the core use cases? (e.g., post tweet, view timeline, search)</li>
+              <li>What traffic volume do we expect? (requests/sec)</li>
+              <li>Read-heavy vs write-heavy?</li>
+              <li>What's the ratio of reads to writes?</li>
+              <li>What's the expected data size? (GB, TB, PB)</li>
+              <li>What latency is acceptable for users?</li>
+            </ul>
+            <p style="margin-top: 12px;"><strong>Tip:</strong> Drive the conversation. Ask questions. Don't assume.</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">2</div>
+            <div class="step-title">Create a High-Level Design</div>
+          </div>
+          <div class="step-content">
+            <ul style="list-style: disc; padding-left: 20px;">
+              <li>Sketch the major components and how they connect</li>
+              <li>Identify the right building blocks: load balancer, API gateway, web servers, databases, caches, queues</li>
+              <li>Define the data flow: client → load balancer → app server → database</li>
+              <li>Get buy-in on the approach before diving deeper</li>
+            </ul>
+
+            <div class="flow-steps">
+              <span class="flow-step">Client</span>
+              <span class="material-icons flow-arrow">arrow_forward</span>
+              <span class="flow-step">DNS</span>
+              <span class="material-icons flow-arrow">arrow_forward</span>
+              <span class="flow-step">Load Balancer</span>
+              <span class="material-icons flow-arrow">arrow_forward</span>
+              <span class="flow-step">Web Servers</span>
+              <span class="material-icons flow-arrow">arrow_forward</span>
+              <span class="flow-step">App Servers</span>
+              <span class="material-icons flow-arrow">arrow_forward</span>
+              <span class="flow-step">Database</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">3</div>
+            <div class="step-title">Design Core Components</div>
+          </div>
+          <div class="step-content">
+            <ul style="list-style: disc; padding-left: 20px;">
+              <li>Dive into each component in detail</li>
+              <li>Define APIs and endpoints (REST, GraphQL)</li>
+              <li>Choose database schema and data models</li>
+              <li>Determine data partitioning strategy (sharding)</li>
+              <li>Design caching strategy (what to cache, TTL, eviction policy)</li>
+              <li>Identify appropriate algorithms and data structures</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-number">4</div>
+            <div class="step-title">Scale the Design</div>
+          </div>
+          <div class="step-content">
+            <ul style="list-style: disc; padding-left: 20px;">
+              <li>Identify and resolve bottlenecks</li>
+              <li>Horizontal scaling: add more servers behind load balancer</li>
+              <li>Vertical scaling: increase resources on existing servers</li>
+              <li>Add redundancy: replicate databases, use multiple availability zones</li>
+              <li>Use CDN for static content</li>
+              <li>Implement monitoring, logging, and alerting</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scalability -->
+    <section id="scalability" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">trending_up</span>
+          Scalability
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="margin-bottom: 20px; color: var(--md-on-surface-medium);">
+          Scalability is the ability of a system to handle increased load by adding resources.
+        </p>
+
+        <div class="comparison">
+          <div class="comparison-col pros">
+            <h4>
+              <span class="material-icons">arrow_upward</span>
+              Vertical Scaling (Scale Up)
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Add more power (CPU, RAM) to existing machine</li>
+              <li>Simple, no code changes needed</li>
+              <li>Hardware limit (can't scale infinitely)</li>
+              <li>Single point of failure</li>
+              <li>Good for early stage or databases</li>
+            </ul>
+          </div>
+          <div class="comparison-col pros">
+            <h4>
+              <span class="material-icons">swap_horiz</span>
+              Horizontal Scaling (Scale Out)
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Add more machines to the pool</li>
+              <li>More complex, requires load balancing</li>
+              <li>Virtually unlimited scaling</li>
+              <li>Better fault tolerance & redundancy</li>
+              <li>Preferred for large-scale systems</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Performance Metrics -->
+    <section id="performance" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">speed</span>
+          Performance Metrics
+        </h2>
+      </div>
+      <div class="card-content">
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="value">Latency</div>
+            <div class="label">Time to process a single request</div>
+          </div>
+          <div class="metric-card">
+            <div class="value">Throughput</div>
+            <div class="label">Requests handled per unit time</div>
+          </div>
+          <div class="metric-card">
+            <div class="value">Availability</div>
+            <div class="label">% of time system is operational</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 24px 0 12px; font-weight: 500;">Common Latency Numbers</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Operation</th>
+              <th>Time</th>
+              <th>Comparison</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>L1 cache reference</td><td>0.5 ns</td><td><span class="tag tag-green">Fastest</span></td></tr>
+            <tr><td>L2 cache reference</td><td>7 ns</td><td>14x L1</td></tr>
+            <tr><td>Main memory reference</td><td>100 ns</td><td>200x L1</td></tr>
+            <tr><td>Read 1 MB from memory</td><td>250 μs</td><td>—</td></tr>
+            <tr><td>SSD random read</td><td>150 μs</td><td>—</td></tr>
+            <tr><td>HDD random read</td><td>10 ms</td><td>100x SSD</td></tr>
+            <tr><td>Round trip within same datacenter</td><td>500 μs</td><td>—</td></tr>
+            <tr><td>Round trip CA to Netherlands</td><td>150 ms</td><td><span class="tag tag-orange">Slow</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Availability -->
+    <section id="availability" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">cloud_queue</span>
+          Availability & CAP Theorem
+        </h2>
+      </div>
+      <div class="card-content">
+        <div class="metric-row">
+          <div class="metric-card" style="background: linear-gradient(135deg, #388E3C 0%, #4CAF50 100%);">
+            <div class="value">99.9%</div>
+            <div class="label">3 nines — 8.76 hrs/yr downtime</div>
+          </div>
+          <div class="metric-card" style="background: linear-gradient(135deg, #F57F17 0%, #FFA000 100%);">
+            <div class="value">99.99%</div>
+            <div class="label">4 nines — 52.56 min/yr downtime</div>
+          </div>
+          <div class="metric-card" style="background: linear-gradient(135deg, #D32F2F 0%, #E53935 100%);">
+            <div class="value">99.999%</div>
+            <div class="label">5 nines — 5.26 min/yr downtime</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 24px 0 16px; font-weight: 500;">CAP Theorem</h3>
+        <p style="font-size: 14px; color: var(--md-on-surface-medium); margin-bottom: 16px;">
+          In a distributed system, you can only guarantee <strong>two out of three</strong>:
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card" style="border-top-color: #1565C0;">
+            <h4>
+              <span class="material-icons">check_circle</span>
+              Consistency
+            </h4>
+            <p>All nodes see the same data at the same time. Every read receives the most recent write.</p>
+          </div>
+          <div class="concept-card" style="border-top-color: #388E3C;">
+            <h4>
+              <span class="material-icons">check_circle</span>
+              Availability
+            </h4>
+            <p>Every request gets a response (success or failure). No timeout or error.</p>
+          </div>
+          <div class="concept-card" style="border-top-color: #F57F17;">
+            <h4>
+              <span class="material-icons">check_circle</span>
+              Partition Tolerance
+            </h4>
+            <p>System continues to operate despite network partitions between nodes.</p>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 16px; background: #E3F2FD; border-radius: var(--md-radius);">
+          <p style="font-size: 14px; color: var(--md-primary-dark);">
+            <strong>Reality:</strong> Network partitions will happen. You must choose between <strong>CP</strong> (Consistency + Partition Tolerance, e.g., HBase, MongoDB) or <strong>AP</strong> (Availability + Partition Tolerance, e.g., Cassandra, DynamoDB).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DNS -->
+    <section id="dns" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">dns</span>
+          Domain Name System (DNS)
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          DNS translates domain names (e.g., <code>example.com</code>) to IP addresses. It's a hierarchical, distributed naming system.
+        </p>
+
+        <div class="flow-steps">
+          <span class="flow-step">Browser</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">DNS Resolver</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Root DNS</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">TLD DNS</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Authoritative DNS</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">IP Address</span>
+        </div>
+
+        <ul class="md-list" style="margin-top: 16px;">
+          <li><span class="material-icons">check</span> Results are cached at multiple levels (browser, OS, resolver)</li>
+          <li><span class="material-icons">check</span> Use Route 53, Cloudflare, or similar managed DNS services</li>
+          <li><span class="material-icons">check</span> Can route traffic based on latency, geography, or health checks</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CDN -->
+    <section id="cdn" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">public</span>
+          Content Delivery Network (CDN)
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          A globally distributed network of proxy servers that caches content closer to users, reducing latency.
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>Push CDN</h4>
+            <p>You push content to the CDN. Good for <strong>static assets</strong> with low traffic. You control what's cached.</p>
+          </div>
+          <div class="concept-card">
+            <h4>Pull CDN</h4>
+            <p>CDN pulls from your origin on first request. Good for <strong>high traffic</strong> sites. Automatic caching.</p>
+          </div>
+        </div>
+
+        <ul class="md-list" style="margin-top: 16px;">
+          <li><span class="material-icons">check</span> Cache static assets: images, videos, CSS, JavaScript</li>
+          <li><span class="material-icons">check</span> Set appropriate Cache-Control headers and TTL</li>
+          <li><span class="material-icons">check</span> CDN needs to be invalidated when content changes</li>
+          <li><span class="material-icons">check</span> Services: CloudFront, Cloudflare, Akamai, Fastly</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Load Balancer -->
+    <section id="load-balancer" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">balance</span>
+          Load Balancer
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          Distributes incoming traffic across multiple servers to ensure no single server is overwhelmed.
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Approach</th>
+              <th>Use Case</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag tag-blue">Layer 4</span></td>
+              <td>Routes based on IP + Port</td>
+              <td>Simple, fast, low overhead</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Layer 7</span></td>
+              <td>Inspects HTTP headers/content</td>
+              <td>Smart routing, URL-based, A/B testing</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin: 20px 0 12px; font-weight: 500;">Algorithms</h3>
+        <ul class="md-list">
+          <li><span class="material-icons">looks_one</span> <strong>Round Robin</strong> — Requests distributed sequentially</li>
+          <li><span class="material-icons">fitness_center</span> <strong>Least Connections</strong> — Sent to server with fewest active connections</li>
+          <li><span class="material-icons">memory</span> <strong>Least Response Time</strong> — Sent to fastest responding server</li>
+          <li><span class="material-icons">vpn_key</span> <strong>IP Hash</strong> — Client IP determines which server (session affinity)</li>
+        </ul>
+
+        <div style="margin-top: 16px; padding: 16px; background: #E8F5E9; border-radius: var(--md-radius);">
+          <p style="font-size: 14px; color: #2E7D32;">
+            <strong>Tip:</strong> Use active-passive or active-active load balancers to eliminate single point of failure.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reverse Proxy -->
+    <section id="reverse-proxy" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">swap_horiz</span>
+          Reverse Proxy (Web Server)
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          Sits between clients and servers, forwarding client requests to the appropriate backend server.
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">check</span>
+              Benefits
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Increased security — hides backend servers</li>
+              <li>SSL termination</li>
+              <li>Caching static content</li>
+              <li>Compression (gzip)</li>
+              <li>Built-in rate limiting</li>
+            </ul>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">compare</span>
+              vs Load Balancer
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Reverse proxy: single server focus</li>
+              <li>Load balancer: multiple servers focus</li>
+              <li>Often combined in modern setups</li>
+              <li>Nginx, HAProxy, Apache, Caddy</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Application Layer -->
+    <section id="application" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">developer_board</span>
+          Application Layer
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          Separating web and application layers allows them to scale independently.
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>Microservices</h4>
+            <p>Break application into small, independent services. Each owns its data and logic. Deploy independently.</p>
+          </div>
+          <div class="concept-card">
+            <h4>Service Discovery</h4>
+            <p>Services find each other via service registry (Consul, etcd, ZooKeeper). Enables dynamic scaling.</p>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 16px; background: #FFF3E0; border-radius: var(--md-radius);">
+          <p style="font-size: 14px; color: #E65100;">
+            <strong>Trade-off:</strong> Microservices add complexity (network calls, data consistency, debugging). Start with a monolith, extract services when needed.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Database -->
+    <section id="database" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">storage</span>
+          Database
+        </h2>
+      </div>
+      <div class="card-content">
+        <h3 style="margin-bottom: 16px; font-weight: 500;">SQL vs NoSQL</h3>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Aspect</th>
+              <th>SQL (RDBMS)</th>
+              <th>NoSQL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Schema</strong></td>
+              <td>Fixed schema, predefined tables</td>
+              <td>Dynamic schema, flexible</td>
+            </tr>
+            <tr>
+              <td><strong>Scaling</strong></td>
+              <td>Vertical (scale up)</td>
+              <td>Horizontal (scale out)</td>
+            </tr>
+            <tr>
+              <td><strong>ACID</strong></td>
+              <td>Full ACID compliance</td>
+              <td>Trade-offs for performance</td>
+            </tr>
+            <tr>
+              <td><strong>Best For</strong></td>
+              <td>Complex queries, relationships, transactions</td>
+              <td>High throughput, flexible data, massive scale</td>
+            </tr>
+            <tr>
+              <td><strong>Examples</strong></td>
+              <td>MySQL, PostgreSQL, Oracle</td>
+              <td>MongoDB, Cassandra, DynamoDB, Redis</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin: 24px 0 16px; font-weight: 500;">Scaling Techniques</h3>
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">content_copy</span>
+              Replication
+            </h4>
+            <p><strong>Master-slave:</strong> One write, many reads. <strong>Master-master:</strong> Writes to multiple nodes. Provides redundancy and read scaling.</p>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">grid_on</span>
+              Sharding (Partitioning)
+            </h4>
+            <p>Split data across multiple databases. Each shard holds a subset. Hash-based or range-based partitioning.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <span class="material-icons">account_tree</span>
+          <p><strong>Master-Slave Replication</strong></p>
+          <p style="margin-top: 8px;">Master (writes) → Slave 1, Slave 2, Slave 3 (reads)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cache -->
+    <section id="cache" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">cached</span>
+          Cache
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          Caching stores frequently accessed data in fast storage (RAM) to reduce database load and latency.
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>Client-Side</h4>
+            <p>Browser cache, HTTP cache headers. Fastest, but limited control.</p>
+          </div>
+          <div class="concept-card">
+            <h4>CDN</h4>
+            <p>Edge caching for static assets. Geographically distributed.</p>
+          </div>
+          <div class="concept-card">
+            <h4>Application-Level</h4>
+            <p>Redis, Memcached. In-memory key-value stores. Microsecond latency.</p>
+          </div>
+          <div class="concept-card">
+            <h4>Database</h4>
+            <p>Query cache, buffer pool. Built into the database engine.</p>
+          </div>
+        </div>
+
+        <h3 style="margin: 24px 0 16px; font-weight: 500;">Caching Strategies</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Description</th>
+              <th>When to Use</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Cache-Aside</strong></td>
+              <td>App checks cache first, then DB</td>
+              <td>General purpose, read-heavy</td>
+            </tr>
+            <tr>
+              <td><strong>Write-Through</strong></td>
+              <td>Write to cache and DB simultaneously</td>
+              <td>Need consistency, write-heavy</td>
+            </tr>
+            <tr>
+              <td><strong>Write-Behind</strong></td>
+              <td>Write to cache, async write to DB</td>
+              <td>High write throughput, eventual consistency OK</td>
+            </tr>
+            <tr>
+              <td><strong>Read-Through</strong></td>
+              <td>Cache handles DB reads transparently</td>
+              <td>Simplified app code</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin: 24px 0 16px; font-weight: 500;">Eviction Policies</h3>
+        <ul class="md-list">
+          <li><span class="material-icons">access_time</span> <strong>LRU</strong> (Least Recently Used) — Evict least recently accessed item</li>
+          <li><span class="material-icons">schedule</span> <strong>LFU</strong> (Least Frequently Used) — Evict least frequently accessed item</li>
+          <li><span class="material-icons">timer</span> <strong>TTL</strong> (Time To Live) — Evict after expiration time</li>
+          <li><span class="material-icons">casino</span> <strong>FIFO</strong> (First In First Out) — Evict oldest item</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Asynchronism -->
+    <section id="async" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">queue</span>
+          Asynchronism & Queues
+        </h2>
+      </div>
+      <div class="card-content">
+        <p style="color: var(--md-on-surface-medium); font-size: 14px; margin-bottom: 16px;">
+          Async workflows prevent slow operations from blocking the user experience.
+        </p>
+
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">message</span>
+              Message Queues
+            </h4>
+            <p>Producers send messages to a queue. Consumers process them independently. <strong>Examples:</strong> RabbitMQ, Amazon SQS, Kafka.</p>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">task</span>
+              Task Queues
+            </h4>
+            <p>Workers pull tasks from a queue and execute them. <strong>Examples:</strong> Celery, Sidekiq, AWS Lambda.</p>
+          </div>
+        </div>
+
+        <div class="flow-steps">
+          <span class="flow-step">User Request</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Server</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Queue</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Worker</span>
+          <span class="material-icons flow-arrow">arrow_forward</span>
+          <span class="flow-step">Database</span>
+        </div>
+
+        <div style="margin-top: 16px; padding: 16px; background: #E3F2FD; border-radius: var(--md-radius);">
+          <p style="font-size: 14px; color: var(--md-primary-dark);">
+            <strong>Use cases:</strong> Send emails, process images, generate reports, update search indexes — anything that doesn't need immediate response.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Communication -->
+    <section id="communication" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">sync_alt</span>
+          Communication
+        </h2>
+      </div>
+      <div class="card-content">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Protocol</th>
+              <th>Type</th>
+              <th>Best For</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>HTTP/HTTPS</strong></td>
+              <td>Request-Response</td>
+              <td>REST APIs, web pages, general purpose</td>
+            </tr>
+            <tr>
+              <td><strong>WebSocket</strong></td>
+              <td>Bidirectional, persistent</td>
+              <td>Chat, live feeds, real-time updates</td>
+            </tr>
+            <tr>
+              <td><strong>TCP</strong></td>
+              <td>Connection-oriented</td>
+              <td>Reliable delivery (email, file transfer)</td>
+            </tr>
+            <tr>
+              <td><strong>UDP</strong></td>
+              <td>Connectionless</td>
+              <td>Low latency (video streaming, gaming, DNS)</td>
+            </tr>
+            <tr>
+              <td><strong>RPC</strong></td>
+              <td>Function calls</td>
+              <td>Internal service communication (gRPC)</td>
+            </tr>
+            <tr>
+              <td><strong>REST</strong></td>
+              <td>Resource-based</td>
+              <td>Public APIs, CRUD operations</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin: 24px 0 16px; font-weight: 500;">RPC vs REST</h3>
+        <div class="comparison">
+          <div class="comparison-col pros">
+            <h4>
+              <span class="material-icons">code</span>
+              RPC
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Action-oriented (verbs)</li>
+              <li>Tightly coupled</li>
+              <li>Fast, efficient (binary protocols)</li>
+              <li>Good for internal microservices</li>
+            </ul>
+          </div>
+          <div class="comparison-col cons">
+            <h4>
+              <span class="material-icons">api</span>
+              REST
+            </h4>
+            <ul style="list-style: disc; padding-left: 20px; font-size: 14px; color: var(--md-on-surface-medium);">
+              <li>Resource-oriented (nouns)</li>
+              <li>Loosely coupled</li>
+              <li>Human-readable (JSON/HTTP)</li>
+              <li>Good for public APIs</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Security -->
+    <section id="security" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">security</span>
+          Security
+        </h2>
+      </div>
+      <div class="card-content">
+        <ul class="md-list">
+          <li><span class="material-icons">lock</span> <strong>HTTPS everywhere</strong> — Encrypt data in transit with TLS/SSL</li>
+          <li><span class="material-icons">vpn_key</span> <strong>Authentication</strong> — OAuth 2.0, JWT tokens, OpenID Connect</li>
+          <li><span class="material-icons">admin_panel_settings</span> <strong>Authorization</strong> — Role-based (RBAC) or attribute-based (ABAC) access control</li>
+          <li><span class="material-icons">shield</span> <strong>Input validation</strong> — Prevent SQL injection, XSS, CSRF attacks</li>
+          <li><span class="material-icons">policy</span> <strong>Rate limiting</strong> — Prevent abuse and DDoS attacks</li>
+          <li><span class="material-icons">key</span> <strong>Secrets management</strong> — HashiCorp Vault, AWS Secrets Manager</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Design Examples -->
+    <section id="examples" class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">assignment</span>
+          Common System Design Problems
+        </h2>
+      </div>
+      <div class="card-content">
+        <div class="concept-grid">
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">link</span>
+              URL Shortener
+            </h4>
+            <p>Key concepts: hashing, base62 encoding, read-heavy, caching, NoSQL database, analytics tracking.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-blue">Hashing</span>
+              <span class="tag tag-green">Cache</span>
+              <span class="tag tag-orange">NoSQL</span>
+            </div>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">chat</span>
+              Twitter / Social Network
+            </h4>
+            <p>Key concepts: fan-out on write vs fan-out on read, timelines, caching hot users, message queues for notifications.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-blue">Feed</span>
+              <span class="tag tag-purple">Queue</span>
+              <span class="tag tag-green">Cache</span>
+            </div>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">search</span>
+              Web Crawler
+            </h4>
+            <p>Key concepts: BFS/DFS traversal, URL frontier, politeness, deduplication, distributed workers, robots.txt.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-orange">BFS</span>
+              <span class="tag tag-blue">Distributed</span>
+              <span class="tag tag-red">Dedup</span>
+            </div>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">chat_bubble</span>
+              Chat System
+            </h4>
+            <p>Key concepts: WebSocket for real-time, message persistence, presence indicators, group chat, read receipts.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-blue">WebSocket</span>
+              <span class="tag tag-green">Real-time</span>
+              <span class="tag tag-purple">Persistence</span>
+            </div>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">search</span>
+              Search Autocomplete
+            </h4>
+            <p>Key concepts: Trie data structure, top-K results, caching, sampling for popularity, distributed storage.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-orange">Trie</span>
+              <span class="tag tag-blue">Cache</span>
+              <span class="tag tag-red">Top-K</span>
+            </div>
+          </div>
+          <div class="concept-card">
+            <h4>
+              <span class="material-icons">video_library</span>
+              YouTube / Video Streaming
+            </h4>
+            <p>Key concepts: video encoding/transcoding, CDN for delivery, chunked uploads, adaptive bitrate streaming, metadata storage.</p>
+            <div style="margin-top: 8px;">
+              <span class="tag tag-purple">CDN</span>
+              <span class="tag tag-orange">Encoding</span>
+              <span class="tag tag-green">Streaming</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Numbers to Remember -->
+    <section class="card">
+      <div class="card-header">
+        <h2>
+          <span class="material-icons">calculate</span>
+          Quick Reference Numbers
+        </h2>
+      </div>
+      <div class="card-content">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>2^10</strong></td>
+              <td>1 Thousand</td>
+              <td>~1 KB</td>
+            </tr>
+            <tr>
+              <td><strong>2^20</strong></td>
+              <td>1 Million</td>
+              <td>~1 MB</td>
+            </tr>
+            <tr>
+              <td><strong>2^30</strong></td>
+              <td>1 Billion</td>
+              <td>~1 GB</td>
+            </tr>
+            <tr>
+              <td><strong>2^40</strong></td>
+              <td>1 Trillion</td>
+              <td>~1 TB</td>
+            </tr>
+            <tr>
+              <td><strong>Read from SSD</strong></td>
+              <td>~16 μs</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><strong>Read from HDD</strong></td>
+              <td>~2 ms</td>
+              <td>125x slower than SSD</td>
+            </tr>
+            <tr>
+              <td><strong>Read from RAM</strong></td>
+              <td>~100 ns</td>
+              <td>~1000x faster than SSD</td>
+            </tr>
+            <tr>
+              <td><strong>Round trip same DC</strong></td>
+              <td>~500 μs</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><strong>Typical page load</strong></td>
+              <td>1-3 seconds</td>
+              <td>User expectation</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 32px 0; color: var(--md-on-surface-light); font-size: 14px;">
+      <p>Based on <a href="https://github.com/donnemartin/system-design-primer" style="color: var(--md-primary);">The System Design Primer</a> by Donne Martin</p>
+      <p style="margin-top: 8px;">Last updated: August 2026</p>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>

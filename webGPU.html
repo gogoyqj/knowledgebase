@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebGPU 入门指南 — 浏览器中的现代图形计算</title>
+<style>
+  :root {
+    --md-primary: #6750A4;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #EADDFF;
+    --md-on-primary-container: #21005D;
+    --md-secondary: #625B71;
+    --md-tertiary: #7D5260;
+    --md-surface: #FFFBFE;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+    --md-error: #B3261E;
+    --md-code-bg: #F5F0FF;
+    --md-shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.24);
+    --md-shadow-lg: 0 4px 8px rgba(0,0,0,.15), 0 2px 4px rgba(0,0,0,.12);
+    --md-radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #21005D 0%, #6750A4 50%, #7D5260 100%);
+    color: #fff;
+    padding: 80px 24px 64px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='rgba(255,255,255,.06)' stroke-width='1'/%3E%3C/svg%3E");
+    opacity: .5;
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    position: relative;
+  }
+  .hero p {
+    font-size: 1.15rem;
+    opacity: .88;
+    margin-top: 16px;
+    max-width: 640px;
+    margin-inline: auto;
+    position: relative;
+  }
+  .hero .badge {
+    display: inline-block;
+    background: rgba(255,255,255,.18);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 999px;
+    padding: 6px 18px;
+    font-size: .85rem;
+    margin-top: 24px;
+    position: relative;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--md-surface-variant);
+    border-radius: var(--md-radius);
+    padding: 24px 28px;
+    margin: -32px auto 48px;
+    position: relative;
+    box-shadow: var(--md-shadow);
+    max-width: 680px;
+  }
+  .toc h2 {
+    font-size: 1rem;
+    color: var(--md-primary);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .toc ol {
+    columns: 2;
+    column-gap: 24px;
+    padding-left: 20px;
+  }
+  .toc li { margin-bottom: 6px; break-inside: avoid; }
+  .toc a {
+    color: var(--md-on-surface-variant);
+    text-decoration: none;
+    font-size: .92rem;
+    transition: color .2s;
+  }
+  .toc a:hover { color: var(--md-primary); }
+
+  /* ── Section ── */
+  section {
+    margin-bottom: 56px;
+  }
+  section h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--md-on-surface);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--md-primary-container);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  section h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    border-radius: 50%;
+    font-size: .85rem;
+    flex-shrink: 0;
+  }
+  section h3 {
+    font-size: 1.15rem;
+    color: var(--md-secondary);
+    margin: 28px 0 10px;
+    font-weight: 600;
+  }
+  section p, section li {
+    color: var(--md-on-surface-variant);
+    font-size: .98rem;
+  }
+  section ul, section ol {
+    padding-left: 24px;
+    margin: 10px 0;
+  }
+  section li { margin-bottom: 6px; }
+
+  /* ── Code blocks ── */
+  pre {
+    background: var(--md-code-bg);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-size: .88rem;
+    line-height: 1.65;
+    margin: 16px 0;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    color: var(--md-on-surface);
+  }
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: .88em;
+  }
+  p code, li code {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  /* ── Card (info / tip / warn) ── */
+  .card {
+    border-radius: var(--md-radius);
+    padding: 18px 22px;
+    margin: 20px 0;
+    box-shadow: var(--md-shadow);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .card .icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+  .card.info {
+    background: #E8DEF8;
+    border-left: 4px solid var(--md-primary);
+  }
+  .card.tip {
+    background: #E0F2E9;
+    border-left: 4px solid #386A20;
+  }
+  .card.warn {
+    background: #FCE4EC;
+    border-left: 4px solid var(--md-error);
+  }
+  .card p { margin: 0; }
+
+  /* ── Pipeline diagram ── */
+  .pipeline-flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 24px 0;
+    align-items: center;
+  }
+  .pipeline-flow .step {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: .9rem;
+    text-align: center;
+    box-shadow: var(--md-shadow);
+    min-width: 110px;
+  }
+  .pipeline-flow .arrow {
+    color: var(--md-outline);
+    font-size: 1.3rem;
+  }
+
+  /* ── Comparison table ── */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: .92rem;
+  }
+  .compare-table th {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+  }
+  .compare-table th:first-child { border-radius: 8px 0 0 0; }
+  .compare-table th:last-child { border-radius: 0 8px 0 0; }
+  .compare-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--md-outline-variant);
+    color: var(--md-on-surface-variant);
+  }
+  .compare-table tr:nth-child(even) td { background: var(--md-surface-variant); }
+  .compare-table tr:last-child td:first-child { border-radius: 0 0 0 8px; }
+  .compare-table tr:last-child td:last-child { border-radius: 0 0 8px 0; }
+
+  /* ── Live demo area ── */
+  .demo-box {
+    background: #1a1a2e;
+    border-radius: var(--md-radius);
+    padding: 24px;
+    text-align: center;
+    margin: 20px 0;
+    box-shadow: var(--md-shadow-lg);
+  }
+  .demo-box canvas {
+    border-radius: 8px;
+    max-width: 100%;
+  }
+  .demo-box .caption {
+    color: rgba(255,255,255,.6);
+    font-size: .82rem;
+    margin-top: 10px;
+  }
+  .demo-box button {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    border: none;
+    padding: 10px 28px;
+    border-radius: 999px;
+    font-size: .95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 14px;
+    box-shadow: var(--md-shadow);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .demo-box button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--md-shadow-lg);
+  }
+  .demo-box button:active { transform: translateY(0); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--md-outline);
+    font-size: .85rem;
+    border-top: 1px solid var(--md-outline-variant);
+  }
+
+  @media (max-width: 600px) {
+    .toc ol { columns: 1; }
+    .pipeline-flow .step { min-width: 90px; font-size: .8rem; padding: 10px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ Hero ════════════════════════ -->
+<header class="hero">
+  <h1>WebGPU 入门指南</h1>
+  <p>在浏览器中释放 GPU 的并行计算能力 — 图形渲染、计算着色器、机器学习推理，一网打尽</p>
+  <span class="badge">Chromium 113+ &nbsp;·&nbsp; Firefox Nightly &nbsp;·&nbsp; Safari TP</span>
+</header>
+
+<!-- ════════════════════════ TOC ════════════════════════ -->
+<div class="container">
+  <nav class="toc">
+    <h2>📑 目录</h2>
+    <ol>
+      <li><a href="#what">WebGPU 是什么</a></li>
+      <li><a href="#vs-webgl">WebGPU vs WebGL</a></li>
+      <li><a href="#init">初始化设备</a></li>
+      <li><a href="#buffer">创建缓冲区</a></li>
+      <li><a href="#shader">编写着色器（WGSL）</a></li>
+      <li><a href="#pipeline">设计渲染管线</a></li>
+      <li><a href="#render">编码渲染通道</a></li>
+      <li><a href="#compute">计算着色器</a></li>
+      <li><a href="#texture">纹理与采样器</a></li>
+      <li><a href="#uniform">Uniform 缓冲区</a></li>
+      <li><a href="#depth">深度与模板测试</a></li>
+      <li><a href="#demo">在线演示</a></li>
+    </ol>
+  </nav>
+
+  <!-- ════════════════════════ 1. 什么是 WebGPU ════════════════════════ -->
+  <section id="what">
+    <h2><span class="num">1</span>WebGPU 是什么</h2>
+    <p>WebGPU 是由 W3C GPU for the Web 工作组制定的下一代 Web 图形与计算 API。它在设计上借鉴了 Vulkan、Metal 和 Direct3D 12 的低级抽象理念，为 JavaScript / WebAssembly 提供对 GPU 硬件的高效访问。</p>
+    <h3>核心设计目标</h3>
+    <ul>
+      <li><strong>低开销</strong> — 减少驱动层的状态验证和隐式同步，将控制权交给开发者</li>
+      <li><strong>跨平台统一</strong> — 同一套 API 底层映射到 Vulkan (Android/Linux)、Metal (macOS/iOS)、D3D12 (Windows)</li>
+      <li><strong>计算着色器 (Compute Shader)</strong> — 一等公民，不再需要 hack 渲染管线来做 GPGPU</li>
+      <li><strong>安全沙箱</strong> — 浏览器进程隔离 GPU 命令，防止越界访问和信息泄漏</li>
+    </ul>
+
+    <div class="card info">
+      <span class="icon">💡</span>
+      <p>WebGPU 不是 WebGL 3.0。它是一套全新的 API 设计，与 WebGL（基于 OpenGL ES）没有直接升级关系。两者可以共存。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 2. 对比 ════════════════════════ -->
+  <section id="vs-webgl">
+    <h2><span class="num">2</span>WebGPU vs WebGL</h2>
+    <table class="compare-table">
+      <thead>
+        <tr><th>维度</th><th>WebGL 2.0</th><th>WebGPU</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>底层模型</td><td>OpenGL ES 3.0 (状态机)</td><td>Vulkan / Metal / D3D12 (命令缓冲)</td></tr>
+        <tr><td>着色语言</td><td>GLSL ES</td><td>WGSL (新语言)</td></tr>
+        <tr><td>计算着色器</td><td>❌ 不支持</td><td>✅ 原生支持</td></tr>
+        <tr><td>多线程录制</td><td>❌ 单线程</td><td>✅ 多线程 CommandEncoder</td></tr>
+        <tr><td>Bind Group</td><td>逐 drawcall 绑定</td><td>Bind Group 预编译 + 快速切换</td></tr>
+        <tr><td>管线状态</td><td>运行时验证</td><td>预编译 Pipeline，运行时零验证</td></tr>
+        <tr><td>内存管理</td><td>驱动隐式管理</td><td>开发者显式控制 Buffer / Texture</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════ 3. 初始化 ════════════════════════ -->
+  <section id="init">
+    <h2><span class="num">3</span>初始化设备</h2>
+    <p>WebGPU 的入口是 <code>navigator.gpu</code>。获取设备是一个异步过程：先请求 Adapter（物理/逻辑 GPU 抽象），再请求 Device（逻辑设备实例）。</p>
+
+    <h3>完整初始化流程</h3>
+    <pre><code>// ① 检查浏览器支持
+if (!navigator.gpu) {
+  throw new Error('WebGPU 不受支持');
+}
+
+// ② 请求适配器 — 代表一个物理 GPU 或模拟层
+const adapter = await navigator.gpu.requestAdapter({
+  powerPreference: 'high-performance',  // 'low-power' | 'high-performance'
+});
+if (!adapter) throw new Error('没有可用的 GPU 适配器');
+
+// ③ 查询适配器能力（可选，用于适配不同硬件）
+console.log(adapter.features);   // 如 'texture-compression-bc', 'timestamp-query'
+console.log(adapter.limits);     // 如 maxBufferSize, maxTextureDimension2D
+
+// ④ 请求逻辑设备 — 所有 GPU 资源和命令都绑定到 Device
+const device = await adapter.requestDevice({
+  requiredFeatures: [],           // 需要启用的额外特性
+  requiredLimits: {               // 请求超出默认值的限制
+    maxBufferSize: 256 * 1024 * 1024,
+  },
+});
+
+// ⑤ 错误监听 — GPU 设备丢失或验证错误
+device.lost.then(info => {
+  console.error('GPU 设备丢失:', info.message, info.reason);
+});
+
+// ⑥ 将 WebGPU 画布上下文绑定到设备
+const canvas = document.querySelector('canvas');
+const context = canvas.getContext('webgpu');
+const format = navigator.gpu.getPreferredCanvasFormat(); // 'bgra8unorm' 或 'rgba8unorm'
+context.configure({
+  device,
+  format,
+  alphaMode: 'premultiplied',
+});</code></pre>
+
+    <div class="card tip">
+      <span class="icon">✅</span>
+      <p><strong>最佳实践</strong>：始终使用 <code>getPreferredCanvasFormat()</code> 获取画布格式。使用原生格式可以避免 GPU 在写入帧缓冲时做额外的格式转换。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 4. 缓冲区 ════════════════════════ -->
+  <section id="buffer">
+    <h2><span class="num">4</span>创建缓冲区</h2>
+    <p>GPU 缓冲区 (<code>GPUBuffer</code>) 是一维的原始字节存储，用于顶点数据、索引、Uniform 参数、存储结果等。你需要在创建时声明用途 (usage)，之后不能更改。</p>
+
+    <h3>创建顶点缓冲区</h3>
+    <pre><code>// 顶点数据：位置 (x,y,z) + 颜色 (r,g,b)
+const vertices = new Float32Array([
+  // x,    y,    z,    r,   g,   b
+   0.0,  0.5,  0.0,  1.0, 0.0, 0.0,  // 顶点 0: 红
+  -0.5, -0.5,  0.0,  0.0, 1.0, 0.0,  // 顶点 1: 绿
+   0.5, -0.5,  0.0,  0.0, 0.0, 1.0,  // 顶点 2: 蓝
+]);
+
+const vertexBuffer = device.createBuffer({
+  label: 'triangle-vertices',           // 调试标签
+  size: vertices.byteLength,            // 字节数
+  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,  // 用途标志
+  mappedAtCreation: true,               // 创建时立即映射（零拷贝写入）
+});
+
+// 写入数据
+new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
+vertexBuffer.unmap();                   // 解除映射，GPU 可以访问</code></pre>
+
+    <h3>Buffer Usage 标志</h3>
+    <ul>
+      <li><code>VERTEX</code> — 作为顶点属性输入</li>
+      <li><code>INDEX</code> — 作为索引缓冲</li>
+      <li><code>UNIFORM</code> — 作为 Uniform 缓冲区</li>
+      <li><code>STORAGE</code> — 作为存储缓冲区（计算着色器读写）</li>
+      <li><code>COPY_SRC / COPY_DST</code> — 作为拷贝源/目标</li>
+      <li><code>MAP_READ / MAP_WRITE</code> — CPU 可映射读/写</li>
+    </ul>
+
+    <div class="card warn">
+      <span class="icon">⚠️</span>
+      <p><strong>注意</strong>：<code>MAP_READ/MAP_WRITE</code> 不能与 <code>VERTEX/INDEX/UNIFORM/STORAGE</code> 组合。需要先 GPU 写入再 CPU 读取时，使用两个 buffer + <code>copyBufferToBuffer</code>。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 5. 着色器 ════════════════════════ -->
+  <section id="shader">
+    <h2><span class="num">5</span>编写着色器（WGSL）</h2>
+    <p>WGSL（WebGPU Shading Language）是 WebGPU 原生的着色器语言。语法介于 Rust 和 GLSL 之间，强类型，支持结构体、数组、纹理、采样器等。</p>
+
+    <h3>顶点着色器 + 片元着色器</h3>
+    <pre><code>// shader.wgsl
+
+// ─── 结构体定义 ───
+struct VertexInput {
+  @location(0) position: vec3f,    // 顶点位置
+  @location(1) color: vec3f,       // 顶点颜色
+};
+
+struct VertexOutput {
+  @builtin(position) position: vec4f,  // 裁剪空间坐标（必须）
+  @location(0) color: vec3f,           // 传递到片元着色器
+};
+
+struct Uniforms {
+  modelViewProjection: mat4x4f,
+  time: f32,
+};
+
+// ─── 绑定组 ───
+@group(0) @binding(0) var&lt;uniform&gt; u: Uniforms;
+
+// ─── 顶点着色器 ───
+@vertex
+fn vs_main(in: VertexInput) -&gt; VertexOutput {
+  var out: VertexOutput;
+  out.position = u.modelViewProjection * vec4f(in.position, 1.0);
+  out.color = in.color;
+  return out;
+}
+
+// ─── 片元着色器 ───
+@fragment
+fn fs_main(in: VertexOutput) -&gt; @location(0) vec4f {
+  // 简单的颜色 + 时间动画
+  let pulse = sin(u.time * 2.0) * 0.2 + 0.8;
+  return vec4f(in.color * pulse, 1.0);
+}</code></pre>
+
+    <h3>WGSL 关键语法速查</h3>
+    <ul>
+      <li><code>vec2f / vec3f / vec4f</code> — 浮点向量；<code>vec2i / vec2u</code> — 整型/无符号</li>
+      <li><code>mat4x4f</code> — 4×4 浮点矩阵</li>
+      <li><code>@location(N)</code> — 管线中的属性/插值槽位</li>
+      <li><code>@builtin(position)</code> — 系统内置：裁剪坐标、实例 ID 等</li>
+      <li><code>@group(N) @binding(N)</code> — 绑定组中的资源槽位</li>
+      <li><code>var&lt;uniform&gt; / var&lt;storage, read&gt; / var&lt;storage, read_write&gt;</code> — 缓冲区访问模式</li>
+      <li><code>textureSample(tex, sampler, uv)</code> — 纹理采样</li>
+    </ul>
+  </section>
+
+  <!-- ════════════════════════ 6. Pipeline ════════════════════════ -->
+  <section id="pipeline">
+    <h2><span class="num">6</span>设计渲染管线</h2>
+    <p>渲染管线 (Render Pipeline) 是 WebGPU 中最重要的概念。它把着色器、顶点布局、混合模式、深度测试等所有状态打包成一个<strong>不可变的预编译对象</strong>，运行时切换零开销。</p>
+
+    <h3>管线流程图</h3>
+    <div class="pipeline-flow">
+      <div class="step">输入装配<br><small>Vertex Buffer</small></div>
+      <span class="arrow">→</span>
+      <div class="step">顶点着色器<br><small>@vertex</small></div>
+      <span class="arrow">→</span>
+      <div class="step">图元装配<br><small>Triangle List</small></div>
+      <span class="arrow">→</span>
+      <div class="step">光栅化<br><small>Rasterization</small></div>
+      <span class="arrow">→</span>
+      <div class="step">片元着色器<br><small>@fragment</small></div>
+      <span class="arrow">→</span>
+      <div class="step">混合 &amp; 写入<br><small>Color Target</small></div>
+    </div>
+
+    <h3>创建渲染管线</h3>
+    <pre><code>const pipeline = device.createRenderPipeline({
+  label: 'triangle-pipeline',
+
+  // ── 布局：Bind Group 的排布方式 ──
+  layout: device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout],  // 每个 @group 对应一个 layout
+  }),
+
+  // ── 顶点阶段 ──
+  vertex: {
+    module: shaderModule,
+    entryPoint: 'vs_main',
+    buffers: [{
+      arrayStride: 6 * 4,   // 每个顶点的字节跨度: 6 floats × 4 bytes
+      attributes: [
+        { shaderLocation: 0, offset: 0,      format: 'float32x3' },  // position
+        { shaderLocation: 1, offset: 3 * 4,  format: 'float32x3' },  // color
+      ],
+    }],
+  },
+
+  // ── 片元阶段 ──
+  fragment: {
+    module: shaderModule,
+    entryPoint: 'fs_main',
+    targets: [{
+      format: format,  // 与 canvas.configure 的 format 一致
+      blend: {         // Alpha 混合配置
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one',       dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      },
+      writeMask: GPUColorWrite.ALL,  // 写入 RGBA 所有通道
+    }],
+  },
+
+  // ── 图元拓扑 ──
+  primitive: {
+    topology: 'triangle-list',    // 'triangle-strip' | 'line-list' | 'point-list'
+    frontFace: 'ccw',             // 逆时针为正面
+    cullMode: 'back',             // 剔除背面
+  },
+
+  // ── 深度/模板（可选）──
+  depthStencil: {
+    format: 'depth24plus',
+    depthWriteEnabled: true,
+    depthCompare: 'less',
+  },
+
+  // ── 多重采样 ──
+  multisample: {
+    count: 1,                     // 1 = 无 MSAA；4 = 4x MSAA
+  },
+});</code></pre>
+
+    <div class="card info">
+      <span class="icon">💡</span>
+      <p><strong>管线缓存</strong>：创建管线是异步的（内部做着色器编译）。可以使用 <code>createRenderPipelineAsync()</code> 或 <code>PipelineCache</code> 来避免首帧卡顿。</p>
+    </div>
+
+    <h3>Bind Group Layout — 声明资源绑定契约</h3>
+    <pre><code>const bindGroupLayout = device.createBindGroupLayout({
+  entries: [
+    {
+      binding: 0,
+      visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+      buffer: { type: 'uniform' },
+    },
+    {
+      binding: 1,
+      visibility: GPUShaderStage.FRAGMENT,
+      texture: { sampleType: 'float' },
+    },
+    {
+      binding: 2,
+      visibility: GPUShaderStage.FRAGMENT,
+      sampler: { type: 'filtering' },
+    },
+  ],
+});</code></pre>
+  </section>
+
+  <!-- ════════════════════════ 7. 渲染通道 ════════════════════════ -->
+  <section id="render">
+    <h2><span class="num">7</span>编码渲染通道</h2>
+    <p>WebGPU 使用 <strong>CommandEncoder</strong> 录制 GPU 命令，然后一次性提交。录制期间不消耗 GPU 时间，提交后 GPU 执行。</p>
+
+    <h3>完整的渲染帧</h3>
+    <pre><code>function renderFrame(time) {
+  // ① 更新 Uniform 数据
+  device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+  // ② 获取当前帧纹理（画布的后缓冲）
+  const colorTexture = context.getCurrentTexture();
+
+  // ③ 创建命令编码器
+  const encoder = device.createCommandEncoder({ label: 'frame-encoder' });
+
+  // ④ 开始渲染通道
+  const pass = encoder.beginRenderPass({
+    colorAttachments: [{
+      view: colorTexture.createView(),   // 渲染目标
+      loadOp: 'clear',                   // 清屏操作: 'clear' | 'load'
+      storeOp: 'store',                  // 存储操作: 'store' | 'discard'
+      clearValue: { r: 0.05, g: 0.05, b: 0.1, a: 1.0 },
+    }],
+    depthStencilAttachment: {
+      view: depthTexture.createView(),
+      depthLoadOp: 'clear',
+      depthStoreOp: 'store',
+      depthClearValue: 1.0,
+    },
+  });
+
+  // ⑤ 绑定管线和资源
+  pass.setPipeline(pipeline);
+  pass.setVertexBuffer(0, vertexBuffer);
+  pass.setBindGroup(0, uniformBindGroup);
+
+  // ⑥ 绘制！
+  pass.draw(3,      // 顶点数
+            1,      // 实例数
+            0,      // 第一个顶点
+            0);     // 第一个实例
+
+  // ⑦ 结束通道并提交
+  pass.end();
+  device.queue.submit([encoder.finish()]);
+
+  requestAnimationFrame(renderFrame);
+}</code></pre>
+
+    <h3>索引绘制（复用顶点）</h3>
+    <pre><code>// 索引缓冲
+const indices = new Uint16Array([0, 1, 2,  2, 3, 0]);
+const indexBuffer = device.createBuffer({
+  size: indices.byteLength,
+  usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+  mappedAtCreation: true,
+});
+new Uint16Array(indexBuffer.getMappedRange()).set(indices);
+indexBuffer.unmap();
+
+// 渲染通道中
+pass.setIndexBuffer(indexBuffer, 'uint16');
+pass.drawIndexed(6);  // 6 个索引 → 2 个三角形</code></pre>
+  </section>
+
+  <!-- ════════════════════════ 8. Compute ════════════════════════ -->
+  <section id="compute">
+    <h2><span class="num">8</span>计算着色器</h2>
+    <p>计算着色器是 WebGPU 的杀手级特性。它绕过光栅化管线，直接在 GPU 上执行通用并行计算 — 矩阵乘法、粒子模拟、图像处理、神经网络推理……</p>
+
+    <h3>WGSL 计算着色器示例：向量加法</h3>
+    <pre><code>// compute_add.wgsl
+@group(0) @binding(0) var&lt;storage, read&gt;       a: array&lt;f32&gt;;
+@group(0) @binding(1) var&lt;storage, read&gt;       b: array&lt;f32&gt;;
+@group(0) @binding(2) var&lt;storage, read_write&gt; result: array&lt;f32&gt;;
+
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i &lt; arrayLength(&amp;a)) {
+    result[i] = a[i] + b[i];
+  }
+}</code></pre>
+
+    <h3>调度计算</h3>
+    <pre><code>// 创建计算管线（比渲染管线简单得多）
+const computePipeline = device.createComputePipeline({
+  layout: 'auto',
+  compute: {
+    module: computeShaderModule,
+    entryPoint: 'main',
+  },
+});
+
+// 录制计算命令
+const encoder = device.createCommandEncoder();
+const pass = encoder.beginComputePass();
+pass.setPipeline(computePipeline);
+pass.setBindGroup(0, computeBindGroup);
+pass.dispatchWorkgroups(Math.ceil(dataLength / 256));  // 分派工作组
+pass.end();
+device.queue.submit([encoder.finish()]);</code></pre>
+
+    <div class="card tip">
+      <span class="icon">✅</span>
+      <p><strong>Workgroup Size 选择</strong>：通常 256 或 512 是好的默认值。应是 GPU wave/warp 大小 (32 或 64) 的倍数。太小浪费 SIMD 通道，太大可能超出寄存器限制。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 9. 纹理 ════════════════════════ -->
+  <section id="texture">
+    <h2><span class="num">9</span>纹理与采样器</h2>
+    <p>纹理 (Texture) 是 GPU 上的 2D/3D 图像存储。配合采样器 (Sampler) 可以实现图像滤波、mipmap、各向异性过滤等。</p>
+
+    <h3>从 ImageBitmap 加载纹理</h3>
+    <pre><code>// 创建纹理
+const texture = device.createTexture({
+  label: 'diffuse-texture',
+  size: [image.width, image.height, 1],
+  format: 'rgba8unorm',
+  usage: GPUTextureUsage.TEXTURE_BINDING   // 着色器采样
+       | GPUTextureUsage.COPY_DST          // 接受拷贝
+       | GPUTextureUsage.RENDER_ATTACHMENT, // 可作为渲染目标
+  mipLevelCount: 1,
+});
+
+// 上传图像数据
+device.queue.copyExternalImageToTexture(
+  { source: imageBitmap },          // 来源
+  { texture },                       // 目标
+  [image.width, image.height],       // 尺寸
+);
+
+// 创建采样器
+const sampler = device.createSampler({
+  magFilter: 'linear',       // 放大滤波
+  minFilter: 'linear',       // 缩小滤波
+  mipmapFilter: 'linear',    // Mipmap 滤波
+  addressModeU: 'repeat',    // U 轴寻址模式
+  addressModeV: 'repeat',    // V 轴寻址模式
+  maxAnisotropy: 16,         // 各向异性过滤
+});</code></pre>
+
+    <h3>在 WGSL 中采样纹理</h3>
+    <pre><code>@group(0) @binding(1) var          myTexture: texture_2d&lt;f32&gt;;
+@group(0) @binding(2) var          mySampler: sampler;
+
+@fragment
+fn fs_main(@location(0) uv: vec2f) -&gt; @location(0) vec4f {
+  return textureSample(myTexture, mySampler, uv);
+}</code></pre>
+  </section>
+
+  <!-- ════════════════════════ 10. Uniform ════════════════════════ -->
+  <section id="uniform">
+    <h2><span class="num">10</span>Uniform 缓冲区</h2>
+    <p>Uniform 缓冲区用于向着色器传递<strong>逐帧或逐对象的参数</strong>：变换矩阵、时间、光照参数等。所有线程共享同一份数据。</p>
+
+    <h3>创建与绑定</h3>
+    <pre><code>// 定义 JS 侧数据结构（注意 16 字节对齐）
+const uniformData = new Float32Array(16 + 4); // mat4 + padding
+uniformData.set(mvpMatrix, 0);                // 偏移 0: MVP 矩阵
+uniformData[16] = performance.now() / 1000;   // 偏移 64: time
+
+const uniformBuffer = device.createBuffer({
+  size: uniformData.byteLength,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+
+// 每帧更新
+device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+// 创建 Bind Group
+const bindGroup = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(0),
+  entries: [
+    { binding: 0, resource: { buffer: uniformBuffer } },
+  ],
+});</code></pre>
+
+    <div class="card warn">
+      <span class="icon">⚠️</span>
+      <p><strong>对齐规则</strong>：WGSL 的 <code>mat4x4f</code> 要求 16 字节对齐；<code>vec4f</code> 也是 16 字节。<code>vec3f</code> 虽然只有 12 字节，但仍然按 16 字节对齐。结构体的每个成员之间可能存在 padding。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 11. 深度 ════════════════════════ -->
+  <section id="depth">
+    <h2><span class="num">11</span>深度与模板测试</h2>
+    <p>深度测试确保近处的物体遮挡远处的物体，是 3D 渲染的基础。模板测试可用于实现镜面反射、裁剪区域等高级效果。</p>
+
+    <h3>创建深度纹理</h3>
+    <pre><code>const depthTexture = device.createTexture({
+  size: [canvas.width, canvas.height],
+  format: 'depth24plus',           // 24位深度 + 8位模板
+  usage: GPUTextureUsage.RENDER_ATTACHMENT,
+});</code></pre>
+
+    <h3>深度比较选项</h3>
+    <ul>
+      <li><code>'less'</code> — 深度值更小（更近）才通过（最常用）</li>
+      <li><code>'less-equal'</code> — 小于等于时通过</li>
+      <li><code>'greater'</code> — 反向深度（更适合大场景）</li>
+      <li><code>'always'</code> — 总是通过（禁用深度测试）</li>
+    </ul>
+
+    <div class="card tip">
+      <span class="icon">✅</span>
+      <p><strong>反向深度 (Reversed-Z)</strong>：使用 <code>'greater'</code> 比较 + 清除值 0.0，可以显著提高远处物体的深度精度，减少 Z-fighting。这是 3D 引擎的常见优化。</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════ 12. Demo ════════════════════════ -->
+  <section id="demo">
+    <h2><span class="num">12</span>在线演示</h2>
+    <p>下面是一个<strong>可运行</strong>的 WebGPU 示例 — 旋转的彩色三角形。点击按钮启动：</p>
+
+    <div class="demo-box">
+      <canvas id="gpuCanvas" width="600" height="400"></canvas>
+      <div class="caption">旋转三角形 · 顶点颜色插值 · Uniform 动画</div>
+      <br>
+      <button id="runBtn">▶ 运行演示</button>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>WebGPU 入门指南 · 基于 W3C WebGPU 规范 · 浏览器支持: Chrome 113+, Edge 113+, Firefox Nightly, Safari TP</p>
+</footer>
+
+<!-- ════════════════════════ Demo Script ════════════════════════ -->
+<script>
+document.getElementById('runBtn').addEventListener('click', async () => {
+  const canvas = document.getElementById('gpuCanvas');
+  const btn = document.getElementById('runBtn');
+
+  if (!navigator.gpu) {
+    btn.textContent = '❌ 浏览器不支持 WebGPU';
+    return;
+  }
+
+  btn.textContent = '⏳ 初始化中…';
+  btn.disabled = true;
+
+  try {
+    // ── 初始化 ──
+    const adapter = await navigator.gpu.requestAdapter();
+    const device = await adapter.requestDevice();
+    const context = canvas.getContext('webgpu');
+    const format = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({ device, format, alphaMode: 'premultiplied' });
+
+    // ── 着色器 ──
+    const shaderCode = /* wgsl */ `
+      struct Uniforms { mvp: mat4x4f, time: f32 };
+      @group(0) @binding(0) var<uniform> u: Uniforms;
+
+      struct Vout {
+        @builtin(position) pos: vec4f,
+        @location(0) color: vec3f,
+      };
+
+      @vertex
+      fn vs(@location(0) pos: vec3f, @location(1) col: vec3f) -> Vout {
+        var o: Vout;
+        o.pos = u.mvp * vec4f(pos, 1.0);
+        o.color = col;
+        return o;
+      }
+
+      @fragment
+      fn fs(i: Vout) -> @location(0) vec4f {
+        let pulse = sin(u.time * 3.0) * 0.15 + 0.85;
+        return vec4f(i.color * pulse, 1.0);
+      }
+    `;
+    const shaderModule = device.createShaderModule({ code: shaderCode });
+
+    // ── 顶点数据 ──
+    const verts = new Float32Array([
+       0.0,  0.6, 0,   1, 0.2, 0.3,
+      -0.5, -0.4, 0,   0.2, 0.8, 0.4,
+       0.5, -0.4, 0,   0.3, 0.4, 1.0,
+    ]);
+    const vbuf = device.createBuffer({ size: verts.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+    new Float32Array(vbuf.getMappedRange()).set(verts);
+    vbuf.unmap();
+
+    // ── Uniform ──
+    const ubuf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+    // ── Pipeline ──
+    const pipeline = device.createRenderPipeline({
+      layout: 'auto',
+      vertex: {
+        module: shaderModule, entryPoint: 'vs',
+        buffers: [{ arrayStride: 24, attributes: [
+          { shaderLocation: 0, offset: 0, format: 'float32x3' },
+          { shaderLocation: 1, offset: 12, format: 'float32x3' },
+        ]}],
+      },
+      fragment: { module: shaderModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    const bindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: ubuf } }],
+    });
+
+    // ── 矩阵工具（列主序，与 WGSL 一致）──
+    function mat4Mul(a, b) {
+      const o = new Float32Array(16);
+      for (let r = 0; r < 4; r++)
+        for (let c = 0; c < 4; c++)
+          o[c * 4 + r] = a[r] * b[c*4] + a[4+r] * b[c*4+1] + a[8+r] * b[c*4+2] + a[12+r] * b[c*4+3];
+      return o;
+    }
+    function mat4Persp(fov, aspect, near, far) {
+      const f = 1 / Math.tan(fov / 2), nf = 1 / (near - far);
+      return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+    }
+    function mat4RotY(a) {
+      const c = Math.cos(a), s = Math.sin(a);
+      return new Float32Array([c,0,s,0, 0,1,0,0, -s,0,c,0, 0,0,0,1]);
+    }
+    function mat4Translate(x, y, z) {
+      return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+    }
+
+    // ── 渲染循环 ──
+    const proj = mat4Persp(Math.PI / 3, canvas.width / canvas.height, 0.1, 100);
+    const view = mat4Translate(0, 0, -2.5);
+    let angle = 0;
+
+    function frame() {
+      angle += 0.015;
+      const model = mat4RotY(angle);
+      const mvp = mat4Mul(proj, mat4Mul(view, model));
+
+      const udata = new Float32Array(20);
+      udata.set(mvp, 0);
+      udata[16] = performance.now() / 1000;
+
+      device.queue.writeBuffer(ubuf, 0, udata);
+
+      const tex = context.getCurrentTexture();
+      const enc = device.createCommandEncoder();
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: tex.createView(),
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0.06, g: 0.06, b: 0.12, a: 1 },
+        }],
+      });
+      pass.setPipeline(pipeline);
+      pass.setVertexBuffer(0, vbuf);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3);
+      pass.end();
+      device.queue.submit([enc.finish()]);
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+    btn.textContent = '✅ 运行中';
+  } catch (e) {
+    btn.textContent = '❌ ' + e.message;
+    console.error(e);
+  }
+});
+</script>
+</body>
+</html>

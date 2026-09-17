@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>广告引擎研发工程师指南</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565c0;
+    --md-primary-light: #1976d2;
+    --md-primary-dark: #0d47a1;
+    --md-primary-container: #d1e4ff;
+    --md-on-primary: #ffffff;
+    --md-secondary: #625b71;
+    --md-secondary-container: #e8def8;
+    --md-tertiary: #7d5260;
+    --md-tertiary-container: #ffd8e4;
+    --md-surface: #fffbfe;
+    --md-surface-variant: #e7e0ec;
+    --md-surface-container: #f3edf7;
+    --md-surface-container-low: #f7f2fa;
+    --md-surface-container-high: #ece6f0;
+    --md-on-surface: #1c1b1f;
+    --md-on-surface-variant: #49454f;
+    --md-outline: #79747e;
+    --md-outline-variant: #cac4d0;
+    --md-error: #b3261e;
+    --md-error-container: #f9dedc;
+    --md-success: #2e7d32;
+    --md-success-container: #e8f5e9;
+    --md-warning: #ed6c02;
+    --md-warning-container: #fff3e0;
+    --md-info: #0288d1;
+    --md-info-container: #e1f5fe;
+    --md-inverse-surface: #313033;
+    --md-inverse-on-surface: #f4eff4;
+    --md-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    --md-shadow-2: 0 3px 6px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.12);
+    --md-shadow-3: 0 10px 20px rgba(0,0,0,0.15), 0 3px 6px rgba(0,0,0,0.10);
+    --md-radius-sm: 8px;
+    --md-radius-md: 12px;
+    --md-radius-lg: 16px;
+    --md-radius-xl: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f5f5f5;
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+
+  /* Top App Bar */
+  .top-bar {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 1.5rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--md-shadow-2);
+  }
+  .top-bar h1 {
+    font-size: 1.5rem;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  .top-bar .subtitle {
+    font-size: 0.875rem;
+    opacity: 0.87;
+    margin-top: 0.25rem;
+    font-weight: 300;
+  }
+
+  /* Layout */
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+
+  /* Navigation Rail (TOC) */
+  .toc-card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-lg);
+    box-shadow: var(--md-shadow);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    position: sticky;
+    top: 80px;
+  }
+  .toc-card h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.75rem;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.25rem;
+  }
+  .toc-grid a {
+    color: var(--md-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--md-radius-sm);
+    transition: background 0.2s;
+    display: block;
+  }
+  .toc-grid a:hover {
+    background: var(--md-primary-container);
+  }
+
+  /* Section Card */
+  .section-card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-lg);
+    box-shadow: var(--md-shadow);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--md-outline-variant);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .section-header .material-icons-outlined {
+    color: var(--md-primary);
+    font-size: 1.5rem;
+  }
+  .section-header h2 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .section-body {
+    padding: 1.5rem;
+  }
+
+  /* Subsection */
+  h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    margin: 1.5rem 0 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  h3:first-child { margin-top: 0; }
+  h3 .material-icons-outlined {
+    font-size: 1.25rem;
+    color: var(--md-primary-light);
+  }
+
+  p { margin-bottom: 0.75rem; color: var(--md-on-surface-variant); }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  li { margin-bottom: 0.375rem; color: var(--md-on-surface-variant); }
+
+  /* Code */
+  code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.85em;
+    background: var(--md-surface-container-high);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    color: var(--md-primary-dark);
+  }
+  pre {
+    background: var(--md-inverse-surface);
+    color: var(--md-inverse-on-surface);
+    border-radius: var(--md-radius-md);
+    padding: 1.25rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.825rem;
+    line-height: 1.6;
+    font-family: 'Roboto Mono', monospace;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  .cm { color: #9e9e9e; }
+  .kw { color: #82b1ff; }
+  .str { color: #c3e88d; }
+  .fn { color: #ffcb6b; }
+  .num { color: #f78c6c; }
+  .type { color: #c792ea; }
+  .op { color: #89ddff; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.875rem;
+  }
+  th {
+    background: var(--md-surface-container);
+    color: var(--md-on-surface);
+    font-weight: 500;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--md-outline-variant);
+    color: var(--md-on-surface-variant);
+  }
+  tr:hover td {
+    background: var(--md-surface-container-low);
+  }
+
+  /* Chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface);
+    color: var(--md-on-surface-variant);
+    margin: 0.125rem;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-primary-dark);
+    border-color: var(--md-primary-container);
+  }
+  .chip.success {
+    background: var(--md-success-container);
+    color: var(--md-success);
+    border-color: var(--md-success-container);
+  }
+  .chip.warning {
+    background: var(--md-warning-container);
+    color: var(--md-warning);
+    border-color: var(--md-warning-container);
+  }
+  .chip.error {
+    background: var(--md-error-container);
+    color: var(--md-error);
+    border-color: var(--md-error-container);
+  }
+
+  /* Alert / Note */
+  .alert {
+    border-radius: var(--md-radius-md);
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    font-size: 0.875rem;
+  }
+  .alert .material-icons-outlined {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+  .alert.info {
+    background: var(--md-info-container);
+    color: #01579b;
+  }
+  .alert.success {
+    background: var(--md-success-container);
+    color: #1b5e20;
+  }
+  .alert.warning {
+    background: var(--md-warning-container);
+    color: #e65100;
+  }
+  .alert.error {
+    background: var(--md-error-container);
+    color: #b71c1c;
+  }
+
+  /* Architecture Diagram */
+  .arch-diagram {
+    background: var(--md-inverse-surface);
+    color: var(--md-inverse-on-surface);
+    border-radius: var(--md-radius-md);
+    padding: 1.5rem;
+    font-family: 'Roboto Mono', monospace;
+    white-space: pre;
+    line-height: 1.4;
+    margin: 1rem 0;
+    overflow-x: auto;
+    font-size: 0.8rem;
+  }
+
+  /* Metric Cards */
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .metric-card {
+    background: var(--md-surface-container-low);
+    border-radius: var(--md-radius-md);
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px solid var(--md-outline-variant);
+  }
+  .metric-card .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--md-primary);
+    line-height: 1.2;
+  }
+  .metric-card .label {
+    font-size: 0.8rem;
+    color: var(--md-on-surface-variant);
+    margin-top: 0.25rem;
+  }
+
+  /* Progress / Percentage bar */
+  .bar-chart {
+    margin: 1rem 0;
+  }
+  .bar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .bar-label {
+    width: 100px;
+    font-size: 0.8rem;
+    color: var(--md-on-surface-variant);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--md-surface-container-high);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    padding-left: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: white;
+    transition: width 0.6s ease;
+  }
+  .bar-fill.blue { background: var(--md-primary); }
+  .bar-fill.green { background: var(--md-success); }
+  .bar-fill.orange { background: var(--md-warning); }
+  .bar-fill.purple { background: #7c4dff; }
+
+  /* Comparison Grid */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .compare-card {
+    background: var(--md-surface-container-low);
+    border-radius: var(--md-radius-md);
+    padding: 1.25rem;
+    border: 1px solid var(--md-outline-variant);
+  }
+  .compare-card h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .compare-card ul {
+    padding-left: 1.25rem;
+    margin: 0;
+  }
+  .compare-card li {
+    font-size: 0.825rem;
+    margin-bottom: 0.25rem;
+  }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: 1rem 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--md-outline-variant);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.25rem;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.625rem;
+    top: 0.5rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    border: 2px solid var(--md-surface);
+    box-shadow: 0 0 0 2px var(--md-primary);
+  }
+  .timeline-item .time {
+    font-size: 0.75rem;
+    color: var(--md-primary);
+    font-weight: 500;
+  }
+  .timeline-item .desc {
+    font-size: 0.875rem;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--md-on-surface-variant);
+    font-size: 0.8rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 1rem; }
+    .top-bar { padding: 1rem; }
+    .top-bar h1 { font-size: 1.25rem; }
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .compare-grid { grid-template-columns: 1fr; }
+    .toc-grid { grid-template-columns: 1fr; }
+    .arch-diagram { font-size: 0.7rem; padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>广告引擎研发工程师指南</h1>
+  <div class="subtitle">Ad Engine Development Engineer — 技术栈、架构、日常工作与职业发展</div>
+</div>
+
+<div class="container">
+
+<!-- TOC -->
+<div class="toc-card">
+  <h3>目录</h3>
+  <div class="toc-grid">
+    <a href="#overview">1. 岗位概述</a>
+    <a href="#architecture">2. 系统架构</a>
+    <a href="#retrieval">3. 广告召回</a>
+    <a href="#ranking">4. 广告排序</a>
+    <a href="#auction">5. 竞价引擎</a>
+    <a href="#delivery">6. 投放引擎</a>
+    <a href="#billing">7. 计费引擎</a>
+    <a href="#antifraud">8. 反作弊</a>
+    <a href="#techstack">9. 技术栈</a>
+    <a href="#perf">10. 性能要求</a>
+    <a href="#daily">11. 日常工作</a>
+    <a href="#compare">12. 岗位对比</a>
+    <a href="#career">13. 职业发展</a>
+    <a href="#summary">14. 总结</a>
+  </div>
+</div>
+
+<!-- 1. 岗位概述 -->
+<div class="section-card" id="overview">
+  <div class="section-header">
+    <span class="material-icons-outlined">badge</span>
+    <h2>1. 岗位概述</h2>
+  </div>
+  <div class="section-body">
+    <p><strong>广告引擎研发工程师</strong>负责广告系统的底层引擎开发——让广告能精准投放、高效竞价、实时计费，是广告变现的技术核心。</p>
+
+    <div class="alert info">
+      <span class="material-icons-outlined">info</span>
+      <div>一句话定义：<strong>在毫秒级延迟内完成「召回 → 排序 → 竞价 → 计费」全链路，同时保证高可用、强一致、防作弊。</strong></div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="value">&lt;50ms</div>
+        <div class="label">P50 请求延迟</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">&lt;100ms</div>
+        <div class="label">P99 请求延迟</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">百万级</div>
+        <div class="label">QPS</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">99.99%</div>
+        <div class="label">可用性 SLA</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. 系统架构 -->
+<div class="section-card" id="architecture">
+  <div class="section-header">
+    <span class="material-icons-outlined">account_tree</span>
+    <h2>2. 系统架构</h2>
+  </div>
+  <div class="section-body">
+    <div class="arch-diagram">┌─────────────────────────────────────────────────────────────────┐
+│                        广告引擎整体架构                          │
+│                                                                 │
+│  ┌───────────┐                                                  │
+│  │  广告请求   │  App / Web / H5 发起广告请求                     │
+│  │ Ad Request │                                                  │
+│  └─────┬─────┘                                                  │
+│        ▼                                                        │
+│  ┌───────────┐   ┌───────────┐   ┌───────────┐                 │
+│  │  召回引擎   │──▶│  排序引擎   │──▶│  竞价引擎   │                │
+│  │ Retrieval  │   │  Ranking  │   │  Auction  │                 │
+│  └───────────┘   └───────────┘   └───────────┘                 │
+│        │               │               │                        │
+│        ▼               ▼               ▼                        │
+│  ┌───────────┐   ┌───────────┐   ┌───────────┐                 │
+│  │  预算控制   │   │  CTR/CVR  │   │  计费引擎   │                 │
+│  │  Pacing   │   │   模型     │   │  Billing  │                 │
+│  └───────────┘   └───────────┘   └───────────┘                 │
+│        │               │               │                        │
+│        ▼               ▼               ▼                        │
+│  ┌───────────┐   ┌───────────┐   ┌───────────┐                 │
+│  │  反作弊    │   │  投放引擎   │   │  数据回流   │                 │
+│  │Anti-fraud │   │ Delivery  │   │  Logging  │                 │
+│  └───────────┘   └───────────┘   └───────────┘                 │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    基础设施层                             │    │
+│  │  Redis · RocksDB · Kafka · Flink · K8s · gRPC · GPU    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘</div>
+
+    <h3><span class="material-icons-outlined">alt_route</span> 请求链路</h3>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="time">1. 请求接入</div>
+        <div class="desc">App / Web 发起广告请求，携带用户 ID、广告位 ID、设备信息</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">2. 用户画像</div>
+        <div class="desc">查询用户标签、兴趣、历史行为，构建用户特征向量</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">3. 广告召回</div>
+        <div class="desc">从百万广告库中快速筛选出数百个候选广告</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">4. 粗排 → 精排</div>
+        <div class="desc">CTR/CVR 模型打分，eCPM 排序</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">5. 竞价</div>
+        <div class="desc">多广告竞争同一展示位，决定赢家和出价</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">6. 预算 & 频控</div>
+        <div class="desc">检查预算余额、频次限制、定向条件</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">7. 返回广告</div>
+        <div class="desc">返回广告素材、点击链接、监测代码</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">8. 计费 & 回流</div>
+        <div class="desc">展示/点击后实时扣费，数据写入日志</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. 广告召回 -->
+<div class="section-card" id="retrieval">
+  <div class="section-header">
+    <span class="material-icons-outlined">manage_search</span>
+    <h2>3. 广告召回（Retrieval）</h2>
+  </div>
+  <div class="section-body">
+    <p>从百万级广告库中快速筛选出候选广告。要求：<strong>快（&lt;10ms）、全（不漏召回）、准（减少无效候选）</strong>。</p>
+
+    <h3><span class="material-icons-outlined">layers</span> 召回策略</h3>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">flip_to_back</span> 倒排索引</h4>
+        <ul>
+          <li>按用户标签（年龄/性别/兴趣）查倒排表</li>
+          <li>适合定向条件匹配</li>
+          <li>延迟极低，内存占用大</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">scatter_plot</span> 向量检索 (ANN)</h4>
+        <ul>
+          <li>用户和广告都编码为向量</li>
+          <li>用 FAISS / ScaNN 做近似最近邻</li>
+          <li>适合个性化召回</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">rule</span> 规则过滤</h4>
+        <ul>
+          <li>频次控制、黑名单、已安装过滤</li>
+          <li>预算耗尽的广告直接跳过</li>
+          <li>硬性条件，优先级最高</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="material-icons-outlined">code</span> 倒排索引示例</h3>
+    <pre><code><span class="cm">// 倒排索引：根据用户标签召回匹配广告</span>
+<span class="kw">class</span> <span class="type">AdIndex</span> {
+  <span class="cm">// 索引结构：标签 → 广告 ID 列表</span>
+  unordered_map&lt;<span class="type">string</span>, vector&lt;<span class="type">AdId</span>&gt;&gt; inverted_index_;
+
+<span class="kw">public</span>:
+  <span class="cm">// 用户有标签 [游戏, 25岁, 男性]</span>
+  <span class="cm">// 从倒排索引中召回所有定向这些标签的广告</span>
+  vector&lt;<span class="type">Ad</span>&gt; <span class="fn">retrieve</span>(<span class="kw">const</span> <span class="type">User</span>&amp; user, <span class="kw">const</span> <span class="type">Context</span>&amp; ctx) {
+    unordered_set&lt;<span class="type">AdId</span>&gt; candidates;
+    <span class="kw">for</span> (<span class="kw">const auto</span>&amp; tag : user.tags()) {
+      <span class="kw">auto</span> it = inverted_index_.find(tag);
+      <span class="kw">if</span> (it != inverted_index_.end()) {
+        candidates.insert(it-&gt;second.begin(), it-&gt;second.end());
+      }
+    }
+    <span class="cm">// 过滤：预算、频次、黑名单...</span>
+    <span class="kw">return</span> <span class="fn">filter</span>(candidates, user, ctx);
+  }
+};</code></pre>
+  </div>
+</div>
+
+<!-- 4. 广告排序 -->
+<div class="section-card" id="ranking">
+  <div class="section-header">
+    <span class="material-icons-outlined">sort</span>
+    <h2>4. 广告排序（Ranking）</h2>
+  </div>
+  <div class="section-body">
+    <p>对召回的候选广告打分排序，决定展示哪个。核心公式：</p>
+
+    <div class="alert success">
+      <span class="material-icons-outlined">functions</span>
+      <div><strong>eCPM = bid × pCTR × pCVR × 1000</strong><br>
+      bid = 广告主出价 &nbsp;|&nbsp; pCTR = 预估点击率 &nbsp;|&nbsp; pCVR = 预估转化率</div>
+    </div>
+
+    <h3><span class="material-icons-outlined">model_training</span> 排序链路</h3>
+    <div class="arch-diagram">┌──────────┐     ┌──────────┐     ┌──────────┐
+│   粗排    │────▶│   精排    │────▶│  重排     │
+│ (轻量模型) │     │ (重量模型) │     │ (业务规则) │
+│ 候选 500  │     │ 候选 50   │     │ 最终 5~10 │
+└──────────┘     └──────────┘     └──────────┘
+  ~5ms              ~20ms             ~2ms</div>
+
+    <h3><span class="material-icons-outlined">smart_toy</span> CTR/CVR 模型演进</h3>
+    <table>
+      <tr><th>阶段</th><th>模型</th><th>特点</th></tr>
+      <tr><td>LR 时代</td><td>Logistic Regression</td><td>简单可解释，特征工程重</td></tr>
+      <tr><td>树模型</td><td>GBDT + LR</td><td>自动特征交叉</td></tr>
+      <tr><td>深度学习</td><td>DeepFM / DIN / DIEN</td><td>自动学习特征交互</td></tr>
+      <tr><td>多任务</td><td>MMOE / ESMM / PLE</td><td>CTR + CVR 联合建模</td></tr>
+      <tr><td>大模型</td><td>Transformer + 用户序列</td><td>长序列建模，泛化能力强</td></tr>
+    </table>
+
+    <h3><span class="material-icons-outlined">code</span> 排序核心逻辑</h3>
+    <pre><code><span class="cm">// 排序引擎：计算每个候选广告的 eCPM</span>
+<span class="kw">class</span> <span class="type">RankingEngine</span> {
+  <span class="type">ModelService</span>&amp; ctr_model_;
+  <span class="type">ModelService</span>&amp; cvr_model_;
+
+<span class="kw">public</span>:
+  vector&lt;<span class="type">ScoredAd</span>&gt; <span class="fn">rank</span>(<span class="kw">const</span> vector&lt;<span class="type">Ad</span>&gt;&amp; candidates,
+                       <span class="kw">const</span> <span class="type">User</span>&amp; user) {
+    vector&lt;<span class="type">ScoredAd</span>&gt; scored;
+    <span class="kw">for</span> (<span class="kw">const auto</span>&amp; ad : candidates) {
+      <span class="kw">auto</span> features = <span class="fn">extractFeatures</span>(user, ad);
+      <span class="type">double</span> p_ctr = ctr_model_.<span class="fn">predict</span>(features);
+      <span class="type">double</span> p_cvr = cvr_model_.<span class="fn">predict</span>(features);
+      <span class="type">double</span> ecpm = ad.bid() * p_ctr * p_cvr * <span class="num">1000</span>;
+      scored.<span class="fn">push_back</span>({ad, ecpm, p_ctr, p_cvr});
+    }
+    <span class="fn">sort</span>(scored.<span class="fn">begin</span>(), scored.<span class="fn">end</span>(),
+         [](<span class="kw">auto</span>&amp; a, <span class="kw">auto</span>&amp; b) { <span class="kw">return</span> a.ecpm &gt; b.ecpm; });
+    <span class="kw">return</span> scored;
+  }
+};</code></pre>
+  </div>
+</div>
+
+<!-- 5. 竞价引擎 -->
+<div class="section-card" id="auction">
+  <div class="section-header">
+    <span class="material-icons-outlined">gavel</span>
+    <h2>5. 竞价引擎（Auction）</h2>
+  </div>
+  <div class="section-body">
+    <p>多个广告竞争同一个展示位，决定谁赢、付多少钱。</p>
+
+    <h3><span class="material-icons-outlined">compare_arrows</span> 竞价机制对比</h3>
+    <table>
+      <tr><th>机制</th><th>全称</th><th>计费</th><th>适用场景</th></tr>
+      <tr>
+        <td><span class="chip primary">GSP</span></td>
+        <td>Generalized Second Price</td>
+        <td>赢家付第二名的价格 + 0.01</td>
+        <td>搜索广告</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">VCG</span></td>
+        <td>Vickrey-Clarke-Groves</td>
+        <td>赢家付对其他人造成的损失</td>
+        <td>理论最优，计算复杂</td>
+      </tr>
+      <tr>
+        <td><span class="chip success">oCPM</span></td>
+        <td>Optimized CPM</td>
+        <td>按转化目标出价，系统自动优化</td>
+        <td>信息流广告（主流）</td>
+      </tr>
+      <tr>
+        <td><span class="chip warning">dCPM</span></td>
+        <td>Dynamic CPM</td>
+        <td>实时动态出价</td>
+        <td>程序化广告</td>
+      </tr>
+    </table>
+
+    <h3><span class="material-icons-outlined">code</span> GSP 竞价示例</h3>
+    <pre><code><span class="cm">// GSP 竞价：广义第二价格</span>
+<span class="kw">struct</span> <span class="type">BidResult</span> {
+  <span class="type">AdId</span> winner;
+  <span class="type">double</span> winning_price;  <span class="cm">// 实际扣费价格</span>
+};
+
+<span class="type">BidResult</span> <span class="fn">gspAuction</span>(vector&lt;<span class="type">BidEntry</span>&gt;&amp; bids) {
+  <span class="cm">// 按 eCPM 降序排列</span>
+  <span class="fn">sort</span>(bids.<span class="fn">begin</span>(), bids.<span class="fn">end</span>(),
+       [](<span class="kw">auto</span>&amp; a, <span class="kw">auto</span>&amp; b) { <span class="kw">return</span> a.ecpm &gt; b.ecpm; });
+
+  <span class="cm">// 赢家付第二名的价格 + 0.01</span>
+  <span class="type">double</span> price = (bids.size() &gt;= <span class="num">2</span>)
+      ? bids[<span class="num">1</span>].ecpm + <span class="num">0.01</span>
+      : bids[<span class="num">0</span>].bid_floor;
+
+  <span class="kw">return</span> {bids[<span class="num">0</span>].ad_id, price};
+}</code></pre>
+  </div>
+</div>
+
+<!-- 6. 投放引擎 -->
+<div class="section-card" id="delivery">
+  <div class="section-header">
+    <span class="material-icons-outlined">local_shipping</span>
+    <h2>6. 投放引擎（Delivery）</h2>
+  </div>
+  <div class="section-body">
+    <p>控制广告的投放节奏、频次、定向，确保广告主的预算花得合理。</p>
+
+    <h3><span class="material-icons-outlined">tune</span> 投放控制维度</h3>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">account_balance_wallet</span> 预算控制</h4>
+        <ul>
+          <li>今天 10 万预算，不能一次花完</li>
+          <li>Pacing 算法平滑消耗</li>
+          <li>实时余额检查，防止超投</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">repeat</span> 频次控制</h4>
+        <ul>
+          <li>同一用户 24h 内最多看 3 次</li>
+          <li>基于 Redis 的实时频次计数</li>
+          <li>不同广告位独立频次</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">my_location</span> 定向控制</h4>
+        <ul>
+          <li>地域：只投北京、上海</li>
+          <li>人群：25-35 岁女性</li>
+          <li>兴趣：游戏、美妆</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">schedule</span> 排期控制</h4>
+        <ul>
+          <li>早 9 点到晚 10 点投放</li>
+          <li>工作日 / 周末区分</li>
+          <li>节假日特殊策略</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="material-icons-outlined">show_chart</span> Pacing（预算平滑）</h3>
+    <div class="arch-diagram">预算消耗曲线对比：
+
+无 Pacing:  ████████████░░░░░░░░░░░░  上午花完，下午没量
+            0:00                    24:00
+
+有 Pacing:  █████░████░████░████░███  均匀消耗
+            0:00                    24:00
+
+Pacing 策略：
+├── PID 控制器：根据消耗速率动态调整出价系数
+├── 均匀投放：预算 / 剩余小时数 = 每小时预算
+└── 加速投放：预算充足时提高出价抢占流量</div>
+  </div>
+</div>
+
+<!-- 7. 计费引擎 -->
+<div class="section-card" id="billing">
+  <div class="section-header">
+    <span class="material-icons-outlined">receipt_long</span>
+    <h2>7. 计费引擎（Billing）</h2>
+  </div>
+  <div class="section-body">
+    <p>实时扣费、防止超投、对账。要求：<strong>高并发、强一致、低延迟</strong>。</p>
+
+    <h3><span class="material-icons-outlined">paid</span> 计费模式</h3>
+    <table>
+      <tr><th>模式</th><th>全称</th><th>扣费时机</th><th>适用场景</th></tr>
+      <tr><td><span class="chip">CPM</span></td><td>Cost Per Mille</td><td>每千次展示</td><td>品牌广告</td></tr>
+      <tr><td><span class="chip primary">CPC</span></td><td>Cost Per Click</td><td>每次点击</td><td>搜索广告</td></tr>
+      <tr><td><span class="chip success">CPA</span></td><td>Cost Per Action</td><td>每次转化</td><td>效果广告</td></tr>
+      <tr><td><span class="chip warning">oCPM</span></td><td>Optimized CPM</td><td>按转化概率折算</td><td>信息流（主流）</td></tr>
+    </table>
+
+    <h3><span class="material-icons-outlined">code</span> 实时计费逻辑</h3>
+    <pre><code><span class="cm">// 实时计费：每次展示/点击后扣减广告主余额</span>
+<span class="kw">class</span> <span class="type">BillingEngine</span> {
+  <span class="type">RedisClient</span>&amp; redis_;
+
+<span class="kw">public</span>:
+  <span class="type">bool</span> <span class="fn">charge</span>(<span class="type">AdId</span> id, <span class="type">double</span> cost) {
+    <span class="cm">// Lua 脚本保证原子性：检查余额 → 扣费 → 记录</span>
+    <span class="kw">static const char</span>* lua = <span class="str">R"(
+      local balance = tonumber(redis.call('GET', KEYS[1]))
+      if balance &gt;= tonumber(ARGV[1]) then
+        redis.call('DECRBYFLOAT', KEYS[1], ARGV[1])
+        redis.call('LPUSH', KEYS[2], ARGV[2])
+        return 1
+      end
+      return 0
+    )"</span>;
+
+    <span class="kw">auto</span> result = redis_.<span class="fn">eval</span>(lua,
+      {<span class="str">"budget:"</span> + id, <span class="str">"billing_log:"</span> + id},
+      {std::<span class="fn">to_string</span>(cost), <span class="fn">makeLog</span>(id, cost)});
+
+    <span class="kw">return</span> result.<span class="fn">asInt</span>() == <span class="num">1</span>;
+  }
+};</code></pre>
+
+    <div class="alert warning">
+      <span class="material-icons-outlined">warning</span>
+      <div><strong>对账机制：</strong>实时扣费是估算值，需要离线对账修正。每小时跑一次对账任务，对比实时日志和离线数据，修正差异。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. 反作弊 -->
+<div class="section-card" id="antifraud">
+  <div class="section-header">
+    <span class="material-icons-outlined">shield</span>
+    <h2>8. 反作弊（Anti-fraud）</h2>
+  </div>
+  <div class="section-body">
+    <p>识别虚假点击、机器流量、刷量，保护广告主利益。</p>
+
+    <h3><span class="material-icons-outlined">bug_report</span> 作弊类型</h3>
+    <table>
+      <tr><th>类型</th><th>手段</th><th>检测方式</th></tr>
+      <tr>
+        <td><span class="chip error">点击欺诈</span></td>
+        <td>脚本模拟点击、点击农场</td>
+        <td>点击频率异常、设备指纹</td>
+      </tr>
+      <tr>
+        <td><span class="chip error">机器流量</span></td>
+        <td>Bot 爬虫、模拟器</td>
+        <td>User-Agent 检测、行为序列分析</td>
+      </tr>
+      <tr>
+        <td><span class="chip warning">归因欺诈</span></td>
+        <td>劫持自然安装归因</td>
+        <td>归因时间窗口、渠道交叉验证</td>
+      </tr>
+      <tr>
+        <td><span class="chip warning">薅羊毛</span></td>
+        <td>批量注册领券</td>
+        <td>设备聚类、注册行为异常</td>
+      </tr>
+    </table>
+
+    <h3><span class="material-icons-outlined">architecture</span> 反作弊架构</h3>
+    <div class="arch-diagram">┌───────────────────────────────────────────────────┐
+│                  反作弊系统                         │
+│                                                   │
+│  ┌─────────────┐   ┌─────────────┐                │
+│  │  实时规则引擎  │   │  离线模型    │                │
+│  │  (Flink)     │   │  (Spark)    │                │
+│  │              │   │             │                │
+│  │ • 频率限制    │   │ • 异常检测   │                │
+│  │ • IP 黑名单  │   │ • 设备聚类   │                │
+│  │ • 设备指纹    │   │ • 行为序列   │                │
+│  └──────┬──────┘   └──────┬──────┘                │
+│         │                 │                        │
+│         ▼                 ▼                        │
+│  ┌─────────────────────────────────────────────┐  │
+│  │              决策引擎 (Decision Engine)       │  │
+│  │  实时拦截 + 离线回溯 + 人工审核               │  │
+│  └─────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────┘</div>
+  </div>
+</div>
+
+<!-- 9. 技术栈 -->
+<div class="section-card" id="techstack">
+  <div class="section-header">
+    <span class="material-icons-outlined">build</span>
+    <h2>9. 技术栈</h2>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr><th>领域</th><th>技术</th><th>用途</th></tr>
+      <tr>
+        <td><span class="chip primary">语言</span></td>
+        <td>C++ / Java / Go / Python</td>
+        <td>C++ 核心引擎，Java/Go 服务层，Python 模型</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">存储</span></td>
+        <td>Redis / RocksDB / HBase</td>
+        <td>Redis 实时计费，RocksDB 索引，HBase 日志</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">计算</span></td>
+        <td>Flink / Spark / Kafka</td>
+        <td>Flink 实时特征，Spark 离线训练，Kafka 消息</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">ML</span></td>
+        <td>TensorFlow / PyTorch / ONNX</td>
+        <td>CTR/CVR 模型训练与推理</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">检索</span></td>
+        <td>倒排索引 / FAISS / ScaNN</td>
+        <td>广告召回、向量检索</td>
+      </tr>
+      <tr>
+        <td><span class="chip primary">基础设施</span></td>
+        <td>K8s / gRPC / Prometheus</td>
+        <td>容器编排、RPC、监控</td>
+      </tr>
+    </table>
+
+    <h3><span class="material-icons-outlined">memory</span> 各环节技术选型</h3>
+    <div class="arch-diagram">召回层:   C++ + 倒排索引 + FAISS        → 延迟 &lt; 10ms
+粗排层:   C++ + 轻量模型 (LR/小 DNN)     → 延迟 &lt; 5ms
+精排层:   C++ + TF Serving / TensorRT    → 延迟 &lt; 20ms
+竞价层:   C++ + Redis Lua                → 延迟 &lt; 5ms
+计费层:   Go/Java + Redis + Kafka        → 延迟 &lt; 10ms
+特征层:   Flink 实时 + Spark 离线         → 准实时 / T+1
+模型层:   Python + TF/PyTorch → ONNX     → 训练离线，在线推理</div>
+  </div>
+</div>
+
+<!-- 10. 性能要求 -->
+<div class="section-card" id="perf">
+  <div class="section-header">
+    <span class="material-icons-outlined">speed</span>
+    <h2>10. 性能要求</h2>
+  </div>
+  <div class="section-body">
+    <p>广告引擎对性能要求极高，每个环节都要极致优化。</p>
+
+    <h3><span class="material-icons-outlined">timer</span> 延迟预算分配</h3>
+    <div class="bar-chart">
+      <div class="bar-item">
+        <div class="bar-label">请求接入</div>
+        <div class="bar-track"><div class="bar-fill blue" style="width:5%">~2ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">用户画像</div>
+        <div class="bar-track"><div class="bar-fill blue" style="width:8%">~5ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">广告召回</div>
+        <div class="bar-track"><div class="bar-fill green" style="width:15%">~10ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">粗排</div>
+        <div class="bar-track"><div class="bar-fill green" style="width:8%">~5ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">精排</div>
+        <div class="bar-track"><div class="bar-fill orange" style="width:30%">~20ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">竞价</div>
+        <div class="bar-track"><div class="bar-fill green" style="width:8%">~5ms</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">预算/频控</div>
+        <div class="bar-track"><div class="bar-fill green" style="width:5%">~3ms</div></div>
+      </div>
+    </div>
+
+    <h3><span class="material-icons-outlined">tune</span> 性能优化手段</h3>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">memory</span> 内存优化</h4>
+        <ul>
+          <li>紧凑数据结构，减少指针</li>
+          <li>内存池预分配</li>
+          <li>Arena Allocator</li>
+          <li>Cache-friendly 布局</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">flash_on</span> 计算优化</h4>
+        <ul>
+          <li>SIMD 向量化</li>
+          <li>批量推理 (Batch)</li>
+          <li>GPU / TensorRT 加速</li>
+          <li>无锁数据结构</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">sync_alt</span> 并发优化</h4>
+        <ul>
+          <li>异步化（协程 / Future）</li>
+          <li>批量合并请求</li>
+          <li>Pipeline 并行</li>
+          <li>线程池 + CPU 绑核</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">cached</span> 缓存优化</h4>
+        <ul>
+          <li>索引预热到内存</li>
+          <li>LRU 缓存热点数据</li>
+          <li>特征缓存（用户/广告）</li>
+          <li>模型权重常驻内存</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 11. 日常工作 -->
+<div class="section-card" id="daily">
+  <div class="section-header">
+    <span class="material-icons-outlined">work</span>
+    <h2>11. 日常工作</h2>
+  </div>
+  <div class="section-body">
+    <h3><span class="material-icons-outlined">pie_chart</span> 工作占比</h3>
+    <div class="bar-chart">
+      <div class="bar-item">
+        <div class="bar-label">引擎开发</div>
+        <div class="bar-track"><div class="bar-fill blue" style="width:40%">40% — 召回/排序/竞价/计费 C++ 开发</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">性能优化</div>
+        <div class="bar-track"><div class="bar-fill green" style="width:20%">20% — 延迟优化、吞吐提升</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">策略迭代</div>
+        <div class="bar-track"><div class="bar-fill orange" style="width:20%">20% — 竞价机制、Pacing、频控</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">数据 & 模型</div>
+        <div class="bar-track"><div class="bar-fill purple" style="width:10%">10% — 特征工程、模型上线</div></div>
+      </div>
+      <div class="bar-item">
+        <div class="bar-label">线上运维</div>
+        <div class="bar-track"><div class="bar-fill blue" style="width:10%">10% — 告警、容量、故障排查</div></div>
+      </div>
+    </div>
+
+    <h3><span class="material-icons-outlined">event</span> 典型一天</h3>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="time">09:30 — 查看线上指标</div>
+        <div class="desc">检查昨晚的广告收入、填充率、延迟是否有异常</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">10:00 — Code Review</div>
+        <div class="desc">Review 同事的竞价策略优化 PR</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">10:30 — 开发迭代</div>
+        <div class="desc">实现新的频控策略，写 C++ 单元测试</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">14:00 — AB 实验分析</div>
+        <div class="desc">分析新排序模型的 AB 实验数据，对比 eCPM 和 CTR</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">15:30 — 性能优化</div>
+        <div class="desc">Profile 精排链路，优化特征提取的内存分配</div>
+      </div>
+      <div class="timeline-item">
+        <div class="time">17:00 — 线上值班</div>
+        <div class="desc">处理告警：某广告主预算消耗过快，调整 Pacing 参数</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 12. 岗位对比 -->
+<div class="section-card" id="compare">
+  <div class="section-header">
+    <span class="material-icons-outlined">compare</span>
+    <h2>12. 岗位对比</h2>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr><th>岗位</th><th>侧重点</th><th>核心技术</th></tr>
+      <tr>
+        <td><strong>广告引擎研发</strong></td>
+        <td>底层引擎、系统性能、竞价计费</td>
+        <td>C++、分布式系统、高并发</td>
+      </tr>
+      <tr>
+        <td>广告算法工程师</td>
+        <td>CTR/CVR 模型、特征工程、推荐策略</td>
+        <td>Python、TF/PyTorch、ML</td>
+      </tr>
+      <tr>
+        <td>广告产品经理</td>
+        <td>广告形态、投放流程、商业策略</td>
+        <td>业务理解、数据分析</td>
+      </tr>
+      <tr>
+        <td>广告前端开发</td>
+        <td>广告 SDK、渲染、素材加载</td>
+        <td>JS/OC/Java、渲染优化</td>
+      </tr>
+      <tr>
+        <td>广告数据开发</td>
+        <td>数据管道、报表、归因</td>
+        <td>Spark/Flink、SQL、数仓</td>
+      </tr>
+    </table>
+
+    <div class="alert info">
+      <span class="material-icons-outlined">lightbulb</span>
+      <div><strong>广告引擎 vs 推荐引擎：</strong>底层技术高度相通（召回→排序→重排），区别在于广告多了竞价、计费、预算控制等商业化模块。从广告引擎转推荐系统（或反之）非常自然。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 13. 职业发展 -->
+<div class="section-card" id="career">
+  <div class="section-header">
+    <span class="material-icons-outlined">trending_up</span>
+    <h2>13. 职业发展</h2>
+  </div>
+  <div class="section-body">
+    <h3><span class="material-icons-outlined">route</span> 晋升路径</h3>
+    <div class="arch-diagram">初级工程师 ──▶ 高级工程师 ──▶ 技术专家 / 架构师
+    │                              │
+    │                              ├──▶ 广告系统架构师
+    │                              ├──▶ 技术总监
+    │                              └──▶ 转算法 (ML Engineer)
+    │
+    └──▶ 转方向：
+         ├── 推荐系统（技术相通）
+         ├── 搜索引擎（召回 + 排序）
+         └── 金融交易系统（高并发 + 低延迟）</div>
+
+    <h3><span class="material-icons-outlined">school</span> 需要掌握的核心能力</h3>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">code</span> 系统能力</h4>
+        <ul>
+          <li>C++ 高性能编程</li>
+          <li>分布式系统设计</li>
+          <li>高并发 & 低延迟优化</li>
+          <li>Linux 系统编程</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">psychology</span> 业务能力</h4>
+        <ul>
+          <li>广告商业模式理解</li>
+          <li>竞价 & 定价策略</li>
+          <li>ROI 优化思维</li>
+          <li>数据驱动决策</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4><span class="material-icons-outlined">smart_toy</span> 算法能力</h4>
+        <ul>
+          <li>CTR/CVR 模型原理</li>
+          <li>特征工程</li>
+          <li>AB 实验设计</li>
+          <li>在线学习 & 实时特征</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 14. 总结 -->
+<div class="section-card" id="summary">
+  <div class="section-header">
+    <span class="material-icons-outlined">summarize</span>
+    <h2>14. 总结</h2>
+  </div>
+  <div class="section-body">
+    <div class="alert success">
+      <span class="material-icons-outlined">star</span>
+      <div>
+        <strong>广告引擎研发 = 高性能 C++ 系统开发 + 分布式系统设计 + 广告业务领域知识</strong><br><br>
+        核心挑战：在<strong>毫秒级延迟</strong>内完成<strong>召回 → 排序 → 竞价 → 计费</strong>全链路，同时保证<strong>高可用、强一致、防作弊</strong>。<br><br>
+        是互联网公司里<strong>技术含量最高、离钱最近</strong>的岗位之一。
+      </div>
+    </div>
+
+    <h3><span class="material-icons-outlined">emoji_objects</span> 一句话速查</h3>
+    <table>
+      <tr><th>模块</th><th>一句话</th></tr>
+      <tr><td>召回</td><td>从百万广告中快速筛出候选（倒排索引 + ANN）</td></tr>
+      <tr><td>排序</td><td>CTR/CVR 模型打分，eCPM 排序</td></tr>
+      <tr><td>竞价</td><td>多广告竞争展示位（GSP / oCPM）</td></tr>
+      <tr><td>投放</td><td>预算平滑、频次控制、定向过滤</td></tr>
+      <tr><td>计费</td><td>实时扣费，Redis 原子操作，离线对账</td></tr>
+      <tr><td>反作弊</td><td>实时规则 + 离线模型，识别虚假流量</td></tr>
+      <tr><td>性能</td><td>P99 &lt; 100ms，C++ 主力，内存计算，无锁设计</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<footer>
+  <p>广告引擎研发工程师指南 — Ad Engine Development Engineer Guide</p>
+  <p>技术栈：C++ · Redis · Flink · TensorFlow · gRPC · K8s</p>
+</footer>
+
+</body>
+</html>

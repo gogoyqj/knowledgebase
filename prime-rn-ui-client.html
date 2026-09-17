@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prime Agent — React Native 架构设计</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <style>
+    /* ================================================================
+       Design Tokens
+       ================================================================ */
+    :root {
+      --md-primary: #1a73e8;
+      --md-primary-dark: #1557b0;
+      --md-primary-light: #d2e3fc;
+      --md-primary-container: #d3e3fd;
+      --md-on-primary: #ffffff;
+      --md-secondary: #5f6368;
+      --md-surface: #ffffff;
+      --md-surface-dim: #f8f9fa;
+      --md-surface-container: #f1f3f4;
+      --md-surface-container-high: #e8eaed;
+      --md-on-surface: #202124;
+      --md-on-surface-variant: #5f6368;
+      --md-outline: #dadce0;
+      --md-outline-variant: #e8eaed;
+      --md-error: #d93025;
+      --md-success: #1e8e3e;
+      --md-warning: #f9ab00;
+      --md-info: #1a73e8;
+      --md-tertiary: #7b1fa2;
+      --md-tertiary-container: #f3e5f5;
+      --md-shadow-1: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+      --md-shadow-2: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+      --md-shadow-3: 0 4px 8px 3px rgba(60,64,67,0.15), 0 1px 3px rgba(60,64,67,0.3);
+      --md-radius-sm: 8px;
+      --md-radius-md: 12px;
+      --md-radius-lg: 16px;
+      --md-radius-xl: 28px;
+    }
+
+    /* ================================================================
+       Reset & Base
+       ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Roboto', system-ui, -apple-system, sans-serif;
+      color: var(--md-on-surface);
+      background: var(--md-surface-dim);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================================================================
+       Top App Bar
+       ================================================================ */
+    .app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--md-shadow-2);
+    }
+    .app-bar-icon { font-size: 28px; }
+    .app-bar h1 { font-size: 20px; font-weight: 500; letter-spacing: 0.15px; }
+    .app-bar .subtitle { font-size: 14px; opacity: 0.85; font-weight: 300; margin-left: auto; }
+
+    /* ================================================================
+       Layout
+       ================================================================ */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* ================================================================
+       Section
+       ================================================================ */
+    .section {
+      margin-bottom: 40px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--md-outline);
+    }
+    .section-header .material-icons {
+      color: var(--md-primary);
+      font-size: 28px;
+    }
+    .section-header h2 {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--md-on-surface);
+    }
+    .section-desc {
+      color: var(--md-on-surface-variant);
+      font-size: 15px;
+      margin-bottom: 20px;
+      max-width: 800px;
+    }
+
+    /* ================================================================
+       Cards
+       ================================================================ */
+    .card {
+      background: var(--md-surface);
+      border-radius: var(--md-radius-md);
+      box-shadow: var(--md-shadow-1);
+      padding: 24px;
+      margin-bottom: 16px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: var(--md-shadow-2); }
+    .card-title {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .material-icons { font-size: 20px; color: var(--md-primary); }
+
+    /* ================================================================
+       Grid Layouts
+       ================================================================ */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    /* ================================================================
+       Code Blocks
+       ================================================================ */
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--md-radius-sm);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      margin: 12px 0;
+    }
+    code {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+    }
+    .inline-code {
+      background: var(--md-surface-container);
+      color: var(--md-error);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .kw { color: #569cd6; }
+    .str { color: #ce9178; }
+    .cm { color: #6a9955; }
+    .fn { color: #dcdcaa; }
+    .tp { color: #4ec9b0; }
+    .num { color: #b5cea8; }
+
+    /* ================================================================
+       Architecture Diagram (CSS-only)
+       ================================================================ */
+    .arch-diagram {
+      background: var(--md-surface);
+      border-radius: var(--md-radius-lg);
+      box-shadow: var(--md-shadow-2);
+      padding: 32px;
+      margin: 24px 0;
+      overflow-x: auto;
+    }
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 700px;
+    }
+    .arch-layer {
+      border-radius: var(--md-radius-md);
+      padding: 16px 20px;
+      position: relative;
+    }
+    .arch-layer-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      opacity: 0.7;
+    }
+    .arch-layer-items {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .arch-item {
+      background: rgba(255,255,255,0.85);
+      border-radius: var(--md-radius-sm);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+      white-space: nowrap;
+    }
+    .arch-item .material-icons { font-size: 16px; }
+
+    .layer-ui       { background: #e8f0fe; border: 2px solid #4285f4; }
+    .layer-store    { background: #fce8e6; border: 2px solid #ea4335; }
+    .layer-service  { background: #e6f4ea; border: 2px solid #34a853; }
+    .layer-transport{ background: #fef7e0; border: 2px solid #fbbc04; }
+    .layer-network  { background: #f3e8fd; border: 2px solid #a142f4; }
+
+    .arch-arrow {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 28px;
+      color: var(--md-on-surface-variant);
+    }
+    .arch-arrow .material-icons { font-size: 24px; }
+
+    /* ================================================================
+       Flow Diagram (horizontal)
+       ================================================================ */
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 20px 0;
+      overflow-x: auto;
+    }
+    .flow-step {
+      background: var(--md-surface);
+      border: 2px solid var(--md-primary-light);
+      border-radius: var(--md-radius-md);
+      padding: 14px 18px;
+      min-width: 140px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .flow-step.active { border-color: var(--md-primary); background: var(--md-primary-container); }
+    .flow-step-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--md-primary-dark);
+      margin-bottom: 4px;
+    }
+    .flow-step-desc {
+      font-size: 11px;
+      color: var(--md-on-surface-variant);
+    }
+    .flow-arrow {
+      color: var(--md-primary);
+      font-size: 24px;
+      flex-shrink: 0;
+      padding: 0 4px;
+    }
+
+    /* ================================================================
+       Tables
+       ================================================================ */
+    .md-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .md-table th {
+      background: var(--md-surface-container);
+      color: var(--md-on-surface-variant);
+      font-weight: 500;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--md-outline);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .md-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-outline-variant);
+      vertical-align: top;
+    }
+    .md-table tr:last-child td { border-bottom: none; }
+    .md-table tr:hover td { background: var(--md-surface-container); }
+
+    /* ================================================================
+       Chips / Badges
+       ================================================================ */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .chip-primary   { background: var(--md-primary-container); color: #1967d2; }
+    .chip-success   { background: #ceead6; color: #137333; }
+    .chip-warning   { background: #fef7e0; color: #b06000; }
+    .chip-error     { background: #fce8e6; color: #c5221f; }
+    .chip-tertiary  { background: var(--md-tertiary-container); color: #6a1b9a; }
+
+    /* ================================================================
+       Callouts
+       ================================================================ */
+    .callout {
+      border-radius: var(--md-radius-sm);
+      padding: 16px 20px;
+      margin: 16px 0;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: 14px;
+    }
+    .callout .material-icons { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .callout-info    { background: #e8f0fe; color: #174ea6; }
+    .callout-warning { background: #fef7e0; color: #8a6914; }
+    .callout-success { background: #e6f4ea; color: #137333; }
+    .callout-error   { background: #fce8e6; color: #a50e0e; }
+
+    /* ================================================================
+       Lists
+       ================================================================ */
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 14px;
+      color: var(--md-on-surface);
+    }
+    .feature-list li .material-icons {
+      color: var(--md-primary);
+      font-size: 20px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ================================================================
+       File Tree
+       ================================================================ */
+    .file-tree {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--md-radius-sm);
+      padding: 16px 20px;
+    }
+    .file-tree .dir { color: #569cd6; }
+    .file-tree .file { color: #d4d4d4; }
+    .file-tree .native { color: #4ec9b0; }
+    .file-tree .comment { color: #6a9955; }
+
+    /* ================================================================
+       Responsive
+       ================================================================ */
+    @media (max-width: 768px) {
+      .app-bar { height: 56px; padding: 0 16px; }
+      .app-bar h1 { font-size: 18px; }
+      .page-wrapper { padding: 20px 16px 60px; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .arch-diagram { padding: 20px; }
+      .flow-diagram { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ================================================================
+     App Bar
+     ================================================================ -->
+<header class="app-bar">
+  <span class="material-icons app-bar-icon">phone_android</span>
+  <h1>Prime Agent — React Native 架构设计</h1>
+  <span class="subtitle">packages/ui-client</span>
+</header>
+
+<div class="page-wrapper">
+
+<!-- ================================================================
+     1. 概述
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">info</span>
+    <h2>项目概述</h2>
+  </div>
+  <p class="section-desc">
+    Prime Agent React Native 客户端是一个通过 <strong>socket-transfer relay</strong> 与远程 Agent 守护进程通信的移动端应用。
+    采用 <strong>Consumer → Transport → Client → EventBridge → Store</strong> 分层架构，
+    利用 Metro bundler 的 <code class="inline-code">.native.ts</code> 后缀解析实现平台隔离，Web 代码零侵入。
+  </p>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title"><span class="material-icons">router</span> Relay 通信</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        通过 socket-transfer Consumer 连接 relay 服务器，订阅 Agent 守护进程的 Connection，
+        建立点对点双向 Transport 通道。
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="material-icons">layers</span> 平台隔离</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        Metro bundler 配置 <code class="inline-code">.native.ts</code> 优先级解析，
+        <code class="inline-code">agent-service.js</code> 自动映射到原生实现，
+        无需手动修改 import 路径。
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="material-icons">sync_alt</span> 事件驱动</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        EventBridge 将后端推送事件翻译为 Store 变更，
+        React 组件通过 <code class="inline-code">useSyncExternalStore</code> 订阅自动更新 UI。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     2. 分层架构
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">account_tree</span>
+    <h2>分层架构</h2>
+  </div>
+  <p class="section-desc">
+    从 UI 到网络共 5 层，每层只依赖下一层。核心原则：<strong>Store 不感知 Transport，UI 不感知 RPC 协议</strong>。
+  </p>
+
+  <div class="arch-diagram">
+    <div class="arch-layers">
+      <!-- UI Layer -->
+      <div class="arch-layer layer-ui">
+        <div class="arch-layer-label">UI 层 — React Native Screens</div>
+        <div class="arch-layer-items">
+          <div class="arch-item"><span class="material-icons">chat</span> ChatScreen</div>
+          <div class="arch-item"><span class="material-icons">list</span> SessionsScreen</div>
+          <div class="arch-item"><span class="material-icons">lan</span> ConnectionsScreen</div>
+          <div class="arch-item"><span class="material-icons">key</span> CredentialScreen</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow"><span class="material-icons">keyboard_arrow_down</span></div>
+
+      <!-- Store Layer -->
+      <div class="arch-layer layer-store">
+        <div class="arch-layer-label">Store 层 — useSyncExternalStore 响应式状态</div>
+        <div class="arch-layer-items">
+          <div class="arch-item"><span class="material-icons">message</span> MessageStore</div>
+          <div class="arch-item"><span class="material-icons">tab</span> SessionStore</div>
+          <div class="arch-item"><span class="material-icons">wifi</span> ConnectionStore</div>
+          <div class="arch-item"><span class="material-icons">notifications</span> ToastStore</div>
+          <div class="arch-item"><span class="material-icons">sync_disabled</span> EventBridge</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow"><span class="material-icons">keyboard_arrow_down</span></div>
+
+      <!-- Service Layer -->
+      <div class="arch-layer layer-service">
+        <div class="arch-layer-label">Service 层 — 业务抽象</div>
+        <div class="arch-layer-items">
+          <div class="arch-item"><span class="material-icons">phone_android</span> RnService</div>
+          <div class="arch-item"><span class="material-icons">description</span> AgentService (接口)</div>
+          <div class="arch-item"><span class="material-icons">code</span> AgentConnectionClient</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow"><span class="material-icons">keyboard_arrow_down</span></div>
+
+      <!-- Transport Layer -->
+      <div class="arch-layer layer-transport">
+        <div class="arch-layer-label">Transport 层 — 双向消息通道</div>
+        <div class="arch-layer-items">
+          <div class="arch-item"><span class="material-icons">usb</span> ConsumerTransport</div>
+          <div class="arch-item"><span class="material-icons">compare_arrows</span> Transport (接口)</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow"><span class="material-icons">keyboard_arrow_down</span></div>
+
+      <!-- Network Layer -->
+      <div class="arch-layer layer-network">
+        <div class="arch-layer-label">网络层 — socket-transfer</div>
+        <div class="arch-layer-items">
+          <div class="arch-item"><span class="material-icons">cloud</span> Consumer</div>
+          <div class="arch-item"><span class="material-icons">dns</span> Relay Server</div>
+          <div class="arch-item"><span class="material-icons">desktop_windows</span> Producer (守护进程)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     3. 核心组件
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">widgets</span>
+    <h2>核心组件</h2>
+  </div>
+
+  <div class="grid-2">
+    <!-- RnService -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons">phone_android</span> RnService</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:12px">
+        React Native 专属的 <code class="inline-code">AgentService</code> 实现。管理 Consumer 生命周期，
+        封装 connect → subscribe 两步握手流程。
+      </p>
+      <table class="md-table">
+        <thead><tr><th>方法</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline-code">connect(opts)</code></td><td>创建 Consumer，等待 relay 连接</td></tr>
+          <tr><td><code class="inline-code">listConnections()</code></td><td>列出可用的 Agent 守护进程</td></tr>
+          <tr><td><code class="inline-code">subscribe(uuid)</code></td><td>订阅 Connection，创建 Transport + Client</td></tr>
+          <tr><td><code class="inline-code">client</code></td><td>返回当前 AgentConnectionClient 实例</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- AgentConnectionClient -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons">code</span> AgentConnectionClient</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:12px">
+        将 <code class="inline-code">AgentConnection</code> 接口翻译为 Transport 上的 RPC 命令。
+        管理请求-响应关联、事件分发、超时重试。
+      </p>
+      <table class="md-table">
+        <thead><tr><th>能力</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>RPC 命令</td><td><code class="inline-code">prompt</code>, <code class="inline-code">createSession</code>, <code class="inline-code">listSessions</code> 等</td></tr>
+          <tr><td>事件订阅</td><td><code class="inline-code">subscribe(listener)</code> 返回 cleanup 函数</td></tr>
+          <tr><td>会话绑定</td><td>自动注入 <code class="inline-code">sessionId</code> 到非 daemon 级命令</td></tr>
+          <tr><td>心跳管理</td><td><code class="inline-code">manageHeartbeat</code> 保持会话活跃</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- EventBridge -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons">sync_disabled</span> EventBridge</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:12px">
+        后端事件到 Store 变更的唯一翻译层。替代原先散落在各处的 <code class="inline-code">if/else</code> 事件处理链。
+      </p>
+      <table class="md-table">
+        <thead><tr><th>事件类型</th><th>Store 操作</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip chip-primary">session_event</span></td><td><code class="inline-code">messageStore.onMessageUpdate/End</code></td></tr>
+          <tr><td><span class="chip chip-tertiary">session_replaced</span></td><td><code class="inline-code">messageStore.switchSession</code></td></tr>
+          <tr><td><span class="chip chip-success">session_resynced</span></td><td><code class="inline-code">messageStore.onHistoryMessages</code></td></tr>
+          <tr><td><span class="chip chip-warning">connection_status</span></td><td><code class="inline-code">connectionStore.setConnected</code></td></tr>
+          <tr><td><span class="chip chip-error">closed</span></td><td><code class="inline-code">connectionStore.setConnected(false)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Metro Config -->
+    <div class="card">
+      <div class="card-title"><span class="material-icons">settings</span> Metro 平台解析</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:12px">
+        自定义 <code class="inline-code">resolveRequest</code> 让 Metro 自动优先查找
+        <code class="inline-code">.native.ts</code> 后缀文件，实现平台隔离。
+      </p>
+      <pre><span class="cm">// metro.config.cjs</span>
+<span class="fn">resolveRequest</span>(context, moduleName, platform) {
+  <span class="cm">// .js → 去掉后缀，让 Metro 重新解析</span>
+  <span class="kw">if</span> (moduleName.<span class="fn">startsWith</span>(<span class="str">"."</span>) && moduleName.<span class="fn">endsWith</span>(<span class="str">".js"</span>))
+    moduleName = moduleName.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">-3</span>);
+
+  <span class="cm">// 优先查找 .native.ts, 再找 .ios.ts / .android.ts</span>
+  <span class="kw">for</span> (<span class="kw">const</span> suffix <span class="kw">of</span> [<span class="str">".native"</span>, <span class="str">`.<span class="kw">${</span>platform<span class="kw">}</span>`</span>]) {
+    <span class="kw">for</span> (<span class="kw">const</span> ext <span class="kw">of</span> [<span class="str">".ts"</span>, <span class="str">".tsx"</span>, <span class="str">".js"</span>]) {
+      <span class="kw">try</span> {
+        <span class="kw">return</span> context.<span class="fn">resolveRequest</span>(context, moduleName + suffix + ext, platform);
+      } <span class="kw">catch</span> {}
+    }
+  }
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     4. 核心流程
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">timeline</span>
+    <h2>核心流程</h2>
+  </div>
+
+  <!-- 流程 A: 建立连接 -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title"><span class="material-icons">power</span> 流程 A：建立 Relay 连接</div>
+    <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:16px">
+      用户输入 UID + Token → 连接 relay 服务器 → 获取可用 Agent 列表
+    </p>
+    <div class="flow-diagram">
+      <div class="flow-step active">
+        <div class="flow-step-title">CredentialScreen</div>
+        <div class="flow-step-desc">用户输入凭证</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">RnService.connect()</div>
+        <div class="flow-step-desc">createConsumer({url,uid,token})</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Consumer</div>
+        <div class="flow-step-desc">WebSocket 连接 relay</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">onStateChange</div>
+        <div class="flow-step-desc">state === "connected"</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step active">
+        <div class="flow-step-title">ConnectionsScreen</div>
+        <div class="flow-step-desc">listConnections() 展示列表</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 流程 B: 订阅连接 -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title"><span class="material-icons">link</span> 流程 B：订阅 Connection</div>
+    <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:16px">
+      选择 Agent → 订阅 Connection → 创建 Transport + Client → 初始化 Store
+    </p>
+    <div class="flow-diagram">
+      <div class="flow-step active">
+        <div class="flow-step-title">ConnectionsScreen</div>
+        <div class="flow-step-desc">用户选择 Agent</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">subscribe(uuid)</div>
+        <div class="flow-step-desc">Consumer.subscribe(uuid)</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">ConsumerTransport</div>
+        <div class="flow-step-desc">createConsumerTransport()</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">AgentConnectionClient</div>
+        <div class="flow-step-desc">new Client(transport)</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">initializeStores()</div>
+        <div class="flow-step-desc">创建 Store + 连接 EventBridge</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step active">
+        <div class="flow-step-title">SessionsScreen</div>
+        <div class="flow-step-desc">listSessions() 展示会话</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 流程 C: 发送消息 -->
+  <div class="card">
+    <div class="card-title"><span class="material-icons">send</span> 流程 C：发送 Prompt 与接收响应</div>
+    <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:16px">
+      用户输入 → RPC 发送 → 后端处理 → 事件推送 → EventBridge → Store → UI 更新
+    </p>
+    <div class="flow-diagram">
+      <div class="flow-step active">
+        <div class="flow-step-title">ChatScreen</div>
+        <div class="flow-step-desc">用户输入 prompt</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">client.prompt(text)</div>
+        <div class="flow-step-desc">cmd("prompt", {text,sessionId})</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Transport.send()</div>
+        <div class="flow-step-desc">Consumer.send(data)</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Relay → Daemon</div>
+        <div class="flow-step-desc">Agent 处理请求</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">onMessage 推送</div>
+        <div class="flow-step-desc">session_event(message_update)</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">EventBridge</div>
+        <div class="flow-step-desc">messageStore.onMessageUpdate()</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step active">
+        <div class="flow-step-title">ChatView</div>
+        <div class="flow-step-desc">useSyncExternalStore 渲染</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     5. 平台隔离机制
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">developer_board</span>
+    <h2>平台隔离机制</h2>
+  </div>
+  <p class="section-desc">
+    利用 Metro bundler 的自定义 <code class="inline-code">resolveRequest</code>，当 import 路径为
+    <code class="inline-code">./foo.js</code> 时，自动优先查找 <code class="inline-code">./foo.native.ts</code>。
+    业务代码无需关心平台差异。
+  </p>
+
+  <div class="card">
+    <div class="card-title"><span class="material-icons">folder_open</span> 文件对照</div>
+    <div class="grid-2" style="margin-top:12px">
+      <div>
+        <h4 style="font-size:14px;font-weight:500;margin-bottom:8px;color:var(--md-on-surface-variant)">Web (Electron/Browser)</h4>
+        <div class="file-tree">
+<span class="dir">services/</span>
+  <span class="file">agent-service.ts</span>        <span class="comment">// WebService / RpcService</span>
+  <span class="file">web-service.ts</span>
+  <span class="file">rpc-service.ts</span>
+  <span class="file">agent-service-types.ts</span>
+<span class="dir">stores/</span>
+  <span class="file">index.ts</span>                  <span class="comment">// 模块加载时创建 Store</span>
+  <span class="file">event-bridge.ts</span>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:14px;font-weight:500;margin-bottom:8px;color:var(--md-on-surface-variant)">React Native</h4>
+        <div class="file-tree">
+<span class="dir">services/</span>
+  <span class="native">agent-service.native.ts</span>  <span class="comment">// Metro 自动解析</span>
+  <span class="file">rn-service.ts</span>            <span class="comment">// RnService 类</span>
+  <span class="file">agent-service-types.ts</span>   <span class="comment">// 共享类型</span>
+<span class="dir">stores/</span>
+  <span class="native">index.native.ts</span>           <span class="comment">// 懒加载 Store</span>
+  <span class="file">event-bridge.ts</span>           <span class="comment">// 共享</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-info">
+    <span class="material-icons">lightbulb</span>
+    <div>
+      <strong>解析链路：</strong>
+      代码中 import <code class="inline-code">"./agent-service.js"</code> → Metro 去掉 <code class="inline-code">.js</code> →
+      尝试 <code class="inline-code">./agent-service.native.ts</code> → 命中 RN 专属实现。
+      Web 端则正常解析 <code class="inline-code">./agent-service.ts</code>。零 import 路径修改。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     6. 关键设计决策
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">gavel</span>
+    <h2>关键设计决策</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="material-icons">hourglass_top</span> 懒加载 Store</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:8px">
+        <strong>问题：</strong>Store 构造函数访问 <code class="inline-code">agentService.client</code>，
+        但 RN 中 client 在 <code class="inline-code">subscribeToConnection()</code> 后才可用。
+      </p>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        <strong>方案：</strong><code class="inline-code">index.native.ts</code> 导出未初始化的
+        <code class="inline-code">let</code> 变量，在 <code class="inline-code">initializeStores()</code>
+        中赋值。模块加载时只创建无依赖的 <code class="inline-code">ConnectionStore</code> 和
+        <code class="inline-code">ToastStore</code>。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons">autorenew</span> EventBridge 重连</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:8px">
+        <strong>问题：</strong>每次 <code class="inline-code">subscribeToConnection()</code> 创建新的
+        <code class="inline-code">AgentConnectionClient</code>，旧 EventBridge 仍在监听已废弃的 client。
+      </p>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        <strong>方案：</strong><code class="inline-code">connectEventBridge()</code> 返回 cleanup 函数，
+        <code class="inline-code">initializeStores()</code> 每次调用时先 cleanup 再重连。
+        保证事件始终路由到当前活跃的 client。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons">power_settings_new</span> 异步订阅</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:8px">
+        <strong>问题：</strong><code class="inline-code">subscribeToConnection()</code> 原本是同步的，
+        Transport 未就绪时 UI 就开始发送命令，导致 "Transport not connected" 错误。
+      </p>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        <strong>方案：</strong>改为 <code class="inline-code">async</code>，返回 Promise，
+        在 <code class="inline-code">transport.onOpen()</code> 时 resolve。
+        App.tsx 中 <code class="inline-code">await subscribeToConnection()</code> 后才初始化 Store。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons">class</span> RnService 类设计</div>
+      <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:8px">
+        <strong>问题：</strong>最初设计为工厂函数 + configureAgentService，存在模块绑定时序问题。
+      </p>
+      <p style="font-size:14px;color:var(--md-on-surface-variant)">
+        <strong>方案：</strong>改为 <code class="inline-code">class RnService implements AgentService</code>，
+        在 <code class="inline-code">agent-service.native.ts</code> 中 <code class="inline-code">new RnService()</code>
+        导出固定实例。所有 import 同一个引用，无时序依赖。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     7. 依赖关系
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">hub</span>
+    <h2>模块依赖</h2>
+  </div>
+
+  <div class="card">
+    <table class="md-table">
+      <thead>
+        <tr>
+          <th>模块</th>
+          <th>依赖</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code class="inline-code">rn-service.ts</code></td>
+          <td><span class="chip chip-tertiary">socket-transfer</span> <span class="chip chip-primary">agent-connection-client</span></td>
+          <td>创建 Consumer、ConsumerTransport、AgentConnectionClient</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">agent-service.native.ts</code></td>
+          <td><span class="chip chip-success">rn-service.ts</span></td>
+          <td>实例化 RnService 并导出为 agentService 单例</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">stores/index.native.ts</code></td>
+          <td><span class="chip chip-primary">agent-service</span> <span class="chip chip-warning">event-bridge</span></td>
+          <td>懒创建 MessageStore / SessionStore，重连 EventBridge</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">event-bridge.ts</code></td>
+          <td><span class="chip chip-primary">agent-connection-client</span></td>
+          <td>订阅 client 事件，驱动 store 变更</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">App.tsx</code></td>
+          <td><span class="chip chip-success">rn-service</span> <span class="chip chip-warning">stores</span></td>
+          <td>编排 connect → subscribe → initializeStores 流程</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================
+     8. 已解决的问题
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">check_circle</span>
+    <h2>已解决的问题</h2>
+  </div>
+
+  <div class="card">
+    <table class="md-table">
+      <thead>
+        <tr>
+          <th style="width:30%">问题</th>
+          <th style="width:35%">根因</th>
+          <th style="width:35%">修复</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="chip chip-error">Cannot read 'activeSessionId' of undefined</span></td>
+          <td>SessionStore 构造函数调用 <code class="inline-code">extractSessionId()</code> 访问未初始化的 sessionStore</td>
+          <td>懒加载 Store，<code class="inline-code">initializeStores()</code> 中再赋值</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">Transport not connected</span></td>
+          <td><code class="inline-code">subscribeToConnection</code> 同步返回，Transport 未就绪</td>
+          <td>改为 async，Promise 在 <code class="inline-code">onOpen</code> 时 resolve</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-warning">第二次进入显示 Disconnected</span></td>
+          <td><code class="inline-code">initialized</code> 守卫阻止重复设置 <code class="inline-code">connectionStore</code></td>
+          <td><code class="inline-code">setConnected(true)</code> 移到守卫外面</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">消息发送后 ChatView 不显示</span></td>
+          <td>EventBridge 监听旧 client 实例，新 client 的事件无人接收</td>
+          <td>每次 <code class="inline-code">initializeStores()</code> 重连 EventBridge，cleanup 旧订阅</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-warning">import web-service.ts 到 RN</span></td>
+          <td>agent-service.ts 内部 import WebService</td>
+          <td>Metro <code class="inline-code">resolveRequest</code> + <code class="inline-code">.native.ts</code> 平台隔离</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">require('ws') 找不到模块</span></td>
+          <td><code class="inline-code">ws</code> 是 Node.js WebSocket 库，RN 不支持。socket-transfer 内部依赖了它</td>
+          <td>Metro <code class="inline-code">resolveRequest</code> 将 <code class="inline-code">ws</code> 映射到空模块 <code class="inline-code">emptyModule.js</code>，RN 中 Consumer 走原生 WebSocket</td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">Android ws://localhost 不通</span></td>
+          <td>
+            Android 模拟器的 <code class="inline-code">localhost</code> / <code class="inline-code">127.0.0.1</code> 指向模拟器内部回环地址，非宿主机。
+            iOS 模拟器共享宿主网络栈所以无此问题。
+          </td>
+          <td>
+            <code class="inline-code">ws://10.0.2.2</code>（Android 模拟器专用映射宿主机）<br>
+            <code class="inline-code">ws://&lt;局域网IP&gt;</code>（真机场景）<br>
+            可在 CredentialScreen 按平台自动替换或提示用户。
+          </td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">Hermesc: Couldn't determine location</span></td>
+          <td>
+            Monorepo 中 <code class="inline-code">node_modules</code> 提升到根目录，Gradle 默认路径 <code class="inline-code">%OS-BIN%/hermesc</code> 解析失败
+          </td>
+          <td>
+            在 <code class="inline-code">app/build.gradle</code> 的 <code class="inline-code">react {}</code> 块中显式设置：<br>
+            <code class="inline-code">hermesCommand = file("../../../../node_modules/react-native/sdks/hermesc/osx-bin/hermesc").absolutePath</code>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">CLEARTEXT communication not permitted</span></td>
+          <td>
+            Android 9+ 默认禁止 HTTP/WS 明文连接，<code class="inline-code">ws://</code> 协议被网络安全策略拦截
+          </td>
+          <td>
+            添加 <code class="inline-code">res/xml/network_security_config.xml</code> 允许特定域名明文连接，并在 <code class="inline-code">AndroidManifest.xml</code> 中引用：<br>
+            <code class="inline-code">android:networkSecurityConfig="@xml/network_security_config"</code>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="chip chip-error">Debug APK unable to load script after release build</span></td>
+          <td>
+            构建 <code class="inline-code">app-release.apk</code> 后再运行 <code class="inline-code">npm run mobile:android</code>，debug APK 无法加载 Metro bundle。
+            根因是 <code class="inline-code">network_security_config.xml</code> 只允许了 relay 服务器的明文通信，未允许 <code class="inline-code">localhost</code>，导致 debug 模式连接 Metro（<code class="inline-code">localhost:8081</code>）被 Android 网络安全策略拦截。
+          </td>
+          <td>
+            在 <code class="inline-code">network_security_config.xml</code> 中同时添加 <code class="inline-code">localhost</code> 和 <code class="inline-code">10.0.2.2</code> 域名许可：<br>
+            <code class="inline-code">&lt;domain includeSubdomains="true"&gt;localhost&lt;/domain&gt;</code><br>
+            <code class="inline-code">&lt;domain includeSubdomains="false"&gt;10.0.2.2&lt;/domain&gt;</code><br>
+            注意：修改后需重新构建 debug APK（<code class="inline-code">npm run mobile:android</code>），release APK 不受影响。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout callout-warning" style="margin-top:16px">
+    <span class="material-icons">adb</span>
+    <div>
+      <strong>Android 网络隔离详解：</strong><br>
+      Android 模拟器运行在独立虚拟网络中，<code class="inline-code">localhost</code> / <code class="inline-code">127.0.0.1</code> 指向模拟器自身回环，非宿主机。
+      Google 提供特殊别名 <code class="inline-code">10.0.2.2</code> 映射到宿主机的 <code class="inline-code">127.0.0.1</code>。
+      iOS 模拟器与宿主机共享网络栈，<code class="inline-code">localhost</code> 直接可用。<br><br>
+      <strong>真机调试：</strong>确保手机与开发机在同一局域网，使用开发机局域网 IP（如 <code class="inline-code">ws://192.168.1.x:3456</code>）。
+    </div>
+  </div>
+
+  <div class="callout callout-error" style="margin-top:16px">
+    <span class="material-icons">block</span>
+    <div>
+      <strong>ws 模块 Stub：</strong><br>
+      <code class="inline-code">socket-transfer</code> 内部依赖 Node.js 的 <code class="inline-code">ws</code> 包，RN 环境没有此模块会直接报错。
+      通过 Metro <code class="inline-code">resolveRequest</code> 将 <code class="inline-code">"ws"</code> 映射到一个空的 JS 文件（<code class="inline-code">emptyModule.js</code>），
+      使 import 不报错但不执行任何操作。RN 中 <code class="inline-code">Consumer</code> 使用全局 <code class="inline-code">WebSocket</code> API，不走 <code class="inline-code">ws</code>。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     9. React Native 原理
+     ================================================================ -->
+<section class="section">
+  <div class="section-header">
+    <span class="material-icons">memory</span>
+    <h2>React Native 工作原理</h2>
+  </div>
+  <p class="section-desc">
+    React Native 让 JavaScript 驱动原生 UI，而非 WebView 渲染。理解其内部机制有助于排查性能瓶颈和编写高效的 Native Module。
+  </p>
+
+  <!-- 9.1 核心架构 -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title"><span class="material-icons">architecture</span> 核心架构（New Architecture）</div>
+    <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:16px">
+      React Native 0.68+ 引入 New Architecture，用 JSI + Fabric + TurboModules 替代旧的 Bridge 异步通信。
+    </p>
+    <div class="arch-diagram" style="padding:20px">
+      <div class="arch-layers">
+        <div class="arch-layer layer-ui">
+          <div class="arch-layer-label">JavaScript 线程</div>
+          <div class="arch-layer-items">
+            <div class="arch-item"><span class="material-icons">code</span> React 组件</div>
+            <div class="arch-item"><span class="material-icons">memory</span> Hermes / JSC 引擎</div>
+            <div class="arch-item"><span class="material-icons">sync_alt</span> JSI (JavaScript Interface)</div>
+          </div>
+        </div>
+        <div class="arch-arrow"><span class="material-icons">swap_vert</span></div>
+        <div class="arch-layer layer-transport">
+          <div class="arch-layer-label">C++ 核心层（共享）</div>
+          <div class="arch-layer-items">
+            <div class="arch-item"><span class="material-icons">view_quilt</span> Fabric (渲染器)</div>
+            <div class="arch-item"><span class="material-icons">extension</span> TurboModules</div>
+            <div class="arch-item"><span class="material-icons">settings_ethernet</span> JSI Host Objects</div>
+            <div class="arch-item"><span class="material-icons">call_split</span> Shadow Tree (Yoga)</div>
+          </div>
+        </div>
+        <div class="arch-arrow"><span class="material-icons">swap_vert</span></div>
+        <div class="arch-layer layer-network">
+          <div class="arch-layer-label">原生线程（Platform-specific）</div>
+          <div class="arch-layer-items">
+            <div class="arch-item"><span class="material-icons">android</span> Android (Java/Kotlin + JNI)</div>
+            <div class="arch-item"><span class="material-icons">phone_iphone</span> iOS (Objective-C++ / Swift)</div>
+            <div class="arch-item"><span class="material-icons">widgets</span> 原生 UI 组件</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9.2 关键概念对照 -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title"><span class="material-icons">compare_arrows</span> 关键概念对照</div>
+    <table class="md-table">
+      <thead>
+        <tr>
+          <th>概念</th>
+          <th>旧架构（Bridge）</th>
+          <th>新架构（JSI）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>JS ↔ Native 通信</strong></td>
+          <td>JSON 序列化 → 异步 Bridge 队列</td>
+          <td>JSI 同步 C++ 直接调用，零序列化</td>
+        </tr>
+        <tr>
+          <td><strong>UI 渲染器</strong></td>
+          <td>老 Renderer（Shadow Queue 单线程）</td>
+          <td>Fabric（并发渲染，优先级调度）</td>
+        </tr>
+        <tr>
+          <td><strong>Native Module</strong></td>
+          <td>NativeModules（全量初始化）</td>
+          <td>TurboModules（懒加载，按需初始化）</td>
+        </tr>
+        <tr>
+          <td><strong>类型安全</strong></td>
+          <td>运行时检查</td>
+          <td>Codegen 编译时生成类型绑定</td>
+        </tr>
+        <tr>
+          <td><strong>布局引擎</strong></td>
+          <td>Yoga（同）</td>
+          <td>Yoga（同，Shadow Tree 移到 C++）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 9.3 启动流程 -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title"><span class="material-icons">power_settings_new</span> 应用启动流程</div>
+    <div class="flow-diagram" style="flex-wrap:wrap;justify-content:center">
+      <div class="flow-step active">
+        <div class="flow-step-title">① App 启动</div>
+        <div class="flow-step-desc">iOS: AppDelegate<br>Android: MainApplication</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">② 创建 ReactHost</div>
+        <div class="flow-step-desc">初始化 JSI Runtime<br>加载 Hermes/JSC 引擎</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">③ 加载 JS Bundle</div>
+        <div class="flow-step-desc">Metro dev server<br>或打包后的 .bundle</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">④ JS 执行</div>
+        <div class="flow-step-desc">AppRegistry.registerComponent()<br>注册根组件</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">⑤ Fabric 渲染</div>
+        <div class="flow-step-desc">Shadow Tree 计算布局<br>创建原生 View</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step active">
+        <div class="flow-step-title">⑥ UI 就绪</div>
+        <div class="flow-step-desc">原生 View 树挂载<br>事件循环开始</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9.4 线程模型 -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="material-icons">dns</span> 线程模型</div>
+      <ul class="feature-list">
+        <li><span class="material-icons">code</span><div><strong>JS Thread</strong> — 执行 React 渲染逻辑、业务代码。Hermes 引擎运行于此。耗时操作会阻塞 UI 响应。</div></li>
+        <li><span class="material-icons">view_quilt</span><div><strong>Main/UI Thread</strong> — 原生 UI 操作、事件分发。Fabric 将 Shadow Tree 提交到此线程挂载真实 View。</div></li>
+        <li><span class="material-icons">settings_ethernet</span><div><strong>Shadow Thread</strong> — Yoga 布局计算。C++ Shadow Tree 在此线程 diff 并计算 flexbox 布局。</div></li>
+        <li><span class="material-icons">cloud_upload</span><div><strong>Background Modules</strong> — NativeModule 可指定运行线程（如网络、文件 I/O）。TurboModules 支持同步调用。</div></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="material-icons">memory</span> Hermes 引擎</div>
+      <ul class="feature-list">
+        <li><span class="material-icons">flash_on</span><div><strong>字节码预编译</strong> — 构建时将 JS 编译为 Hermes 字节码，启动时无需解析，冷启动快 2-3x。</div></li>
+        <li><span class="material-icons">memory</span><div><strong>低内存占用</strong> — 针对移动端优化的 GC 策略，内存占用比 JSC 低 30-40%。</div></li>
+        <li><span class="material-icons">bug_report</span><div><strong>内置 Profiler</strong> — 支持 Chrome DevTools Protocol，可直接在 Chrome 调试 JS。</div></li>
+        <li><span class="material-icons">speed</span><div><strong>JSI 直连</strong> — Hermes 实现了 JSI 接口，C++ 可直接访问 JS 对象，无需 JSON 序列化。</div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 9.5 C++ Native Module -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-title"><span class="material-icons">extension</span> 使用 C++ 扩展 Native Module（TurboModule）</div>
+    <p style="font-size:14px;color:var(--md-on-surface-variant);margin-bottom:16px">
+      TurboModules 通过 JSI 实现 JS ↔ C++ 同步调用，适合高性能计算、加密、图像处理等场景。
+      以下是一个最小 C++ TurboModule 的完整示例。
+    </p>
+
+    <!-- 步骤 1: Codegen Spec -->
+    <h4 style="font-size:14px;font-weight:500;margin-bottom:8px;color:var(--md-primary)">步骤 1：定义 JS Spec（Codegen 输入）</h4>
+    <pre><span class="cm">// native/NativeMathModule.ts</span>
+<span class="kw">import</span> { TurboModule } <span class="kw">from</span> <span class="str">"react-native"</span>;
+<span class="kw">import</span> { TurboModuleRegistry } <span class="kw">from</span> <span class="str">"react-native"</span>;
+
+<span class="kw">export interface</span> <span class="tp">Spec</span> <span class="kw">extends</span> <span class="tp">TurboModule</span> {
+  <span class="cm">// 同步方法 — JS 直接拿到返回值，无 Bridge 异步开销</span>
+  <span class="fn">fibonacci</span>(n: <span class="tp">number</span>): <span class="tp">number</span>;
+
+  <span class="cm">// 异步方法 — 返回 Promise</span>
+  <span class="fn">factorialAsync</span>(n: <span class="tp">number</span>): <span class="tp">Promise</span>&lt;<span class="tp">number</span>&gt;;
+
+  <span class="cm">// 常量 — 在 Native 侧定义，JS 侧只读</span>
+  <span class="kw">readonly</span> PI_SQUARED: <span class="tp">number</span>;
+}
+
+<span class="kw">export default</span> TurboModuleRegistry.<span class="fn">getEnforcing</span>&lt;<span class="tp">Spec</span>&gt;(<span class="str">"MathModule"</span>);</pre>
+
+    <!-- 步骤 2: C++ 实现 -->
+    <h4 style="font-size:14px;font-weight:500;margin:20px 0 8px;color:var(--md-primary)">步骤 2：C++ 实现</h4>
+    <pre><span class="cm">// cpp/NativeMathModule.h</span>
+<span class="kw">#pragma once</span>
+<span class="kw">#include</span> <span class="str">"NativeMathModuleSpec.h"</span>  <span class="cm">// Codegen 生成</span>
+
+<span class="kw">namespace</span> facebook::react {
+
+<span class="kw">class</span> <span class="tp">NativeMathModule</span> : <span class="kw">public</span> <span class="tp">NativeMathModuleSpecCxx</span> {
+<span class="kw">public</span>:
+  <span class="fn">NativeMathModule</span>(std::shared_ptr&lt;<span class="tp">CallInvoker</span>&gt; jsInvoker);
+
+  <span class="cm">// 同步方法 — 直接在 JS 线程执行，返回值立即可用</span>
+  <span class="tp">double</span> <span class="fn">fibonacci</span>(<span class="tp">double</span> n) <span class="kw">override</span>;
+
+  <span class="cm">// 异步方法 — 返回 jsi::Value (Promise)</span>
+  <span class="tp">jsi::Value</span> <span class="fn">factorialAsync</span>(<span class="tp">jsi::Runtime</span>&amp; rt, <span class="tp">double</span> n) <span class="kw">override</span>;
+
+  <span class="cm">// 常量</span>
+  <span class="tp">jsi::Value</span> <span class="fn">getConstants</span>(<span class="tp">jsi::Runtime</span>&amp; rt) <span class="kw">override</span>;
+};
+
+} <span class="cm">// namespace facebook::react</span></pre>
+    <pre><span class="cm">// cpp/NativeMathModule.cpp</span>
+<span class="kw">#include</span> <span class="str">"NativeMathModule.h"</span>
+<span class="kw">#include</span> &lt;<span class="str">future</span>&gt;
+
+<span class="kw">namespace</span> facebook::react {
+
+<span class="fn">NativeMathModule::NativeMathModule</span>(std::shared_ptr&lt;<span class="tp">CallInvoker</span>&gt; jsInvoker)
+    : <span class="tp">NativeMathModuleSpecCxx</span>(std::move(jsInvoker)) {}
+
+<span class="tp">double</span> <span class="fn">NativeMathModule::fibonacci</span>(<span class="tp">double</span> n) {
+  <span class="kw">if</span> (n &lt;= <span class="num">1</span>) <span class="kw">return</span> n;
+  <span class="tp">double</span> a = <span class="num">0</span>, b = <span class="num">1</span>;
+  <span class="kw">for</span> (<span class="tp">int</span> i = <span class="num">2</span>; i &lt;= (<span class="tp">int</span>)n; i++) {
+    <span class="tp">double</span> tmp = a + b;
+    a = b;
+    b = tmp;
+  }
+  <span class="kw">return</span> b;
+}
+
+<span class="tp">jsi::Value</span> <span class="fn">NativeMathModule::factorialAsync</span>(<span class="tp">jsi::Runtime</span>&amp; rt, <span class="tp">double</span> n) {
+  <span class="cm">// 创建 Promise 并在后台线程执行</span>
+  <span class="kw">auto</span> promise = <span class="tp">Promise</span>::<span class="fn">create</span>(rt);
+  <span class="kw">auto</span> result = promise.<span class="fn">getValue</span>(rt);
+
+  std::<span class="fn">async</span>(std::launch::async, [<span class="kw">this</span>, n, promise = std::move(promise)]() <span class="kw">mutable</span> {
+    <span class="tp">double</span> acc = <span class="num">1</span>;
+    <span class="kw">for</span> (<span class="tp">int</span> i = <span class="num">2</span>; i &lt;= (<span class="tp">int</span>)n; i++) acc *= i;
+    promise.<span class="fn">resolve</span>(acc);  <span class="cm">// 回到 JS 线程 resolve</span>
+  });
+
+  <span class="kw">return</span> result;
+}
+
+<span class="tp">jsi::Value</span> <span class="fn">NativeMathModule::getConstants</span>(<span class="tp">jsi::Runtime</span>&amp; rt) {
+  <span class="kw">auto</span> obj = jsi::<span class="tp">Object</span>(rt);
+  obj.<span class="fn">setProperty</span>(rt, <span class="str">"PI_SQUARED"</span>, M_PI * M_PI);
+  <span class="kw">return</span> obj;
+}
+
+} <span class="cm">// namespace facebook::react</span></pre>
+
+    <!-- 步骤 3: 平台注册 -->
+    <h4 style="font-size:14px;font-weight:500;margin:20px 0 8px;color:var(--md-primary)">步骤 3：平台注册（以 iOS 为例）</h4>
+    <pre><span class="cm">// ios/MathModule.mm  (Objective-C++ 桥接)</span>
+<span class="kw">#import</span> &lt;<span class="str">React/RCTBridgeModule.h</span>&gt;
+<span class="kw">#import</span> <span class="str">"NativeMathModule.h"</span>
+
+<span class="kw">@interface</span> <span class="tp">MathModule</span> : <span class="tp">NSObject</span> &lt;<span class="tp">RCTBridgeModule</span>&gt;
+<span class="kw">@end</span>
+
+<span class="kw">@implementation</span> <span class="tp">MathModule</span>
+RCT_EXPORT_MODULE(<span class="str">MathModule</span>)
+
+<span class="cm">// 注册 C++ TurboModule</span>
++ (std::shared_ptr&lt;react::<span class="tp">TurboModule</span>&gt;)getTurboModule:
+    (const react::<span class="tp">ObjCTurboModule::InitParams</span>&amp;)params {
+  <span class="kw">return</span> std::make_shared&lt;react::<span class="tp">NativeMathModule</span>&gt;(params.jsInvoker);
+}
+<span class="kw">@end</span></pre>
+
+    <!-- 步骤 4: JS 使用 -->
+    <h4 style="font-size:14px;font-weight:500;margin:20px 0 8px;color:var(--md-primary)">步骤 4：JS 端使用</h4>
+    <pre><span class="kw">import</span> MathModule <span class="kw">from</span> <span class="str">"./native/NativeMathModule"</span>;
+
+<span class="cm">// 同步调用 — 直接返回，无异步开销</span>
+<span class="kw">const</span> result = MathModule.<span class="fn">fibonacci</span>(<span class="num">10</span>);  <span class="cm">// 55</span>
+
+<span class="cm">// 异步调用 — 返回 Promise</span>
+<span class="kw">const</span> fact = <span class="kw">await</span> MathModule.<span class="fn">factorialAsync</span>(<span class="num">20</span>);
+
+<span class="cm">// 常量</span>
+console.<span class="fn">log</span>(MathModule.PI_SQUARED);  <span class="cm">// 9.8696...</span></pre>
+
+    <div class="callout callout-info" style="margin-top:16px">
+      <span class="material-icons">lightbulb</span>
+      <div>
+        <strong>C++ vs Java/ObjC NativeModule 选择：</strong><br>
+        • <strong>C++ TurboModule</strong> — 跨平台共享一份代码，同步调用，适合计算密集型（加密、图像处理、数学运算）<br>
+        • <strong>Java/ObjC Module</strong> — 需要访问平台 API（蓝牙、相机、文件系统），每平台各写一份<br>
+        • <strong>混合方案</strong> — C++ 核心逻辑 + Java/ObjC 薄包装层，兼顾跨平台和平台能力
+      </div>
+    </div>
+  </div>
+
+  <!-- 9.6 Metro 打包 -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-title"><span class="material-icons">local_shipping</span> Metro Bundler 打包流程</div>
+    <div class="flow-diagram" style="flex-wrap:wrap;justify-content:center">
+      <div class="flow-step active">
+        <div class="flow-step-title">Entry Point</div>
+        <div class="flow-step-desc">index.js</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Resolver</div>
+        <div class="flow-step-desc">依赖图遍历<br>自定义 resolveRequest</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Transformer</div>
+        <div class="flow-step-desc">Babel 转译<br>TSX → JS</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Serializer</div>
+        <div class="flow-step-desc">生成 bundle<br>Source Map</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step">
+        <div class="flow-step-title">Hermes 编译</div>
+        <div class="flow-step-desc">JS → 字节码<br>.bundle → .hbc</div>
+      </div>
+      <span class="flow-arrow material-icons">arrow_forward</span>
+      <div class="flow-step active">
+        <div class="flow-step-title">打包产物</div>
+        <div class="flow-step-desc">main.jsbundle (iOS)<br>index.android.bundle</div>
+      </div>
+    </div>
+    <pre style="margin-top:16px"><span class="cm">// metro.config.cjs — 本项目的自定义配置</span>
+module.exports = {
+  resolver: {
+    <span class="fn">resolveRequest</span>(context, moduleName, platform) {
+      <span class="cm">// 1. .js → 去后缀，让 Metro 重新解析</span>
+      <span class="cm">// 2. 优先 .native.ts → 平台隔离</span>
+      <span class="cm">// 3. ws → emptyModule.js → stub</span>
+    },
+  },
+};</pre>
+  </div>
+</section>
+
+<!-- ================================================================
+     Footer
+     ================================================================ -->
+<footer style="text-align:center;padding:32px 0;color:var(--md-on-surface-variant);font-size:13px;border-top:1px solid var(--md-outline);margin-top:40px">
+  Prime Agent — React Native Architecture Design &nbsp;|&nbsp; packages/ui-client &nbsp;|&nbsp; 2026
+</footer>
+
+</div><!-- /page-wrapper -->
+</body>
+</html>

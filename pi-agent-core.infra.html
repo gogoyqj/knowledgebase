@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@pi-agent-core — Architecture Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #E1BEE7;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-dim: #F5F5F5;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0,0,0,0.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+    --md-radius-xs: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px 16px;
+    box-shadow: 0 2px 4px var(--md-shadow);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: 0.02em; }
+  .top-bar .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; font-weight: 300; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+  .chip .material-icons-outlined { font-size: 16px; }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 14px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .material-icons-outlined { font-size: 20px; }
+
+  .card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px var(--md-shadow); }
+  .card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--md-on-surface); }
+  .card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); line-height: 1.7; }
+  .card ul { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  code {
+    font-family: 'Roboto Mono', monospace; font-size: 12.5px;
+    background: var(--md-surface-dim); padding: 2px 6px;
+    border-radius: 4px; color: var(--md-primary);
+  }
+  pre {
+    background: #263238; color: #EEFFFF;
+    padding: 16px 20px; border-radius: var(--md-radius-sm);
+    overflow-x: auto; font-family: 'Roboto Mono', monospace;
+    font-size: 12.5px; line-height: 1.7;
+    margin: 12px 0;
+  }
+  pre .kw { color: #C792EA; }
+  pre .fn { color: #82AAFF; }
+  pre .str { color: #C3E88D; }
+  pre .cmt { color: #546E7A; }
+  pre .typ { color: #FFCB6B; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 500;
+    color: var(--md-on-surface-variant); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--md-outline-variant); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--md-primary-light); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--md-primary-container); color: #1565C0; }
+  .badge-green  { background: var(--md-secondary-container); color: #00695C; }
+  .badge-purple { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .badge-red    { background: var(--md-error-container); color: var(--md-error); }
+
+  .flow {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; padding: 20px 0;
+  }
+  .flow-node {
+    padding: 10px 18px; border-radius: var(--md-radius-sm);
+    font-size: 13px; font-weight: 500; text-align: center;
+    min-width: 110px;
+  }
+  .flow-node.primary   { background: var(--md-primary-container); color: #1565C0; }
+  .flow-node.secondary { background: var(--md-secondary-container); color: #00695C; }
+  .flow-node.tertiary  { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .flow-node.surface   { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+  .flow-arrow {
+    font-size: 20px; color: var(--md-outline);
+    display: flex; align-items: center;
+  }
+
+  .pattern-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    margin: 0 4px 6px 0;
+  }
+
+  .accent-block {
+    border-left: 4px solid var(--md-primary);
+    padding: 12px 16px; margin: 12px 0;
+    background: var(--md-primary-light); border-radius: 0 var(--md-radius-xs) var(--md-radius-xs) 0;
+    font-size: 13px; color: var(--md-on-surface-variant);
+  }
+
+  .toc {
+    position: fixed; right: 24px; top: 100px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .toc a {
+    font-size: 11px; color: var(--md-on-surface-variant);
+    text-decoration: none; padding: 3px 10px;
+    border-radius: 4px; transition: 0.15s;
+  }
+  .toc a:hover { background: var(--md-primary-light); color: var(--md-primary); }
+  @media (max-width: 1400px) { .toc { display: none; } }
+
+  .layer-diagram {
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+    padding: 20px 0;
+  }
+  .layer {
+    width: 100%; max-width: 700px;
+    padding: 14px 24px; text-align: center;
+    font-size: 13px; font-weight: 500;
+    border-radius: var(--md-radius-sm);
+    position: relative;
+  }
+  .layer-arrow {
+    width: 2px; height: 24px;
+    background: var(--md-outline);
+    position: relative;
+  }
+  .layer-arrow::after {
+    content: ''; position: absolute; bottom: -4px; left: -4px;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid var(--md-outline);
+  }
+
+  .file-tree { font-family: 'Roboto Mono', monospace; font-size: 13px; line-height: 2; }
+  .file-tree .dir { color: var(--md-primary); font-weight: 500; }
+  .file-tree .file { color: var(--md-on-surface-variant); }
+  .file-tree .desc { color: var(--md-outline); font-family: 'Roboto', sans-serif; font-size: 12px; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>@earendil-works/pi-agent-core</h1>
+  <div class="subtitle">Stateful LLM Agent Runtime — Multi-Turn Conversations with Tool Execution</div>
+</div>
+
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#structure">File Structure</a>
+  <a href="#agent">Agent Class</a>
+  <a href="#loop">Agent Loop</a>
+  <a href="#types">Core Types</a>
+  <a href="#events">Event System</a>
+  <a href="#tools">Tool System</a>
+  <a href="#proxy">Proxy Stream</a>
+  <a href="#repetition">Repetition Guard</a>
+  <a href="#patterns">Patterns</a>
+  <a href="#api">Public API</a>
+</nav>
+
+<div class="container">
+
+<!-- ── Overview ── -->
+<div class="section" id="overview">
+  <div class="section-title">
+    <span class="material-icons-outlined">smart_toy</span> Module Overview
+  </div>
+
+  <div class="chip-row">
+    <span class="chip"><span class="material-icons-outlined">package_2</span> v0.7.3</span>
+    <span class="chip"><span class="material-icons-outlined">published_with_changes</span> prime-agent-core</span>
+    <span class="chip"><span class="material-icons-outlined">sync_alt</span> Multi-Turn Loop</span>
+    <span class="chip"><span class="material-icons-outlined">build_circle</span> Tool Execution</span>
+    <span class="chip"><span class="material-icons-outlined">event</span> 11 Event Types</span>
+    <span class="chip"><span class="material-icons-outlined">security</span> Abort Support</span>
+  </div>
+
+  <div class="card">
+    <h3>Purpose</h3>
+    <p>A stateful LLM agent runtime that orchestrates multi-turn conversations with tool execution. Built on top of <code>@pi-ai</code>, it adds lifecycle management, message queuing, event subscription, tool hooks, and degenerate output detection.</p>
+  </div>
+
+  <div class="card">
+    <h3>Execution Flow</h3>
+    <div class="flow">
+      <div class="flow-node primary">Agent.prompt()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node secondary">runWithLifecycle()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node tertiary">agentLoop()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node surface">transformContext</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node primary">convertToLlm</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node secondary">streamFn()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node tertiary">executeTools</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node surface">processEvents</div>
+    </div>
+    <div class="accent-block">
+      <strong>Two-layer design:</strong> High-level <code>Agent</code> class wraps low-level stateless <code>agentLoop</code> functions. The loop is pure and functional; the class adds state, queues, and lifecycle.
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>High-Level API</h3>
+      <p><code>Agent</code> class — stateful wrapper with lifecycle management, event subscription, message queuing (steering + follow-up), and abort coordination.</p>
+    </div>
+    <div class="card">
+      <h3>Low-Level API</h3>
+      <p><code>agentLoop()</code> / <code>agentLoopContinue()</code> — stateless functions returning <code>EventStream&lt;AgentEvent&gt;</code>. No state management, no queuing — pure loop logic.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── File Structure ── -->
+<div class="section" id="structure">
+  <div class="section-title">
+    <span class="material-icons-outlined">folder_open</span> File Structure
+  </div>
+
+  <div class="card">
+    <div class="file-tree">
+      <div><span class="dir">src/</span></div>
+      <div style="padding-left:24px"><span class="file">index.ts</span><span class="desc">— barrel re-export of all public API</span></div>
+      <div style="padding-left:24px"><span class="file">types.ts</span><span class="desc">— all type definitions, interfaces, configuration contracts</span></div>
+      <div style="padding-left:24px"><span class="file">agent.ts</span><span class="desc">— high-level Agent class with state &amp; lifecycle management</span></div>
+      <div style="padding-left:24px"><span class="file">agent-loop.ts</span><span class="desc">— low-level stateless agent loop execution engine</span></div>
+      <div style="padding-left:24px"><span class="file">proxy.ts</span><span class="desc">— proxy stream for routing LLM calls through backend server</span></div>
+      <div style="padding-left:24px"><span class="file">repetition-guard.ts</span><span class="desc">— tail-repetition detection and stream interruption</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Layered Architecture</h3>
+    <div class="layer-diagram">
+      <div class="layer" style="background:var(--md-primary-container); color:#1565C0;">
+        <strong>Agent</strong> <span style="font-weight:300">— State, Events, Queues, Lifecycle</span>
+        <br><code>agent.ts</code>
+      </div>
+      <div class="layer-arrow"></div>
+      <div class="layer" style="background:var(--md-secondary-container); color:#00695C;">
+        <strong>agentLoop / agentLoopContinue</strong> <span style="font-weight:300">— Stateless Loop Engine</span>
+        <br><code>agent-loop.ts</code>
+      </div>
+      <div class="layer-arrow"></div>
+      <div class="layer" style="background:var(--md-tertiary-container); color:#6A1B9A;">
+        <strong>streamFn + Hooks</strong> <span style="font-weight:300">— LLM Stream, Tool Hooks, Transform Pipeline</span>
+        <br><code>types.ts</code> (contracts) + <code>@pi-ai</code> (implementation)
+      </div>
+      <div class="layer-arrow"></div>
+      <div class="layer" style="background:var(--md-surface-container-high); color:var(--md-on-surface);">
+        <strong>Support</strong> <span style="font-weight:300">— Proxy Stream, Repetition Guard</span>
+        <br><code>proxy.ts</code> + <code>repetition-guard.ts</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Agent Class ── -->
+<div class="section" id="agent">
+  <div class="section-title">
+    <span class="material-icons-outlined">precision_manufacturing</span> Agent Class
+  </div>
+
+  <div class="card">
+    <h3>agent.ts — Stateful Agent Wrapper</h3>
+    <pre><span class="kw">const</span> agent = <span class="kw">new</span> <span class="typ">Agent</span>({
+  streamFn,           <span class="cmt">// LLM streaming function</span>
+  convertToLlm,       <span class="cmt">// AgentMessage[] → Message[] bridge</span>
+  transformContext,    <span class="cmt">// optional context pruning/compaction</span>
+  tools,              <span class="cmt">// AgentTool[] with execute handlers</span>
+  systemPrompt,       <span class="cmt">// string | () => string (dynamic)</span>
+  apiKey,             <span class="cmt">// string | () => Promise&lt;string&gt; (expiring tokens)</span>
+  getSteeringMessages,<span class="cmt">// async queue drain during tool execution</span>
+  getFollowUpMessages,<span class="cmt">// async queue drain after turn completion</span>
+  getContinuationMessages, <span class="cmt">// auto-continue after tool results</span>
+  shouldStopAfterTurn,
+  shouldStopBeforeTurn,
+  beforeToolCall,      <span class="cmt">// pre-execution hook (can block)</span>
+  afterToolCall,       <span class="cmt">// post-execution hook (can override)</span>
+})</pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>State Ownership</h3>
+      <ul>
+        <li>Creates and manages <code>MutableAgentState</code></li>
+        <li>Defensive copying on assignment (copy-on-write)</li>
+        <li>Public read: <code>systemPrompt</code>, <code>model</code>, <code>thinkingLevel</code>, <code>serviceTier</code></li>
+        <li>Runtime read-only: <code>isStreaming</code>, <code>streamingMessage</code>, <code>pendingToolCalls</code>, <code>errorMessage</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Message Queues</h3>
+      <ul>
+        <li><strong>Steering queue</strong> — drained during tool execution; injects user guidance mid-turn</li>
+        <li><strong>Follow-up queue</strong> — drained after turn completion; handles async user input</li>
+        <li>Two drain modes: <code>"all"</code> (batch) or <code>"one-at-a-time"</code> (sequential)</li>
+        <li><code>steer(msg)</code> / <code>followUp(msg)</code> — public queue methods</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Run Lifecycle</h3>
+      <ul>
+        <li><code>prompt(message)</code> — start new conversation turn</li>
+        <li><code>continue()</code> — resume from current context</li>
+        <li>Both delegate to <code>runWithLifecycle()</code></li>
+        <li>Creates <code>AbortController</code>, sets <code>isStreaming</code></li>
+        <li>Concurrency guard: one active run at a time</li>
+        <li><code>abort()</code> — cancel current run</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Error Recovery</h3>
+      <ul>
+        <li><code>handleRunFailure()</code> synthesizes error <code>AssistantMessage</code></li>
+        <li>Emits lifecycle events even on unexpected failures</li>
+        <li>Errors never crash the agent — encoded in state</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Agent Loop ── -->
+<div class="section" id="loop">
+  <div class="section-title">
+    <span class="material-icons-outlined">loop</span> Agent Loop Engine
+  </div>
+
+  <div class="card">
+    <h3>agent-loop.ts — Stateless Execution Engine</h3>
+    <pre><span class="cmt">// Two entry points</span>
+<span class="fn">agentLoop</span>(config, prompt)         <span class="cmt">// new prompt → EventStream&lt;AgentEvent&gt;</span>
+<span class="fn">agentLoopContinue</span>(config)        <span class="cmt">// resume from context → EventStream&lt;AgentEvent&gt;</span>
+
+<span class="cmt">// Async callback variants</span>
+<span class="fn">runAgentLoop</span>(config, prompt, sink)
+<span class="fn">runAgentLoopContinue</span>(config, sink)</pre>
+  </div>
+
+  <div class="card">
+    <h3>Loop Structure</h3>
+    <pre><span class="cmt">// Outer loop: follow-up / continuation polling</span>
+<span class="kw">while</span> (hasFollowUps || hasContinuation) {
+  <span class="cmt">// Inner loop: tool calls + steering injection</span>
+  <span class="kw">while</span> (hasToolCalls || hasSteeringMessages) {
+    <span class="fn">streamAssistantResponse</span>()     <span class="cmt">// transformContext → convertToLlm → streamFn</span>
+    <span class="fn">executeToolCalls</span>()             <span class="cmt">// prepare → beforeToolCall → execute → afterToolCall</span>
+    <span class="fn">drainSteeringMessages</span>()        <span class="cmt">// inject queued steering input</span>
+  }
+  <span class="fn">drainFollowUpMessages</span>()          <span class="cmt">// process follow-up queue</span>
+  <span class="fn">checkContinuation</span>()              <span class="cmt">// getContinuationMessages()</span>
+}
+
+<span class="cmt">// Termination conditions:</span>
+<span class="cmt">//   - No more tool calls</span>
+<span class="cmt">//   - No steering messages</span>
+<span class="cmt">//   - No follow-ups</span>
+<span class="cmt">//   - No continuations</span>
+<span class="cmt">//   - shouldStopAfterTurn / shouldStopBeforeTurn triggers</span></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Message Pipeline</h3>
+      <p>Applied fresh each turn:</p>
+      <div class="flow" style="padding:12px 0; gap:6px;">
+        <div class="flow-node primary" style="padding:6px 12px; min-width:auto;">AgentMessage[]</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node secondary" style="padding:6px 12px; min-width:auto;">transformContext()</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node tertiary" style="padding:6px 12px; min-width:auto;">convertToLlm()</div>
+        <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+        <div class="flow-node surface" style="padding:6px 12px; min-width:auto;">Message[] → LLM</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Abort Handling</h3>
+      <ul>
+        <li><code>raceWithAbort()</code> pattern throughout</li>
+        <li>Aborted messages cloned to prevent later mutation</li>
+        <li>Dynamic API key / system prompt resolved per-call</li>
+        <li>Supports expiring tokens</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Core Types ── -->
+<div class="section" id="types">
+  <div class="section-title">
+    <span class="material-icons-outlined">data_object</span> Core Types
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Description</th><th>Key Fields</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>AgentMessage</code></td>
+          <td>Extensible message union via <code>CustomAgentMessages</code></td>
+          <td>Standard: user, assistant, toolResult. Custom via declaration merging.</td>
+        </tr>
+        <tr>
+          <td><code>AgentTool&lt;T, D&gt;</code></td>
+          <td>Extends <code>Tool</code> from pi-ai with execution</td>
+          <td>label, prepareArguments, execute, executionMode</td>
+        </tr>
+        <tr>
+          <td><code>AgentToolResult&lt;T&gt;</code></td>
+          <td>Tool output with dual content</td>
+          <td>content (for LLM), details (for UI), terminate hint</td>
+        </tr>
+        <tr>
+          <td><code>AgentState</code></td>
+          <td>Public read/write state interface</td>
+          <td>systemPrompt, model, thinkingLevel, tools[], messages[], isStreaming, pendingToolCalls</td>
+        </tr>
+        <tr>
+          <td><code>AgentContext</code></td>
+          <td>Snapshot passed into the loop</td>
+          <td>systemPrompt, messages[], tools[]</td>
+        </tr>
+        <tr>
+          <td><code>AgentLoopConfig</code></td>
+          <td>Full loop configuration contract</td>
+          <td>Extends SimpleStreamOptions + all hooks &amp; callbacks</td>
+        </tr>
+        <tr>
+          <td><code>StreamFn</code></td>
+          <td>LLM stream function type alias</td>
+          <td>Must not throw; failures encoded in stream events</td>
+        </tr>
+        <tr>
+          <td><code>ThinkingLevel</code></td>
+          <td>Reasoning effort level</td>
+          <td>"off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"</td>
+        </tr>
+        <tr>
+          <td><code>ToolExecutionMode</code></td>
+          <td>Parallel or sequential execution</td>
+          <td>"parallel" (default) | "sequential"</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Event System ── -->
+<div class="section" id="events">
+  <div class="section-title">
+    <span class="material-icons-outlined">notifications</span> Event System
+  </div>
+
+  <div class="card">
+    <h3>AgentEvent — 11 Event Types</h3>
+    <table>
+      <thead>
+        <tr><th>Event</th><th>Category</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>agent_start</code></td>
+          <td><span class="badge badge-blue">Lifecycle</span></td>
+          <td>Agent run begins</td>
+        </tr>
+        <tr>
+          <td><code>agent_end</code></td>
+          <td><span class="badge badge-blue">Lifecycle</span></td>
+          <td>Terminal event — run becomes idle after all listeners settle</td>
+        </tr>
+        <tr>
+          <td><code>turn_start</code></td>
+          <td><span class="badge badge-green">Turn</span></td>
+          <td>New LLM turn begins (after tool results)</td>
+        </tr>
+        <tr>
+          <td><code>turn_end</code></td>
+          <td><span class="badge badge-green">Turn</span></td>
+          <td>LLM turn completes</td>
+        </tr>
+        <tr>
+          <td><code>message_start</code></td>
+          <td><span class="badge badge-purple">Message</span></td>
+          <td>Assistant message streaming begins</td>
+        </tr>
+        <tr>
+          <td><code>message_update</code></td>
+          <td><span class="badge badge-purple">Message</span></td>
+          <td>Content delta received (text, thinking, tool call)</td>
+        </tr>
+        <tr>
+          <td><code>message_end</code></td>
+          <td><span class="badge badge-purple">Message</span></td>
+          <td>Assistant message complete</td>
+        </tr>
+        <tr>
+          <td><code>tool_execution_start</code></td>
+          <td><span class="badge badge-red">Tool</span></td>
+          <td>Tool call begins execution</td>
+        </tr>
+        <tr>
+          <td><code>tool_execution_update</code></td>
+          <td><span class="badge badge-red">Tool</span></td>
+          <td>Tool execution progress update</td>
+        </tr>
+        <tr>
+          <td><code>tool_execution_end</code></td>
+          <td><span class="badge badge-red">Tool</span></td>
+          <td>Tool execution complete (emitted in completion order)</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="accent-block">
+      Listeners are <strong>awaited in registration order</strong>. <code>agent_end</code> is the terminal event, but the run only becomes idle after all <code>agent_end</code> listeners settle. Listeners receive the abort signal for cooperative cancellation.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Event Processing in Agent</h3>
+    <pre><span class="fn">processEvents</span>(event) {
+  <span class="cmt">// 1. Reduce internal state from each loop event</span>
+  updateStreamingMessage(event)
+  updatePendingToolCalls(event)
+  updateErrorMessage(event)
+
+  <span class="cmt">// 2. Fan out to all subscribers</span>
+  <span class="kw">for</span> (<span class="kw">const</span> listener <span class="kw">of</span> subscribers) {
+    <span class="kw">await</span> listener(event)
+  }
+}</pre>
+  </div>
+</div>
+
+<!-- ── Tool System ── -->
+<div class="section" id="tools">
+  <div class="section-title">
+    <span class="material-icons-outlined">build_circle</span> Tool System
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>AgentTool Definition</h3>
+      <pre><span class="kw">interface</span> <span class="typ">AgentTool</span>&lt;T, D&gt; {
+  <span class="cmt">// From pi-ai Tool</span>
+  name: <span class="kw">string</span>
+  description: <span class="kw">string</span>
+  parameters: <span class="typ">TSchema</span>
+
+  <span class="cmt">// Agent extensions</span>
+  label: <span class="kw">string</span>              <span class="cmt">// UI display name</span>
+  prepareArguments(args): <span class="typ">T</span>  <span class="cmt">// raw arg normalization</span>
+  execute(args: <span class="typ">T</span>): <span class="typ">Promise</span>&lt;<span class="typ">AgentToolResult</span>&lt;D&gt;&gt;
+  executionMode: <span class="str">"parallel"</span> | <span class="str">"sequential"</span>
+}</pre>
+    </div>
+    <div class="card">
+      <h3>AgentToolResult</h3>
+      <pre><span class="kw">interface</span> <span class="typ">AgentToolResult</span>&lt;T&gt; {
+  content: <span class="kw">string</span> | <span class="typ">ImageContent</span>[]  <span class="cmt">// for LLM</span>
+  details?: <span class="typ">T</span>                      <span class="cmt">// for UI</span>
+  terminate?: <span class="kw">boolean</span>               <span class="cmt">// stop hint</span>
+}</pre>
+      <p style="margin-top:12px"><code>terminate</code> hint: when all tools in a batch agree to terminate, the agent stops after that batch.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Tool Execution Pipeline</h3>
+    <div class="flow" style="padding:12px 0; gap:6px;">
+      <div class="flow-node primary" style="padding:8px 14px; min-width:auto;">prepareArguments()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node secondary" style="padding:8px 14px; min-width:auto;">beforeToolCall()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node tertiary" style="padding:8px 14px; min-width:auto;">execute()</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node surface" style="padding:8px 14px; min-width:auto;">afterToolCall()</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>beforeToolCall Hook</h3>
+      <ul>
+        <li>Called <strong>before</strong> tool execution</li>
+        <li>Can <strong>block execution</strong> (return false / reason)</li>
+        <li>Context: tool name, arguments, abort signal</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>afterToolCall Hook</h3>
+      <ul>
+        <li>Called <strong>after</strong> tool execution</li>
+        <li>Can <strong>override</strong> result content, error status, termination hint</li>
+        <li>Context: tool name, original result, arguments</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Execution Modes</h3>
+    <table>
+      <thead>
+        <tr><th>Mode</th><th>Behavior</th><th>When Used</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-green">Parallel</span></td>
+          <td>Preflight sequentially → execute concurrently → emit events in completion order → emit toolResult messages in source order</td>
+          <td>Default; any tool without <code>executionMode: "sequential"</code></td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-blue">Sequential</span></td>
+          <td>One tool at a time, in order</td>
+          <td>Any tool with <code>executionMode: "sequential"</code> forces entire batch sequential</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Proxy ── -->
+<div class="section" id="proxy">
+  <div class="section-title">
+    <span class="material-icons-outlined">dns</span> Proxy Stream
+  </div>
+
+  <div class="card">
+    <h3>proxy.ts — Server-Side Proxy Adapter</h3>
+    <pre><span class="fn">streamProxy</span>(options: <span class="typ">ProxyStreamOptions</span>) => <span class="typ">AssistantMessageEventStream</span>
+
+<span class="kw">interface</span> <span class="typ">ProxyStreamOptions</span> {
+  url: <span class="kw">string</span>
+  headers?: <span class="typ">Record</span>&lt;<span class="kw">string</span>, <span class="kw">string</span>&gt;
+  body: <span class="kw">object</span>
+  signal?: <span class="typ">AbortSignal</span>
+}</pre>
+    <p style="margin-top:12px">For browser apps routing LLM calls through a backend server. The server strips <code>partial</code> fields from SSE delta events to reduce bandwidth; the client reconstructs the partial message locally.</p>
+    <ul style="margin-top:8px;">
+      <li>SSE parsing with <code>fetch()</code> + <code>ReadableStream</code></li>
+      <li>Abort signal propagation</li>
+      <li>Error recovery and reconnection hints</li>
+      <li>Client-side partial message reconstruction</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── Repetition Guard ── -->
+<div class="section" id="repetition">
+  <div class="section-title">
+    <span class="material-icons-outlined">warning</span> Repetition Guard
+  </div>
+
+  <div class="card">
+    <h3>repetition-guard.ts — Degenerate Output Detection</h3>
+    <p>Detects periodic repetition in LLM output tails using a <strong>KMP failure-function algorithm</strong> combined with <strong>trigram novelty scoring</strong>. Can interrupt streaming mid-response.</p>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>Core Algorithm</h3>
+      <ul>
+        <li><code>detectPeriodicTail()</code> — KMP-based periodic pattern detection in text tail</li>
+        <li><code>hasTailRepetition()</code> — full check with normalization</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Streaming Integration</h3>
+      <ul>
+        <li><code>shouldInterruptForTailRepetition()</code> — stride-aware streaming check</li>
+        <li><code>wrapStreamWithTailRepetitionGuard()</code> — wraps event stream, injects synthetic errors</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Configuration</h3>
+      <ul>
+        <li><code>enabled</code> — toggle</li>
+        <li><code>minChars</code> — minimum text to start checking</li>
+        <li><code>checkEveryChars</code> — stride interval</li>
+        <li><code>windowChars</code> — tail window size</li>
+        <li><code>maxUnitChars</code> — max repeat unit</li>
+        <li><code>minRepeats</code> — threshold</li>
+        <li><code>normalizeWhitespace</code></li>
+        <li><code>normalizePunctuation</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="accent-block">
+    <strong>Note:</strong> <code>repetition-guard.ts</code> is NOT re-exported from <code>index.ts</code>. Its functions are imported directly in tests but not part of the public barrel API.
+  </div>
+</div>
+
+<!-- ── Patterns ── -->
+<div class="section" id="patterns">
+  <div class="section-title">
+    <span class="material-icons-outlined">architecture</span> Design Patterns
+  </div>
+
+  <div class="card">
+    <div style="margin-bottom:16px">
+      <span class="pattern-tag">Layered Architecture</span>
+      <span class="pattern-tag">Strategy Pattern</span>
+      <span class="pattern-tag">Observer Pattern</span>
+      <span class="pattern-tag">Queue Pattern</span>
+      <span class="pattern-tag">Event Stream</span>
+      <span class="pattern-tag">Copy-on-Write</span>
+      <span class="pattern-tag">Pipeline Pattern</span>
+      <span class="pattern-tag">Proxy Adapter</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Pattern</th><th>Where</th><th>How</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Layered Architecture</strong></td>
+          <td><code>agent.ts</code> → <code>agent-loop.ts</code></td>
+          <td>High-level <code>Agent</code> wraps low-level stateless <code>agentLoop</code>. Loop is pure; class adds state, queues, lifecycle.</td>
+        </tr>
+        <tr>
+          <td><strong>Strategy</strong></td>
+          <td><code>AgentLoopConfig</code></td>
+          <td>10 injectable strategies: <code>streamFn</code>, <code>convertToLlm</code>, <code>transformContext</code>, <code>beforeToolCall</code>, <code>afterToolCall</code>, <code>shouldStopAfterTurn</code>, <code>shouldStopBeforeTurn</code>, <code>getSteeringMessages</code>, <code>getFollowUpMessages</code>, <code>getContinuationMessages</code></td>
+        </tr>
+        <tr>
+          <td><strong>Observer</strong></td>
+          <td><code>subscribe()</code></td>
+          <td>Async-awaited listeners that participate in run settlement. Receive abort signal for cooperative cancellation.</td>
+        </tr>
+        <tr>
+          <td><strong>Queue</strong></td>
+          <td><code>PendingMessageQueue</code></td>
+          <td>Two drain modes: <code>"all"</code> (batch) or <code>"one-at-a-time"</code> (sequential). Used for steering and follow-up messages.</td>
+        </tr>
+        <tr>
+          <td><strong>Event Stream</strong></td>
+          <td><code>agentLoop()</code></td>
+          <td>Returns <code>EventStream&lt;AgentEvent&gt;</code> from pi-ai — async-iterable that terminates on <code>agent_end</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Copy-on-Write</strong></td>
+          <td><code>AgentState</code></td>
+          <td>Array properties (<code>tools</code>, <code>messages</code>) are defensive-copied on assignment via accessor properties.</td>
+        </tr>
+        <tr>
+          <td><strong>Pipeline</strong></td>
+          <td>Message flow</td>
+          <td><code>AgentMessage[] → transformContext → convertToLlm → Message[] → LLM</code>. Applied fresh each turn.</td>
+        </tr>
+        <tr>
+          <td><strong>Proxy Adapter</strong></td>
+          <td><code>proxy.ts</code></td>
+          <td>Adapts server-side SSE protocol (stripped <code>partial</code> fields) into standard <code>AssistantMessageEventStream</code> by reconstructing state client-side.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Public API ── -->
+<div class="section" id="api">
+  <div class="section-title">
+    <span class="material-icons-outlined">api</span> Public API Surface
+  </div>
+
+  <div class="card">
+    <h3>Exported Symbols</h3>
+    <table>
+      <thead>
+        <tr><th>Module</th><th>Exports</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>agent.ts</code></td>
+          <td><code>Agent</code>, <code>AgentOptions</code></td>
+        </tr>
+        <tr>
+          <td><code>agent-loop.ts</code></td>
+          <td><code>agentLoop</code>, <code>agentLoopContinue</code>, <code>runAgentLoop</code>, <code>runAgentLoopContinue</code>, <code>AgentEventSink</code></td>
+        </tr>
+        <tr>
+          <td><code>proxy.ts</code></td>
+          <td><code>streamProxy</code>, <code>ProxyStreamOptions</code>, <code>ProxyAssistantMessageEvent</code></td>
+        </tr>
+        <tr>
+          <td><code>types.ts</code></td>
+          <td><code>StreamFn</code>, <code>ToolExecutionMode</code>, <code>AgentToolCall</code>, <code>BeforeToolCallResult</code>, <code>AfterToolCallResult</code>, <code>BeforeToolCallContext</code>, <code>AfterToolCallContext</code>, <code>ShouldStopAfterTurnContext</code>, <code>GetContinuationMessagesContext</code>, <code>AgentLoopConfig</code>, <code>ThinkingLevel</code>, <code>CustomAgentMessages</code>, <code>AgentMessage</code>, <code>AgentState</code>, <code>AgentToolResult</code>, <code>AgentToolUpdateCallback</code>, <code>AgentTool</code>, <code>AgentContext</code>, <code>AgentEvent</code></td>
+        </tr>
+        <tr>
+          <td><code>repetition-guard.ts</code></td>
+          <td><span class="badge badge-red">NOT exported from index</span> — <code>detectPeriodicTail</code>, <code>hasTailRepetition</code>, <code>shouldInterruptForTailRepetition</code>, <code>wrapStreamWithTailRepetitionGuard</code>, etc. (test-only imports)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Dependencies</h3>
+    <table>
+      <thead>
+        <tr><th>Package</th><th>Usage</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>@earendil-works/pi-ai</code></td>
+          <td>Core LLM abstractions: <code>Model</code>, <code>Message</code>, <code>AssistantMessage</code>, <code>streamSimple</code>, <code>EventStream</code>, <code>validateToolArguments</code>, <code>parseStreamingJson</code>, faux provider</td>
+        </tr>
+        <tr>
+          <td><code>@sinclair/typebox</code></td>
+          <td>Runtime JSON schema validation for tool parameters (<code>Type.Object</code>, <code>Static&lt;T&gt;</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Extensibility: Custom Message Types</h3>
+    <pre><span class="cmt">// Extend AgentMessage via TypeScript declaration merging</span>
+<span class="kw">declare</span> <span class="kw">module</span> <span class="str">"@earendil-works/pi-agent-core"</span> {
+  <span class="kw">interface</span> <span class="typ">CustomAgentMessages</span> {
+    custom_role: {
+      role: <span class="str">"custom_role"</span>
+      content: <span class="kw">string</span>
+      metadata: <span class="kw">unknown</span>
+    }
+  }
+}
+
+<span class="cmt">// convertToLlm filters out non-LLM message types</span>
+<span class="cmt">// transformContext handles custom types before conversion</span></pre>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<div style="text-align:center; padding:32px 0; color:var(--md-on-surface-variant); font-size:12px; border-top:1px solid var(--md-outline-variant); margin-top:40px;">
+  @pi-agent-core Architecture — Generated 2026-08-20
+</div>
+
+</body>
+</html>

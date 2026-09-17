@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@pi-ai — Architecture Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #E3F2FD;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #E1BEE7;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-dim: #F5F5F5;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #BDBDBD;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0,0,0,0.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+    --md-radius-xs: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px 16px;
+    box-shadow: 0 2px 4px var(--md-shadow);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: 0.02em; }
+  .top-bar .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; font-weight: 300; }
+
+  /* ── Layout ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
+
+  /* ── Chips ── */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--md-outline-variant);
+    background: var(--md-surface-container);
+    color: var(--md-on-surface-variant);
+  }
+  .chip .material-icons-outlined { font-size: 16px; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 14px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--md-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .material-icons-outlined { font-size: 20px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 12px var(--md-shadow); }
+  .card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--md-on-surface); }
+  .card p, .card li { font-size: 14px; color: var(--md-on-surface-variant); line-height: 1.7; }
+  .card ul { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── Code ── */
+  code {
+    font-family: 'Roboto Mono', monospace; font-size: 12.5px;
+    background: var(--md-surface-dim); padding: 2px 6px;
+    border-radius: 4px; color: var(--md-primary);
+  }
+  pre {
+    background: #263238; color: #EEFFFF;
+    padding: 16px 20px; border-radius: var(--md-radius-sm);
+    overflow-x: auto; font-family: 'Roboto Mono', monospace;
+    font-size: 12.5px; line-height: 1.7;
+    margin: 12px 0;
+  }
+  pre .kw { color: #C792EA; }
+  pre .fn { color: #82AAFF; }
+  pre .str { color: #C3E88D; }
+  pre .cmt { color: #546E7A; }
+  pre .typ { color: #FFCB6B; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 500;
+    color: var(--md-on-surface-variant); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--md-outline-variant);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--md-outline-variant); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--md-primary-light); }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge-blue   { background: var(--md-primary-container); color: #1565C0; }
+  .badge-green  { background: var(--md-secondary-container); color: #00695C; }
+  .badge-purple { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .badge-red    { background: var(--md-error-container); color: var(--md-error); }
+
+  /* ── Flow Diagram ── */
+  .flow {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 8px; padding: 20px 0;
+  }
+  .flow-node {
+    padding: 10px 18px; border-radius: var(--md-radius-sm);
+    font-size: 13px; font-weight: 500; text-align: center;
+    min-width: 110px;
+  }
+  .flow-node.primary   { background: var(--md-primary-container); color: #1565C0; }
+  .flow-node.secondary { background: var(--md-secondary-container); color: #00695C; }
+  .flow-node.tertiary  { background: var(--md-tertiary-container); color: #6A1B9A; }
+  .flow-node.surface   { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+  .flow-arrow {
+    font-size: 20px; color: var(--md-outline);
+    display: flex; align-items: center;
+  }
+
+  /* ── Pattern Tag ── */
+  .pattern-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    margin: 0 4px 6px 0;
+  }
+
+  /* ── Accent Block ── */
+  .accent-block {
+    border-left: 4px solid var(--md-primary);
+    padding: 12px 16px; margin: 12px 0;
+    background: var(--md-primary-light); border-radius: 0 var(--md-radius-xs) var(--md-radius-xs) 0;
+    font-size: 13px; color: var(--md-on-surface-variant);
+  }
+
+  /* ── TOC ── */
+  .toc {
+    position: fixed; right: 24px; top: 100px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .toc a {
+    font-size: 11px; color: var(--md-on-surface-variant);
+    text-decoration: none; padding: 3px 10px;
+    border-radius: 4px; transition: 0.15s;
+  }
+  .toc a:hover { background: var(--md-primary-light); color: var(--md-primary); }
+  @media (max-width: 1400px) { .toc { display: none; } }
+
+  /* ── Provider Icon Grid ── */
+  .provider-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px; margin-top: 12px;
+  }
+  .provider-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: var(--md-radius-xs);
+    background: var(--md-surface-dim); font-size: 13px;
+  }
+  .provider-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top App Bar -->
+<div class="top-bar">
+  <h1>@earendil-works/pi-ai</h1>
+  <div class="subtitle">Unified LLM Streaming API — 30+ Providers, Single Interface</div>
+</div>
+
+<!-- TOC -->
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#entry">Entry & Stream</a>
+  <a href="#types">Core Types</a>
+  <a href="#providers">Providers</a>
+  <a href="#utils">Utilities</a>
+  <a href="#auth">Auth & OAuth</a>
+  <a href="#patterns">Patterns</a>
+  <a href="#deps">Dependencies</a>
+  <a href="#api">Public API</a>
+</nav>
+
+<div class="container">
+
+<!-- ── Overview ── -->
+<div class="section" id="overview">
+  <div class="section-title">
+    <span class="material-icons-outlined">hub</span> Module Overview
+  </div>
+
+  <div class="chip-row">
+    <span class="chip"><span class="material-icons-outlined">package_2</span> v0.7.3</span>
+    <span class="chip"><span class="material-icons-outlined">api</span> 9 API Protocols</span>
+    <span class="chip"><span class="material-icons-outlined">cloud</span> 30+ Providers</span>
+    <span class="chip"><span class="material-icons-outlined">stream</span> Async Iterable Streams</span>
+    <span class="chip"><span class="material-icons-outlined">security</span> OAuth PKCE</span>
+    <span class="chip"><span class="material-icons-outlined">cached</span> Cache Pricing</span>
+  </div>
+
+  <div class="card">
+    <h3>Purpose</h3>
+    <p>A unified LLM API library that abstracts 30+ AI providers behind a single streaming interface. Features include automatic model discovery, provider configuration, token/cost tracking, OAuth authentication, and cross-provider conversation handoff.</p>
+  </div>
+
+  <div class="card">
+    <h3>Request Flow</h3>
+    <div class="flow">
+      <div class="flow-node primary">stream(model, ctx)</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node secondary">API Registry Lookup</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node tertiary">Lazy Provider Load</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node surface">Message Transform</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node primary">Native SDK Call</div>
+      <div class="flow-arrow"><span class="material-icons-outlined">arrow_forward</span></div>
+      <div class="flow-node secondary">Event Stream Emit</div>
+    </div>
+    <div class="accent-block">
+      Provider SDKs are <strong>lazy-loaded</strong> via dynamic <code>import()</code> — only the used provider's SDK is loaded at runtime. Startup stays fast, browser bundles stay small.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Module Architecture</h3>
+    <div style="overflow-x:auto; margin-top:12px;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" width="960" height="720" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,3 L0,6 Z" fill="#616161"/>
+          </marker>
+          <marker id="arrow-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,3 L0,6 Z" fill="#1565C0"/>
+          </marker>
+          <marker id="arrow-teal" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,3 L0,6 Z" fill="#00897B"/>
+          </marker>
+          <linearGradient id="grad-primary" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1565C0"/>
+            <stop offset="100%" stop-color="#0D47A1"/>
+          </linearGradient>
+          <linearGradient id="grad-secondary" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00897B"/>
+            <stop offset="100%" stop-color="#00695C"/>
+          </linearGradient>
+          <linearGradient id="grad-tertiary" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7B1FA2"/>
+            <stop offset="100%" stop-color="#4A148C"/>
+          </linearGradient>
+          <filter id="shadow">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.12)"/>
+          </filter>
+          <filter id="shadow-sm">
+            <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.1)"/>
+          </filter>
+        </defs>
+
+        <!-- Background -->
+        <rect width="960" height="720" rx="12" fill="#FAFAFA"/>
+
+        <!-- Title -->
+        <text x="480" y="36" text-anchor="middle" font-family="Roboto, sans-serif" font-weight="700" font-size="18" fill="#212121">@pi-ai Module Architecture</text>
+        <text x="480" y="54" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="#9E9E9E">Provider Registry with Lazy Loading</text>
+
+        <!-- ── Consumer Layer ── -->
+        <rect x="40" y="72" width="880" height="68" rx="10" fill="white" stroke="#E0E0E0" stroke-width="1" filter="url(#shadow-sm)"/>
+        <rect x="40" y="72" width="880" height="24" rx="10" fill="#E3F2FD"/>
+        <rect x="40" y="86" width="880" height="10" fill="#E3F2FD"/>
+        <text x="56" y="90" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#1565C0">CONSUMER API</text>
+
+        <rect x="60" y="104" width="140" height="28" rx="6" fill="url(#grad-primary)" filter="url(#shadow-sm)"/>
+        <text x="130" y="122" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="12" fill="white">stream()</text>
+
+        <rect x="220" y="104" width="140" height="28" rx="6" fill="url(#grad-primary)" filter="url(#shadow-sm)"/>
+        <text x="290" y="122" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="12" fill="white">complete()</text>
+
+        <rect x="380" y="104" width="160" height="28" rx="6" fill="url(#grad-primary)" filter="url(#shadow-sm)"/>
+        <text x="460" y="122" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="12" fill="white">streamSimple()</text>
+
+        <rect x="560" y="104" width="160" height="28" rx="6" fill="url(#grad-primary)" filter="url(#shadow-sm)"/>
+        <text x="640" y="122" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="12" fill="white">completeSimple()</text>
+
+        <rect x="740" y="104" width="160" height="28" rx="6" fill="url(#grad-primary)" filter="url(#shadow-sm)"/>
+        <text x="820" y="122" text-anchor="middle" font-family="Roboto, sans-serif" font-size="12" fill="white">index.ts barrel</text>
+
+        <!-- ── Core Layer ── -->
+        <rect x="40" y="168" width="430" height="120" rx="10" fill="white" stroke="#E0E0E0" stroke-width="1" filter="url(#shadow-sm)"/>
+        <rect x="40" y="168" width="430" height="24" rx="10" fill="#E8F5E9"/>
+        <rect x="40" y="182" width="430" height="10" fill="#E8F5E9"/>
+        <text x="56" y="186" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#2E7D32">CORE</text>
+
+        <rect x="60" y="204" width="190" height="36" rx="6" fill="#E8F5E9" stroke="#4CAF50" stroke-width="1"/>
+        <text x="155" y="218" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="12" fill="#2E7D32">stream.ts</text>
+        <text x="155" y="232" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" fill="#616161">stream / complete dispatch</text>
+
+        <rect x="270" y="204" width="180" height="36" rx="6" fill="#E8F5E9" stroke="#4CAF50" stroke-width="1"/>
+        <text x="360" y="218" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="12" fill="#2E7D32">api-registry.ts</text>
+        <text x="360" y="232" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" fill="#616161">Map&lt;Api, Provider&gt;</text>
+
+        <rect x="60" y="250" width="190" height="28" rx="6" fill="#F1F8E9" stroke="#C8E6C9" stroke-width="1"/>
+        <text x="155" y="268" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#33691E">models.ts</text>
+
+        <rect x="270" y="250" width="180" height="28" rx="6" fill="#F1F8E9" stroke="#C8E6C9" stroke-width="1"/>
+        <text x="360" y="268" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#33691E">models.generated.ts</text>
+
+        <!-- ── Types & Protocol ── -->
+        <rect x="500" y="168" width="420" height="120" rx="10" fill="white" stroke="#E0E0E0" stroke-width="1" filter="url(#shadow-sm)"/>
+        <rect x="500" y="168" width="420" height="24" rx="10" fill="#FFF3E0"/>
+        <rect x="500" y="182" width="420" height="10" fill="#FFF3E0"/>
+        <text x="516" y="186" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#E65100">TYPE SYSTEM & PROTOCOL</text>
+
+        <rect x="520" y="204" width="180" height="36" rx="6" fill="#FFF3E0" stroke="#FF9800" stroke-width="1"/>
+        <text x="610" y="218" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="12" fill="#E65100">types.ts</text>
+        <text x="610" y="232" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" fill="#616161">Message · Model · Event</text>
+
+        <rect x="720" y="204" width="180" height="36" rx="6" fill="#FFF3E0" stroke="#FF9800" stroke-width="1"/>
+        <text x="810" y="218" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="12" fill="#E65100">event-stream.ts</text>
+        <text x="810" y="232" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" fill="#616161">AsyncIterable queue</text>
+
+        <rect x="520" y="250" width="130" height="28" rx="6" fill="#FFF8E1" stroke="#FFE0B2" stroke-width="1"/>
+        <text x="585" y="268" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#F57F17">diagnostics.ts</text>
+
+        <rect x="665" y="250" width="120" height="28" rx="6" fill="#FFF8E1" stroke="#FFE0B2" stroke-width="1"/>
+        <text x="725" y="268" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#F57F17">validation.ts</text>
+
+        <rect x="800" y="250" width="100" height="28" rx="6" fill="#FFF8E1" stroke="#FFE0B2" stroke-width="1"/>
+        <text x="850" y="268" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#F57F17">json-parse.ts</text>
+
+        <!-- ── Registration (lazy loader) ── -->
+        <rect x="200" y="316" width="560" height="44" rx="8" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+        <text x="480" y="334" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="13" fill="#7B1FA2">register-builtins.ts</text>
+        <text x="480" y="350" text-anchor="middle" font-family="Roboto, sans-serif" font-size="10" fill="#616161">lazy dynamic import() · createLazyStream() wrapper</text>
+
+        <!-- Arrows: Consumer → Core -->
+        <line x1="130" y1="132" x2="130" y2="200" stroke="#1565C0" stroke-width="1.5" marker-end="url(#arrow-blue)" stroke-dasharray="4,3"/>
+        <line x1="290" y1="132" x2="220" y2="204" stroke="#1565C0" stroke-width="1.5" marker-end="url(#arrow-blue)" stroke-dasharray="4,3"/>
+        <line x1="460" y1="132" x2="250" y2="204" stroke="#1565C0" stroke-width="1.5" marker-end="url(#arrow-blue)" stroke-dasharray="4,3"/>
+        <line x1="640" y1="132" x2="610" y2="200" stroke="#E65100" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+        <line x1="820" y1="132" x2="810" y2="200" stroke="#E65100" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+
+        <!-- Arrow: stream.ts → api-registry -->
+        <line x1="250" y1="222" x2="268" y2="222" stroke="#2E7D32" stroke-width="1.5" marker-end="url(#arrow-teal)"/>
+        <!-- Arrow: api-registry → register-builtins -->
+        <line x1="360" y1="240" x2="360" y2="314" stroke="#7B1FA2" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+        <!-- Arrow: stream.ts → types -->
+        <line x1="250" y1="210" x2="518" y2="210" stroke="#FF9800" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3" opacity="0.5"/>
+
+        <!-- ── Providers Layer ── -->
+        <rect x="40" y="390" width="880" height="150" rx="10" fill="white" stroke="#E0E0E0" stroke-width="1" filter="url(#shadow-sm)"/>
+        <rect x="40" y="390" width="880" height="24" rx="10" fill="#EDE7F6"/>
+        <rect x="40" y="404" width="880" height="10" fill="#EDE7F6"/>
+        <text x="56" y="408" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#4A148C">PROVIDERS — src/providers/ (lazy-loaded per API type)</text>
+
+        <!-- Provider boxes row 1 -->
+        <rect x="60" y="426" width="160" height="44" rx="6" fill="#EDE7F6" stroke="#9C27B0" stroke-width="1"/>
+        <text x="140" y="444" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#4A148C">anthropic.ts</text>
+        <text x="140" y="460" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Anthropic Messages</text>
+
+        <rect x="235" y="426" width="160" height="44" rx="6" fill="#EDE7F6" stroke="#9C27B0" stroke-width="1"/>
+        <text x="315" y="444" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#4A148C">openai-completions.ts</text>
+        <text x="315" y="460" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Chat Completions API</text>
+
+        <rect x="410" y="426" width="160" height="44" rx="6" fill="#EDE7F6" stroke="#9C27B0" stroke-width="1"/>
+        <text x="490" y="444" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#4A148C">openai-responses.ts</text>
+        <text x="490" y="460" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Responses API</text>
+
+        <rect x="585" y="426" width="160" height="44" rx="6" fill="#EDE7F6" stroke="#9C27B0" stroke-width="1"/>
+        <text x="665" y="444" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#4A148C">openai-codex.ts</text>
+        <text x="665" y="460" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Codex Responses</text>
+
+        <rect x="760" y="426" width="140" height="44" rx="6" fill="#EDE7F6" stroke="#9C27B0" stroke-width="1"/>
+        <text x="830" y="444" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#4A148C">azure-openai.ts</text>
+        <text x="830" y="460" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Azure OpenAI</text>
+
+        <!-- Provider boxes row 2 -->
+        <rect x="60" y="482" width="160" height="44" rx="6" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1"/>
+        <text x="140" y="500" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#6A1B9A">google.ts</text>
+        <text x="140" y="516" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Google GenAI</text>
+
+        <rect x="235" y="482" width="160" height="44" rx="6" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1"/>
+        <text x="315" y="500" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#6A1B9A">google-vertex.ts</text>
+        <text x="315" y="516" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Vertex AI</text>
+
+        <rect x="410" y="482" width="160" height="44" rx="6" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1"/>
+        <text x="490" y="500" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#6A1B9A">mistral.ts</text>
+        <text x="490" y="516" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Mistral Conversations</text>
+
+        <rect x="585" y="482" width="160" height="44" rx="6" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1"/>
+        <text x="665" y="500" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#6A1B9A">amazon-bedrock.ts</text>
+        <text x="665" y="516" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">AWS Bedrock</text>
+
+        <rect x="760" y="482" width="140" height="44" rx="6" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1"/>
+        <text x="830" y="500" text-anchor="middle" font-family="Roboto Mono, monospace" font-weight="500" font-size="11" fill="#6A1B9A">faux.ts</text>
+        <text x="830" y="516" text-anchor="middle" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Mock (testing)</text>
+
+        <!-- Arrow: register-builtins → providers -->
+        <line x1="480" y1="360" x2="480" y2="424" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+
+        <!-- ── Cross-cutting Layer ── -->
+        <rect x="40" y="568" width="880" height="68" rx="10" fill="white" stroke="#E0E0E0" stroke-width="1" filter="url(#shadow-sm)"/>
+        <rect x="40" y="568" width="880" height="24" rx="10" fill="#E0F2F1"/>
+        <rect x="40" y="582" width="880" height="10" fill="#E0F2F1"/>
+        <text x="56" y="586" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#00695C">CROSS-CUTTING UTILITIES</text>
+
+        <rect x="60" y="602" width="100" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="110" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">stream-failure</text>
+
+        <rect x="175" y="602" width="90" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="220" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">overflow</text>
+
+        <rect x="280" y="602" width="90" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="325" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">env-api-keys</text>
+
+        <rect x="385" y="602" width="80" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="425" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">log.ts</text>
+
+        <rect x="480" y="602" width="110" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="535" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">session-resources</text>
+
+        <rect x="605" y="602" width="100" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="655" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">cache-pricing</text>
+
+        <rect x="720" y="602" width="80" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="760" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">oauth/</text>
+
+        <rect x="815" y="602" width="80" height="26" rx="5" fill="#E0F2F1" stroke="#80CBC4" stroke-width="1"/>
+        <text x="855" y="619" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#00695C">mcp/</text>
+
+        <!-- ── External SDKs ── -->
+        <rect x="40" y="660" width="880" height="44" rx="10" fill="#F5F5F5" stroke="#E0E0E0" stroke-width="1"/>
+        <text x="56" y="680" font-family="Roboto, sans-serif" font-weight="500" font-size="11" fill="#9E9E9E">EXTERNAL SDKs (lazy-loaded)</text>
+        <text x="56" y="696" font-family="Roboto Mono, monospace" font-size="10" fill="#BDBDBD">@anthropic-ai/sdk · openai · @google/genai · @google-cloud/vertexai · @mistralai/sdk · @aws-sdk/client-bedrock-runtime</text>
+
+        <!-- Arrow: providers → external SDKs -->
+        <line x1="480" y1="540" x2="480" y2="658" stroke="#9E9E9E" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+
+        <!-- Legend -->
+        <rect x="60" y="668" width="10" height="10" rx="2" fill="url(#grad-primary)"/>
+        <text x="75" y="677" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Consumer</text>
+        <rect x="140" y="668" width="10" height="10" rx="2" fill="#E8F5E9" stroke="#4CAF50" stroke-width="0.5"/>
+        <text x="155" y="677" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Core</text>
+        <rect x="195" y="668" width="10" height="10" rx="2" fill="#FFF3E0" stroke="#FF9800" stroke-width="0.5"/>
+        <text x="210" y="677" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Types</text>
+        <rect x="250" y="668" width="10" height="10" rx="2" fill="#F3E5F5" stroke="#CE93D8" stroke-width="0.5"/>
+        <text x="265" y="677" font-family="Roboto, sans-serif" font-size="9" fill="#616161">Provider</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ── Entry & Stream ── -->
+<div class="section" id="entry">
+  <div class="section-title">
+    <span class="material-icons-outlined">play_circle</span> Entry & Streaming
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>index.ts — Main Entry</h3>
+      <ul>
+        <li>Re-exports everything from the package</li>
+        <li>Imports <code>register-builtins</code> to auto-register all providers</li>
+        <li>Exposes <code>stream()</code>, <code>complete()</code>, <code>streamSimple()</code>, <code>completeSimple()</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>stream.ts — Core Functions</h3>
+      <ul>
+        <li><code>stream()</code> — full async iterable of <code>AssistantMessageEvent</code></li>
+        <li><code>complete()</code> — returns final <code>AssistantMessage</code></li>
+        <li><code>streamSimple()</code> — text-only async iterable</li>
+        <li><code>completeSimple()</code> — returns final text string</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>api-registry.ts — Global API Provider Registry</h3>
+    <pre><span class="kw">const</span> <span class="fn">registerApiProvider</span>(name: <span class="typ">Api</span>, streamFn: <span class="typ">StreamFunction</span>) => <span class="kw">void</span>
+<span class="kw">const</span> <span class="fn">getApiProvider</span>(name: <span class="typ">Api</span>) => <span class="typ">StreamFunction</span>
+<span class="kw">const</span> <span class="fn">unregisterApiProviders</span>() => <span class="kw">void</span></pre>
+    <p>Maps API protocol names (e.g. <code>"anthropic-messages"</code>, <code>"openai-completions"</code>) to their streaming implementation. The <code>stream()</code> function resolves the provider from <code>model.api</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Event Stream Architecture</h3>
+    <pre><span class="kw">type</span> <span class="typ">AssistantMessageEvent</span> =
+  | { type: <span class="str">"start"</span>, message: <span class="typ">AssistantMessage</span> }
+  | { type: <span class="str">"text_delta"</span>, delta: <span class="kw">string</span> }
+  | { type: <span class="str">"thinking_delta"</span>, delta: <span class="kw">string</span> }
+  | { type: <span class="str">"toolcall_delta"</span>, id: <span class="kw">string</span>, delta: <span class="kw">string</span> }
+  | { type: <span class="str">"done"</span>, message: <span class="typ">AssistantMessage</span> }
+  | { type: <span class="str">"error"</span>, error: <span class="typ">Error</span> }</pre>
+    <p><code>AssistantMessageEventStream</code> is a generic async iterable with push-based event emission, enabling backpressure-free streaming with a <code>.result()</code> promise for the final message.</p>
+  </div>
+</div>
+
+<!-- ── Core Types ── -->
+<div class="section" id="types">
+  <div class="section-title">
+    <span class="material-icons-outlined">data_object</span> Core Types
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Description</th><th>Key Fields</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Model&lt;TApi&gt;</code></td>
+          <td>Describes an LLM model and its capabilities</td>
+          <td>id, name, api, provider, reasoning, inputModalities, costPerMillionTokens, contextWindow, maxOutput, compat</td>
+        </tr>
+        <tr>
+          <td><code>Context</code></td>
+          <td>Conversation state passed to stream calls</td>
+          <td>systemPrompt?, messages[], tools?</td>
+        </tr>
+        <tr>
+          <td><code>Message</code></td>
+          <td>Union: UserMessage | AssistantMessage | ToolResultMessage</td>
+          <td>role, content (union of Text | Thinking | ToolCall)</td>
+        </tr>
+        <tr>
+          <td><code>AssistantMessage</code></td>
+          <td>Core response type with usage tracking</td>
+          <td>content[], usage, cost, stopReason, diagnostics, timestamps</td>
+        </tr>
+        <tr>
+          <td><code>Tool&lt;TParameters&gt;</code></td>
+          <td>Type-safe tool definition using TypeBox schemas</td>
+          <td>name, description, parameters (TypeBox TSchema)</td>
+        </tr>
+        <tr>
+          <td><code>StreamOptions</code></td>
+          <td>Options for streaming calls</td>
+          <td>temperature, maxTokens, signal, apiKey, transport, cache, timeout, retries</td>
+        </tr>
+        <tr>
+          <td><code>Api</code></td>
+          <td>String literal union of API protocols</td>
+          <td>"anthropic-messages", "openai-completions", "openai-responses", "google-generative-ai", ...</td>
+        </tr>
+        <tr>
+          <td><code>Provider</code></td>
+          <td>String literal union of 30+ provider names</td>
+          <td>"anthropic", "openai", "google", "azure", "bedrock", "mistral", ...</td>
+        </tr>
+        <tr>
+          <td><code>ThinkingLevel</code></td>
+          <td>Reasoning effort level with per-model mapping</td>
+          <td>"minimal" | "low" | "medium" | "high" | "xhigh" | "max"</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Providers ── -->
+<div class="section" id="providers">
+  <div class="section-title">
+    <span class="material-icons-outlined">cloud_queue</span> Provider Implementations
+  </div>
+
+  <div class="card">
+    <h3>src/providers/ — API Protocol Adapters</h3>
+    <table>
+      <thead>
+        <tr><th>File</th><th>API Protocol</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>anthropic.ts</code></td>
+          <td><span class="badge badge-blue">anthropic-messages</span></td>
+          <td>Anthropic Claude — thinking, cache control, tool streaming, stealth mode (Claude Code tool name normalization)</td>
+        </tr>
+        <tr>
+          <td><code>openai-completions.ts</code></td>
+          <td><span class="badge badge-green">openai-completions</span></td>
+          <td>OpenAI Chat Completions — used by OpenAI, DeepSeek, xAI, Groq, Cerebras, OpenRouter</td>
+        </tr>
+        <tr>
+          <td><code>openai-responses.ts</code></td>
+          <td><span class="badge badge-green">openai-responses</span></td>
+          <td>OpenAI Responses API — reasoning summaries, session caching</td>
+        </tr>
+        <tr>
+          <td><code>openai-codex-responses.ts</code></td>
+          <td><span class="badge badge-green">openai-codex-responses</span></td>
+          <td>ChatGPT Codex — OAuth, SSE &amp; WebSocket, session caching</td>
+        </tr>
+        <tr>
+          <td><code>azure-openai-responses.ts</code></td>
+          <td><span class="badge badge-green">azure-openai-responses</span></td>
+          <td>Azure OpenAI — deployment name mapping, Azure auth</td>
+        </tr>
+        <tr>
+          <td><code>google.ts</code></td>
+          <td><span class="badge badge-purple">google-generative-ai</span></td>
+          <td>Google Gemini via <code>@google/genai</code></td>
+        </tr>
+        <tr>
+          <td><code>google-vertex.ts</code></td>
+          <td><span class="badge badge-purple">google-vertex</span></td>
+          <td>Google Vertex AI — ADC, project/location resolution</td>
+        </tr>
+        <tr>
+          <td><code>amazon-bedrock.ts</code></td>
+          <td><span class="badge badge-red">bedrock-converse-stream</span></td>
+          <td>AWS Bedrock — SigV4 auth, bearer token, interleaved thinking</td>
+        </tr>
+        <tr>
+          <td><code>mistral.ts</code></td>
+          <td><span class="badge badge-blue">mistral-conversations</span></td>
+          <td>Mistral AI via <code>@mistralai/mistralai</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>Shared Utilities</h3>
+      <ul>
+        <li><code>google-shared.ts</code> — message conversion, thinking budget</li>
+        <li><code>openai-responses-shared.ts</code> — message/tool conversion</li>
+        <li><code>transform-messages.ts</code> — cross-provider normalization</li>
+        <li><code>simple-options.ts</code> — <code>buildBaseOptions()</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Provider Utilities</h3>
+      <ul>
+        <li><code>cloudflare.ts</code> — Workers AI URL resolution</li>
+        <li><code>github-copilot-headers.ts</code> — Copilot HTTP headers</li>
+        <li><code>faux.ts</code> — in-memory mock for testing</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Registration</h3>
+      <ul>
+        <li><code>register-builtins.ts</code> — lazy-loads and registers all 9 built-in providers via dynamic <code>import()</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Supported Providers</h3>
+    <div class="provider-grid">
+      <div class="provider-item"><div class="provider-dot" style="background:#D97706"></div>Anthropic</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#10B981"></div>OpenAI</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#3B82F6"></div>Google AI</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#6366F1"></div>Google Vertex</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#F59E0B"></div>AWS Bedrock</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#EC4899"></div>Azure OpenAI</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#8B5CF6"></div>Mistral</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#EF4444"></div>Groq</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#14B8A6"></div>DeepSeek</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#F97316"></div>xAI</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#64748B"></div>OpenRouter</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#A855F7"></div>Cerebras</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#0EA5E9"></div>Cloudflare</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#84CC16"></div>GitHub Copilot</div>
+      <div class="provider-item"><div class="provider-dot" style="background:#78716C"></div>+ 15 more...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Utilities ── -->
+<div class="section" id="utils">
+  <div class="section-title">
+    <span class="material-icons-outlined">build</span> Utilities
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>event-stream.ts</h3>
+      <p><code>EventStream&lt;T, R&gt;</code> — generic async iterable with push/end/result. <code>AssistantMessageEventStream</code> specialization is the core streaming primitive used by all providers.</p>
+    </div>
+    <div class="card">
+      <h3>overflow.ts</h3>
+      <p>Context overflow detection across all providers. Uses regex patterns for error messages and silent overflow via usage exceeding context window. Returns structured <code>isContextOverflow()</code> result.</p>
+    </div>
+    <div class="card">
+      <h3>validation.ts</h3>
+      <p>Tool argument validation using TypeBox <code>Compile()</code>. Handles JSON Schema coercion, union types, caching validators for performance.</p>
+    </div>
+    <div class="card">
+      <h3>diagnostics.ts</h3>
+      <p>Structured error diagnostics attached to <code>AssistantMessage</code> for post-mortem debugging. Captures provider-specific metadata on failures.</p>
+    </div>
+    <div class="card">
+      <h3>json-parse.ts</h3>
+      <p>JSON repair (control character escaping, invalid escape fixing) and streaming partial JSON parsing via <code>partial-json</code>.</p>
+    </div>
+    <div class="card">
+      <h3>stream-failure.ts</h3>
+      <p>Stream failure classification: <code>refusal</code>, <code>safety</code>, <code>overloaded</code>, <code>rate_limit</code>, etc. <code>StreamFailureError</code> class with <code>recordStreamFailure()</code> for structured logging.</p>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>Other Utilities</h3>
+      <ul>
+        <li><code>typebox-helpers.ts</code> — <code>StringEnum()</code> for Google</li>
+        <li><code>hash.ts</code> — fast deterministic hash</li>
+        <li><code>headers.ts</code> — <code>headersToRecord()</code></li>
+        <li><code>sanitize-unicode.ts</code> — surrogate removal</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>models.ts — Registry</h3>
+      <ul>
+        <li><code>getModel()</code> — lookup by ID</li>
+        <li><code>getProviders()</code> — list providers</li>
+        <li><code>getModels()</code> — list all models</li>
+        <li><code>calculateCost()</code></li>
+        <li><code>getSupportedThinkingLevels()</code></li>
+        <li><code>clampThinkingLevel()</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Generated & Config</h3>
+      <ul>
+        <li><code>models.generated.ts</code> — auto-generated catalog of hundreds of models</li>
+        <li><code>env-api-keys.ts</code> — env var resolution for all providers (Vertex ADC, AWS chain, Bun fallback)</li>
+        <li><code>cache-pricing.ts</code> — Anthropic cache cost (5m vs 1h)</li>
+        <li><code>openrouter-reasoning.ts</code> — reasoning effort parsing</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Auth ── -->
+<div class="section" id="auth">
+  <div class="section-title">
+    <span class="material-icons-outlined">key</span> Authentication & OAuth
+  </div>
+
+  <div class="card">
+    <h3>src/utils/oauth/ — OAuth Provider System</h3>
+    <table>
+      <thead>
+        <tr><th>File</th><th>Provider</th><th>Flow</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>anthropic.ts</code></td>
+          <td>Anthropic</td>
+          <td><span class="badge badge-blue">PKCE</span></td>
+          <td>Local callback server on port 53692</td>
+        </tr>
+        <tr>
+          <td><code>github-copilot.ts</code></td>
+          <td>GitHub Copilot</td>
+          <td><span class="badge badge-green">Device Code</span></td>
+          <td>Proxy endpoint parsed from JWT</td>
+        </tr>
+        <tr>
+          <td><code>openai-codex.ts</code></td>
+          <td>OpenAI Codex</td>
+          <td><span class="badge badge-blue">PKCE</span></td>
+          <td>Callback server on port 1455</td>
+        </tr>
+        <tr>
+          <td><code>pkce.ts</code></td>
+          <td>—</td>
+          <td><span class="badge badge-purple">Utility</span></td>
+          <td>Code verifier/challenge generation via Web Crypto API</td>
+        </tr>
+        <tr>
+          <td><code>oauth-page.ts</code></td>
+          <td>—</td>
+          <td><span class="badge badge-purple">Utility</span></td>
+          <td>HTML success/error pages for OAuth callbacks</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>env-api-keys.ts — Key Resolution</h3>
+      <p>Resolves API keys from environment variables with provider-specific logic:</p>
+      <ul>
+        <li>Standard <code>*_API_KEY</code> env vars</li>
+        <li>Google ADC (Application Default Credentials)</li>
+        <li>AWS credential chain (env → config → EC2 metadata)</li>
+        <li>Bun <code>/proc/self/environ</code> fallback</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>src/mcp/ — MCP Integration</h3>
+      <ul>
+        <li><code>catalog.ts</code> — built-in MCP server catalog (Linear, Notion)</li>
+        <li><code>oauth.ts</code> — generic OAuth 2.1 (PKCE + dynamic client registration) for remote MCP servers</li>
+        <li>Registers MCP OAuth providers as <code>mcp:&lt;server&gt;</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Patterns ── -->
+<div class="section" id="patterns">
+  <div class="section-title">
+    <span class="material-icons-outlined">architecture</span> Design Patterns
+  </div>
+
+  <div class="card">
+    <div style="margin-bottom:16px">
+      <span class="pattern-tag">Strategy Pattern</span>
+      <span class="pattern-tag">Lazy Loading</span>
+      <span class="pattern-tag">Event Stream</span>
+      <span class="pattern-tag">Registry Pattern</span>
+      <span class="pattern-tag">Adapter Pattern</span>
+      <span class="pattern-tag">Compatibility Layer</span>
+      <span class="pattern-tag">Code Generation</span>
+      <span class="pattern-tag">Graceful Degradation</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Pattern</th><th>Where</th><th>How</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Strategy</strong></td>
+          <td><code>api-registry.ts</code></td>
+          <td>Each API protocol is a strategy registered globally. <code>stream()</code> resolves via <code>model.api</code> and delegates.</td>
+        </tr>
+        <tr>
+          <td><strong>Lazy Loading</strong></td>
+          <td><code>register-builtins.ts</code></td>
+          <td>Provider SDKs loaded via dynamic <code>import()</code> — only the used provider is loaded at runtime.</td>
+        </tr>
+        <tr>
+          <td><strong>Event Stream</strong></td>
+          <td><code>event-stream.ts</code></td>
+          <td>Async iterable with push-based emission, backpressure-free streaming, <code>.result()</code> promise.</td>
+        </tr>
+        <tr>
+          <td><strong>Registry</strong></td>
+          <td>3 parallel registries</td>
+          <td>API providers, models, OAuth providers — all support register/unregister/reset lifecycle.</td>
+        </tr>
+        <tr>
+          <td><strong>Adapter</strong></td>
+          <td><code>providers/*.ts</code></td>
+          <td>Each provider adapts native SDK format → unified <code>AssistantMessageEvent</code> protocol.</td>
+        </tr>
+        <tr>
+          <td><strong>Compat Layer</strong></td>
+          <td><code>Model.compat</code></td>
+          <td>Fine-grained override of auto-detected capabilities (<code>supportsDeveloperRole</code>, <code>thinkingFormat</code>, <code>cacheControlFormat</code>).</td>
+        </tr>
+        <tr>
+          <td><strong>Code Gen</strong></td>
+          <td><code>models.generated.ts</code></td>
+          <td>Auto-generated from external catalogs via <code>scripts/generate-models.ts</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Graceful Degradation</strong></td>
+          <td>Everywhere</td>
+          <td>Errors never throw — encoded as <code>AssistantMessage</code> with <code>stopReason: "error"</code>. Logger never throws. JSON parsing repairs malformed input.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Dependencies ── -->
+<div class="section" id="deps">
+  <div class="section-title">
+    <span class="material-icons-outlined">inventory_2</span> Dependencies
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>Provider SDKs</h3>
+      <ul>
+        <li><code>@anthropic-ai/sdk</code></li>
+        <li><code>openai</code></li>
+        <li><code>@google/genai</code></li>
+        <li><code>@mistralai/mistralai</code></li>
+        <li><code>@aws-sdk/client-bedrock-runtime</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Schema & Validation</h3>
+      <ul>
+        <li><code>@sinclair/typebox</code> — TypeBox for type-safe tool schemas</li>
+        <li><code>zod-to-json-schema</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Runtime Utilities</h3>
+      <ul>
+        <li><code>partial-json</code> — streaming JSON parsing</li>
+        <li><code>proxy-agent</code> — HTTP proxy support</li>
+        <li><code>undici</code> — HTTP client</li>
+        <li><code>chalk</code> — terminal colors</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Public API ── -->
+<div class="section" id="api">
+  <div class="section-title">
+    <span class="material-icons-outlined">api</span> Public API Surface
+  </div>
+
+  <div class="card">
+    <h3>Subpath Exports</h3>
+    <pre><span class="str">"prime-agent-ai"</span>            <span class="cmt">// main entry — everything</span>
+<span class="str">"prime-agent-ai/anthropic"</span>  <span class="cmt">// Anthropic-specific types &amp; options</span>
+<span class="str">"prime-agent-ai/openai-responses"</span>
+<span class="str">"prime-agent-ai/oauth"</span>      <span class="cmt">// OAuth registry &amp; types</span>
+<span class="str">"prime-agent-ai/mcp"</span>        <span class="cmt">// MCP catalog &amp; OAuth</span>
+<span class="str">"prime-agent-ai/bedrock-provider"</span></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Streaming Functions</h3>
+      <ul>
+        <li><code>stream(model, context, options)</code> → <code>AssistantMessageEventStream</code></li>
+        <li><code>complete(model, context, options)</code> → <code>AssistantMessage</code></li>
+        <li><code>streamSimple(model, context, options)</code> → <code>AsyncIterable&lt;string&gt;</code></li>
+        <li><code>completeSimple(model, context, options)</code> → <code>string</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Registry Functions</h3>
+      <ul>
+        <li><code>registerApiProvider()</code> / <code>getApiProvider()</code></li>
+        <li><code>getModel()</code> / <code>getModels()</code> / <code>getProviders()</code></li>
+        <li><code>calculateCost()</code></li>
+        <li><code>getSupportedThinkingLevels()</code> / <code>clampThinkingLevel()</code></li>
+        <li><code>modelsAreEqual()</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3>Validation</h3>
+      <ul>
+        <li><code>validateToolCall()</code></li>
+        <li><code>validateToolArguments()</code></li>
+        <li><code>isContextOverflow()</code></li>
+        <li><code>StringEnum()</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Faux (Testing)</h3>
+      <ul>
+        <li><code>registerFauxProvider()</code></li>
+        <li><code>fauxAssistantMessage()</code></li>
+        <li><code>fauxText()</code> / <code>fauxThinking()</code></li>
+        <li><code>fauxToolCall()</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>TypeBox Re-exports</h3>
+      <ul>
+        <li><code>Type</code> — schema builder</li>
+        <li><code>Static</code> — type inference</li>
+        <li><code>TSchema</code> — base schema type</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<div style="text-align:center; padding:32px 0; color:var(--md-on-surface-variant); font-size:12px; border-top:1px solid var(--md-outline-variant); margin-top:40px;">
+  @pi-ai Architecture — Generated 2026-08-20
+</div>
+
+</body>
+</html>

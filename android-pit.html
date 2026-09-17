@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android 开发踩坑指南 — 原生 &amp; React Native</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1a73e8;
+    --md-on-primary: #fff;
+    --md-surface: #fff;
+    --md-surface-variant: #f1f3f4;
+    --md-on-surface: #202124;
+    --md-on-surface-variant: #5f6368;
+    --md-outline: #dadce0;
+    --md-error: #d93025;
+    --md-success: #1e8e3e;
+    --md-warning: #f9ab00;
+    --md-tertiary: #7b1fa2;
+    --md-elevation-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-elevation-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shape: 12px;
+    --md-shape-sm: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --md-surface: #1e1f20;
+      --md-surface-variant: #2d2e30;
+      --md-on-surface: #e3e3e3;
+      --md-on-surface-variant: #9aa0a6;
+      --md-outline: #5f6368;
+      --md-elevation-1: 0 1px 3px 1px rgba(0,0,0,.4);
+      --md-elevation-2: 0 2px 6px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface-variant);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--md-elevation-2);
+  }
+  .top-bar h1 { font-size: 22px; font-weight: 500; }
+  .top-bar p  { font-size: 14px; opacity: .85; margin-top: 2px; }
+
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    background: var(--md-surface);
+    border-radius: var(--md-shape) var(--md-shape) 0 0;
+    overflow: hidden;
+    box-shadow: var(--md-elevation-1);
+    margin-bottom: 0;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 14px 20px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    transition: background .2s, color .2s;
+  }
+  .tab-btn:hover { background: var(--md-surface-variant); }
+  .tab-btn.active {
+    color: var(--md-primary);
+  }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Section Card ── */
+  .pit-section {
+    background: var(--md-surface);
+    border-radius: var(--md-shape);
+    box-shadow: var(--md-elevation-1);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .pit-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .15s;
+  }
+  .pit-header:hover { background: var(--md-surface-variant); }
+  .pit-header .icon {
+    font-size: 24px;
+    color: var(--md-primary);
+    flex-shrink: 0;
+  }
+  .pit-header h2 {
+    font-size: 16px;
+    font-weight: 500;
+    flex: 1;
+  }
+  .pit-header .chevron {
+    font-size: 20px;
+    color: var(--md-on-surface-variant);
+    transition: transform .25s;
+  }
+  .pit-section.open .chevron { transform: rotate(180deg); }
+  .pit-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .35s ease;
+  }
+  .pit-section.open .pit-body { max-height: 4000px; }
+  .pit-content { padding: 0 20px 20px; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .badge-native { background: #e8f5e9; color: #1b5e20; }
+  .badge-rn     { background: #e3f2fd; color: #0d47a1; }
+  .badge-both   { background: #fce4ec; color: #880e4f; }
+  @media (prefers-color-scheme: dark) {
+    .badge-native { background: #1b5e20; color: #a5d6a7; }
+    .badge-rn     { background: #0d47a1; color: #90caf9; }
+    .badge-both   { background: #880e4f; color: #f48fb1; }
+  }
+
+  /* ── Lists ── */
+  .pit-list { list-style: none; }
+  .pit-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--md-outline);
+    font-size: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .pit-list li:last-child { border-bottom: none; }
+  .pit-list .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--md-error);
+    flex-shrink: 0;
+    margin-top: 8px;
+  }
+
+  /* ── Code ── */
+  pre {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: var(--md-shape-sm);
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    background: var(--md-surface-variant);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  pre code { background: none; padding: 0; }
+  .cm  { color: #6c7086; }
+  .kw  { color: #cba6f7; }
+  .fn  { color: #89b4fa; }
+  .str { color: #a6e3a1; }
+  .num { color: #fab387; }
+  .tag { color: #f38ba8; }
+  .attr{ color: #f9e2af; }
+
+  /* ── Table ── */
+  .pit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 12px 0;
+  }
+  .pit-table th {
+    text-align: left;
+    font-weight: 500;
+    padding: 10px 12px;
+    background: var(--md-surface-variant);
+    border-bottom: 2px solid var(--md-outline);
+  }
+  .pit-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--md-outline);
+    vertical-align: top;
+  }
+  .pit-table tr:last-child td { border-bottom: none; }
+
+  /* ── ASCII art ── */
+  .ascii-box {
+    background: #1e1e2e;
+    color: #a6adc8;
+    border-radius: var(--md-shape-sm);
+    padding: 16px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 12px 0;
+    max-width: 100%;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--md-outline);
+    margin: 16px 0;
+  }
+
+  /* ── Tip callout ── */
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--md-shape-sm);
+    font-size: 14px;
+    margin: 12px 0;
+  }
+  .callout-tip {
+    background: #e8f5e9;
+    color: #1b5e20;
+  }
+  .callout-warn {
+    background: #fff8e1;
+    color: #e65100;
+  }
+  @media (prefers-color-scheme: dark) {
+    .callout-tip  { background: #1b3a1b; color: #a5d6a7; }
+    .callout-warn { background: #3a2e00; color: #ffe082; }
+  }
+  .callout .material-icons-outlined { font-size: 20px; flex-shrink: 0; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .top-bar { padding: 16px; }
+    .container { padding: 16px 8px 48px; }
+    pre, .ascii-box { font-size: 11px; padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <h1>Android 开发踩坑指南</h1>
+  <p>原生 (Kotlin/Java) &amp; React Native — 常见问题速查</p>
+</header>
+
+<div class="container">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="tab-both">共性问题</button>
+    <button class="tab-btn" data-tab="tab-native">原生专属</button>
+    <button class="tab-btn" data-tab="tab-rn">React Native</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- Tab: 共性问题                                -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="tab-both" class="tab-panel active">
+
+    <!-- 刘海屏 -->
+    <section class="pit-section open">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">crop_free</span>
+        <h2>刘海屏 / 挖孔屏安全区 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  ┌──────────────────────┐
+  │░░░░░░░░░░░░░░░░░░░░░│  ← 状态栏 (insets.top)
+  │░░░┌──┐░░░░░░░░░░░░░░│  ← 刘海 / 挖孔
+  │░░░│  │░░░░░░░░░░░░░░│
+  │░░░└──┘░░░░░░░░░░░░░░│
+  │                      │
+  │   安全显示区域        │
+  │                      │
+  │                      │
+  │░░░░░░░░░░░░░░░░░░░░░│  ← 导航栏 / 手势条
+  │░░░░░░░░░░░░░░░░░░░░░│     (insets.bottom)
+  └──────────────────────┘</div>
+        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;">原生 (Kotlin)</h3>
+<pre><code><span class="cm">// Android 9+ 声明刘海支持</span>
+<span class="kw">if</span> (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+    window.attributes.layoutInDisplayCutoutMode =
+        WindowManager.LayoutParams
+            .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+}
+
+<span class="cm">// 获取安全区 insets</span>
+ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+    <span class="kw">val</span> bars = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars()
+    )
+    v.setPadding(bars.left, bars.top,
+                 bars.right, bars.bottom)
+    insets
+}</code></pre>
+        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;">React Native</h3>
+<pre><code><span class="cm">// ⚠️ SafeAreaView 在 Android 上不生效！</span>
+<span class="cm">// 必须用 react-native-safe-area-context</span>
+<span class="kw">import</span> { useSafeAreaInsets }
+  <span class="kw">from</span> <span class="str">'react-native-safe-area-context'</span>;
+
+<span class="kw">function</span> <span class="fn">Screen</span>() {
+  <span class="kw">const</span> insets = <span class="fn">useSafeAreaInsets</span>();
+  <span class="kw">return</span> (
+    &lt;<span class="tag">View</span> <span class="attr">style</span>={{
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom
+    }}&gt;
+      {<span class="cm">/* 内容 */</span>}
+    &lt;/<span class="tag">View</span>&gt;
+  );
+}</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>各厂商刘海形状不同（水滴/挖孔/药丸），不能 hardcode 尺寸</li>
+          <li><span class="dot"></span>横屏时刘海会切到内容</li>
+          <li><span class="dot"></span><code>LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT</code> 在全屏下自动加黑边</li>
+          <li><span class="dot"></span>RN 的 <code>SafeAreaView</code> 仅 iOS 有效，Android 必须用第三方库</li>
+          <li><span class="dot"></span>某些 Android 机型 <code>insets</code> 返回 0，需要 fallback</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 软键盘 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">keyboard</span>
+        <h2>软键盘（输入法）<span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  ┌──────────────────────┐
+  │                      │
+  │      App 内容        │
+  │                      │
+  │  ┌──────────────────┐│
+  │  │  TextInput        ││  ← 需要上推
+  │  └──────────────────┘│
+  │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│  ← 软键盘弹出
+  │▓▓▓  搜狗 / Gboard ▓▓▓│     高度不固定
+  │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
+  └──────────────────────┘</div>
+        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;">原生 (Kotlin)</h3>
+<pre><code><span class="cm">// 监听键盘高度</span>
+ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+    <span class="kw">val</span> imeVisible = insets.isVisible(
+        WindowInsetsCompat.Type.ime()
+    )
+    <span class="kw">val</span> imeHeight = insets.getInsets(
+        WindowInsetsCompat.Type.ime()
+    ).bottom
+    <span class="cm">// 调整布局</span>
+    insets
+}</code></pre>
+        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;">React Native</h3>
+<pre><code><span class="cm">// AndroidManifest.xml</span>
+<span class="tag">&lt;activity</span>
+  <span class="attr">android:windowSoftInputMode</span>=<span class="str">"adjustResize"</span>
+<span class="tag">/&gt;</span>
+
+<span class="cm">// JS 侧</span>
+&lt;<span class="tag">KeyboardAvoidingView</span>
+  <span class="attr">behavior</span>={
+    Platform.OS === <span class="str">'ios'</span> ? <span class="str">'padding'</span> : <span class="str">'height'</span>
+  }
+  <span class="attr">style</span>={{ flex: <span class="num">1</span> }}
+&gt;
+  &lt;<span class="tag">TextInput</span> /&gt;
+&lt;/<span class="tag">KeyboardAvoidingView</span>&gt;</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span><code>adjustResize</code> vs <code>adjustPan</code> 行为不一致</li>
+          <li><span class="dot"></span><code>WindowInsetsCompat.Type.ime()</code> Android 11+ 才可靠</li>
+          <li><span class="dot"></span>某些输入法（搜狗/百度）高度不标准，会弹跳</li>
+          <li><span class="dot"></span>RN 的 <code>KeyboardAvoidingView</code> Android 用 <code>height</code>，用 <code>padding</code> 会跳</li>
+          <li><span class="dot"></span>全屏模式下键盘弹出不 resize，内容被完全遮挡</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 权限 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">lock</span>
+        <h2>权限管理 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <table class="pit-table">
+          <tr><th>Android 版本</th><th>权限变化</th></tr>
+          <tr><td>10 (API 29)</td><td>分区存储 (Scoped Storage)，<code>READ_EXTERNAL_STORAGE</code> 行为变化</td></tr>
+          <tr><td>11 (API 30)</td><td>自动重置未使用 App 的权限</td></tr>
+          <tr><td>12 (API 31)</td><td>精确闹钟 <code>SCHEDULE_EXACT_ALARM</code>，蓝牙权限细分</td></tr>
+          <tr><td>13 (API 33)</td><td>通知权限 <code>POST_NOTIFICATIONS</code>，媒体权限细分</td></tr>
+          <tr><td>14 (API 34)</td><td>前台服务类型声明，隐式 Intent 限制</td></tr>
+          <tr><td>15 (API 35)</td><td>强制 edge-to-edge，部分权限行为再次调整</td></tr>
+        </table>
+        <h3 style="font-size:14px;font-weight:500;margin:12px 0 8px;">React Native 额外注意</h3>
+<pre><code><span class="cm">// Android 13+ 通知权限</span>
+<span class="kw">import</span> { PermissionsAndroid } <span class="kw">from</span> <span class="str">'react-native'</span>;
+
+<span class="kw">if</span> (Platform.Version >= <span class="num">33</span>) {
+  <span class="kw">const</span> result = <span class="kw">await</span> PermissionsAndroid.request(
+    <span class="str">'android.permission.POST_NOTIFICATIONS'</span>
+  );
+}</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>RN 的 <code>PermissionsAndroid</code> API 很基础，复杂权限链要自己编排</li>
+          <li><span class="dot"></span>某些 ROM <code>request</code> 返回 <code>granted</code> 但实际没授权</li>
+          <li><span class="dot"></span>权限被永久拒绝后 RN 无好的引导方案，需手动跳设置页</li>
+          <li><span class="dot"></span>后台定位需先有前台定位，不能直接请求</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 状态栏 & 导航栏 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">phone_android</span>
+        <h2>状态栏 &amp; 导航栏 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  ┌──────────────────────┐
+  │▓▓▓▓ 状态栏 ▓▓▓▓▓▓▓▓▓│  ← 沉浸式 / 透明
+  ├──────────────────────┤     深色/浅色图标
+  │                      │
+  │      App 内容        │
+  │                      │
+  ├──────────────────────┤
+  │▓▓ 导航栏 / 手势条 ▓▓▓│  ← 三键 vs 手势
+  └──────────────────────┘     高度不同</div>
+        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;">原生 (Kotlin)</h3>
+<pre><code><span class="cm">// 沉浸式 (Android 11+)</span>
+WindowCompat.setDecorFitsSystemWindows(window, <span class="kw">false</span>)
+
+<span class="cm">// 传统方式 (Android 5-10)</span>
+window.statusBarColor = Color.TRANSPARENT
+window.navigationBarColor = Color.TRANSPARENT</code></pre>
+        <h3 style="font-size:14px;font-weight:500;margin:12px 0 8px;">React Native</h3>
+<pre><code><span class="cm">// 状态栏 (全局组件，页面间会互相影响!)</span>
+&lt;<span class="tag">StatusBar</span>
+  <span class="attr">translucent</span>
+  <span class="attr">backgroundColor</span>=<span class="str">"transparent"</span>
+  <span class="attr">barStyle</span>=<span class="str">"light-content"</span>
+/&gt;
+
+<span class="cm">// 导航栏颜色需要原生模块</span>
+<span class="kw">import</span> SystemNavigationBar
+  <span class="kw">from</span> <span class="str">'react-native-system-navigation-bar'</span>;
+SystemNavigationBar.setNavigationColor(<span class="str">'#000'</span>);</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>Android 5-11 每个版本沉浸式 API 都不同，兼容代码很长</li>
+          <li><span class="dot"></span>手势模式 vs 三键模式，底部安全区高度不同</li>
+          <li><span class="dot"></span>Android 15 默认强制 edge-to-edge，老应用可能出问题</li>
+          <li><span class="dot"></span>RN 的 <code>StatusBar</code> 是全局的，页面 A 设了会影响页面 B</li>
+          <li><span class="dot"></span>RN 的 <code>translucent</code> 在某些机型上内容会跑到状态栏下面</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 后台 & 推送 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">notifications</span>
+        <h2>后台任务 &amp; 推送 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <div class="callout callout-warn">
+          <span class="material-icons-outlined">warning</span>
+          <div>国内无法使用 FCM，需要接入厂商推送通道（小米/华为/OPPO/vivo）</div>
+        </div>
+        <h3 style="font-size:14px;font-weight:500;margin:12px 0 8px;">原生 (Kotlin)</h3>
+<pre><code><span class="cm">// Android 8+ 后台 Service 限制</span>
+<span class="cm">// 需要改用 WorkManager 或 Foreground Service</span>
+<span class="kw">val</span> workRequest = OneTimeWorkRequestBuilder&lt;MyWorker&gt;()
+    .setConstraints(Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build())
+    .build()
+WorkManager.getInstance(context).enqueue(workRequest)</code></pre>
+        <h3 style="font-size:14px;font-weight:500;margin:12px 0 8px;">React Native</h3>
+<pre><code><span class="cm">// Headless JS (Android 后台任务)</span>
+<span class="cm">// 在很多厂商 ROM 上会被杀</span>
+<span class="kw">import</span> messaging
+  <span class="kw">from</span> <span class="str">'@react-native-firebase/messaging'</span>;
+
+<span class="kw">const</span> token = <span class="kw">await</span> messaging().getToken();</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>Android 8+ 后台 Service 限制，<code>AlarmManager</code> 在 Doze 模式不触发</li>
+          <li><span class="dot"></span>Android 12+ 不能从后台启动前台服务</li>
+          <li><span class="dot"></span>各厂商 ROM 额外的后台杀死逻辑（MIUI/ColorOS/HarmonyOS）</li>
+          <li><span class="dot"></span>RN 的 <code>Headless JS</code> 在很多机型上被杀</li>
+          <li><span class="dot"></span>推送需要厂商通道聚合，推荐用推送 SDK 聚合方案</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 构建 & 发布 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">build</span>
+        <h2>构建 &amp; 发布 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <table class="pit-table">
+          <tr><th>问题</th><th>原生</th><th>React Native</th></tr>
+          <tr>
+            <td><strong>签名</strong></td>
+            <td>v2/v3 签名方案，低版本安装失败</td>
+            <td><code>build.gradle</code> 签名配置容易遗漏</td>
+          </tr>
+          <tr>
+            <td><strong>混淆</strong></td>
+            <td>反射调用的类被混淆崩溃</td>
+            <td>原生模块崩溃，需 keep 规则</td>
+          </tr>
+          <tr>
+            <td><strong>ABI</strong></td>
+            <td>Google Play 要求 arm64-v8a</td>
+            <td>默认包含所有 ABI，需 <code>abiFilters</code></td>
+          </tr>
+          <tr>
+            <td><strong>包大小</strong></td>
+            <td>动态加载 so、资源压缩</td>
+            <td>split APKs 或 <code>abiFilters</code></td>
+          </tr>
+          <tr>
+            <td><strong>热更新</strong></td>
+            <td>不支持（Google Play 限制）</td>
+            <td>CodePush / EAS Update，仅限 JS 层</td>
+          </tr>
+        </table>
+<pre><code><span class="cm">// RN: android/app/build.gradle — 按 ABI 拆包</span>
+splits {
+    abi {
+        enable <span class="kw">true</span>
+        reset()
+        include <span class="str">"armeabi-v7a"</span>, <span class="str">"arm64-v8a"</span>, <span class="str">"x86"</span>
+    }
+}</code></pre>
+      </div></div>
+    </section>
+
+    <!-- 特定机型 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">phone_iphone</span>
+        <h2>特定机型 / 系统 <span class="badge badge-both">共性</span></h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <table class="pit-table">
+          <tr><th>机型 / 系统</th><th>常见问题</th></tr>
+          <tr><td>MIUI / HyperOS</td><td>默认关闭自启动权限，推送/后台任务失效</td></tr>
+          <tr><td>华为 / HarmonyOS</td><td>部分 API 不兼容，需特殊适配</td></tr>
+          <tr><td>三星折叠屏</td><td>展开/折叠状态切换布局错乱</td></tr>
+          <tr><td>OPPO ColorOS</td><td>后台杀死逻辑激进，推送延迟</td></tr>
+          <tr><td>Android 14</td><td>隐式 Intent 限制，<code>Linking.openURL</code> 可能失败 (RN)</td></tr>
+          <tr><td>Android 15</td><td>强制 edge-to-edge，透明状态栏/导航栏行为变化</td></tr>
+        </table>
+      </div></div>
+    </section>
+
+  </div><!-- /tab-both -->
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- Tab: 原生专属                                -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="tab-native" class="tab-panel">
+
+    <!-- 生命周期 -->
+    <section class="pit-section open">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">autorenew</span>
+        <h2>生命周期 &amp; 状态恢复</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  Activity 生命周期 (配置变更会重建!)
+
+  onCreate ──→ onStart ──→ onResume
+      ↑                        │
+      │        onDestroy       │ onPause
+      │            ↑           ↓
+      └── onRestart ←── onStop
+                                │
+           配置变更 (横竖屏/语言/   │
+           深色模式) ─────────────┘
+           → onSaveInstanceState
+           → onDestroy
+           → onCreate(savedInstanceState)</div>
+<pre><code><span class="cm">// Bundle 有大小限制 (~1MB)</span>
+<span class="cm">// 超了会 TransactionTooLargeException</span>
+<span class="kw">override fun</span> <span class="fn">onSaveInstanceState</span>(outState: Bundle) {
+    <span class="kw">super</span>.onSaveInstanceState(outState)
+    <span class="cm">// 只保存轻量数据!</span>
+    outState.putString(<span class="str">"key"</span>, value)
+}</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>横竖屏切换、语言切换、深色模式切换都会导致 Activity 重建</li>
+          <li><span class="dot"></span><code>savedInstanceState</code> Bundle 有 ~1MB 限制</li>
+          <li><span class="dot"></span><code>onSaveInstanceState</code> 在 API 28+ 于 <code>onStop</code> 之后调用</li>
+          <li><span class="dot"></span>系统低内存杀进程后恢复，全局变量全部丢失</li>
+          <li><span class="dot"></span>多窗口模式下 <code>onResume</code> 不代表 App 可见</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 图片加载 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">image</span>
+        <h2>图片加载</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<pre><code><span class="cm">// 正确的两步加载：先获取尺寸，再降采样</span>
+<span class="kw">val</span> options = BitmapFactory.Options().apply {
+    inJustDecodeBounds = <span class="kw">true</span>  <span class="cm">// 只读尺寸</span>
+}
+BitmapFactory.decodeStream(inputStream, <span class="kw">null</span>, options)
+
+options.inSampleSize = <span class="fn">calculateInSampleSize</span>(
+    options, reqWidth, reqHeight
+)
+options.inJustDecodeBounds = <span class="kw">false</span>
+<span class="kw">val</span> bitmap = BitmapFactory.decodeStream(
+    inputStream2, <span class="kw">null</span>, options
+)</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>大图不降采样直接加载会 OOM</li>
+          <li><span class="dot"></span><code>BitmapFactory.decodeStream</code> 只能读一次，需要先获取尺寸再解码</li>
+          <li><span class="dot"></span>HEIC/HEIF 格式在低版本不支持</li>
+          <li><span class="dot"></span>Content URI 获取真实路径是经典难题，没有通用方案</li>
+          <li><span class="dot"></span>推荐直接用 Glide/Coil，不要手写 Bitmap 加载</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- WebView -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">language</span>
+        <h2>WebView</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <ul class="pit-list">
+          <li><span class="dot"></span>各系统 WebView 版本差异巨大，CSS/JS 兼容性问题</li>
+          <li><span class="dot"></span><code>addJavascriptInterface</code> 安全漏洞</li>
+          <li><span class="dot"></span>文件上传 <code>onShowFileChooser</code> 回调实现复杂</li>
+          <li><span class="dot"></span>内存泄漏：WebView 持有 Activity 引用，需要独立进程或手动 destroy</li>
+          <li><span class="dot"></span><code>shouldOverrideUrlLoading</code> 对 POST 请求拦截不生效</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 多进程 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">dns</span>
+        <h2>多进程 &amp; 进程间通信</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <ul class="pit-list">
+          <li><span class="dot"></span>Application <code>onCreate</code> 每个进程执行一次，需判断进程名</li>
+          <li><span class="dot"></span>SharedPreferences 多进程不安全，需用 ContentProvider 或 MMKV</li>
+          <li><span class="dot"></span>ContentProvider 的 <code>onCreate</code> 先于 Application <code>onCreate</code></li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- ANR & 性能 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">speed</span>
+        <h2>ANR &amp; 性能</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <div class="callout callout-warn">
+          <span class="material-icons-outlined">warning</span>
+          <div>ANR 阈值：主线程 5 秒无响应 (Input Event) / 10 秒 (BroadcastReceiver) / 20 秒 (Service)</div>
+        </div>
+        <ul class="pit-list">
+          <li><span class="dot"></span>主线程网络/IO 操作 → ANR</li>
+          <li><span class="dot"></span>数据库查询阻塞主线程 → ANR</li>
+          <li><span class="dot"></span>SharedPreferences <code>commit()</code> 应改用 <code>apply()</code></li>
+          <li><span class="dot"></span>布局层级过深导致 measure/layout 耗时</li>
+          <li><span class="dot"></span>RecyclerView 没有复用 ViewHolder 导致滑动卡顿</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 通知 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">notifications_active</span>
+        <h2>通知</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<pre><code><span class="cm">// Android 8+ 必须创建 NotificationChannel</span>
+<span class="kw">val</span> channel = NotificationChannel(
+    <span class="str">"channel_id"</span>,
+    <span class="str">"通知渠道名称"</span>,
+    NotificationManager.IMPORTANCE_DEFAULT
+)
+notificationManager.createNotificationChannel(channel)</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>Android 8+ 不创建 NotificationChannel 就不显示通知</li>
+          <li><span class="dot"></span>Android 13+ 需要 <code>POST_NOTIFICATIONS</code> 权限</li>
+          <li><span class="dot"></span>通知渠道创建后不能修改重要性（只能删了重建）</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- Jetpack Compose -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">widgets</span>
+        <h2>Jetpack Compose 专属坑</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <ul class="pit-list">
+          <li><span class="dot"></span>重组（Recomposition）范围过大导致性能问题，需用 <code>derivedStateOf</code> 控制</li>
+          <li><span class="dot"></span><code>LaunchedEffect</code> key 变化会取消并重启，容易遗漏</li>
+          <li><span class="dot"></span><code>remember</code> 在配置变更后丢失，需用 <code>rememberSaveable</code></li>
+          <li><span class="dot"></span>与 View 系统互操作（<code>AndroidView</code>）时生命周期管理复杂</li>
+          <li><span class="dot"></span>Lazy 列表嵌套滚动冲突</li>
+        </ul>
+      </div></div>
+    </section>
+
+  </div><!-- /tab-native -->
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- Tab: React Native                            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="tab-rn" class="tab-panel">
+
+    <!-- 原生模块 -->
+    <section class="pit-section open">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">extension</span>
+        <h2>原生模块 &amp; 新架构</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  旧架构 (Bridge)              新架构 (JSI / TurboModules)
+
+  JS  ──JSON──→ Bridge ──→ Native    JS ──直接调用──→ Native
+       ↑              ↓                      ↑
+       └──JSON────────┘                  直接返回
+       (序列化瓶颈, 60fps 上限)         (零拷贝, 高性能)</div>
+<pre><code><span class="cm">// 旧架构 (Bridge)</span>
+<span class="kw">import</span> { NativeModules } <span class="kw">from</span> <span class="str">'react-native'</span>;
+<span class="kw">const</span> { MyModule } = NativeModules;
+
+<span class="cm">// 新架构 (Turbo Modules / JSI)</span>
+<span class="kw">import</span> MyModule <span class="kw">from</span> <span class="str">'./NativeMyModule'</span>;</code></pre>
+        <ul class="pit-list">
+          <li><span class="dot"></span>新架构（Fabric / TurboModules）兼容性问题多，很多第三方库未适配</li>
+          <li><span class="dot"></span>Bridge JSON 序列化大数据会卡顿</li>
+          <li><span class="dot"></span>原生模块线程模型复杂：UI 操作必须在主线程</li>
+          <li><span class="dot"></span><code>NativeModules</code> 返回 <code>null</code> 通常是链接问题</li>
+          <li><span class="dot"></span>iOS/Android 原生模块接口需分别实现</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 性能 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">speed</span>
+        <h2>性能</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <table class="pit-table">
+          <tr><th>场景</th><th>坑</th><th>方案</th></tr>
+          <tr>
+            <td>长列表</td>
+            <td><code>FlatList</code> 不加 <code>getItemLayout</code> 卡顿</td>
+            <td>加 <code>getItemLayout</code> + <code>initialNumToRender</code></td>
+          </tr>
+          <tr>
+            <td>图片</td>
+            <td>默认 <code>Image</code> 缓存策略弱</td>
+            <td>用 <code>react-native-fast-image</code></td>
+          </tr>
+          <tr>
+            <td>动画</td>
+            <td><code>Animated</code> 走 Bridge，高频卡顿</td>
+            <td>用 <code>react-native-reanimated</code> (JSI)</td>
+          </tr>
+          <tr>
+            <td>手势</td>
+            <td>高频手势交互延迟</td>
+            <td>用 <code>react-native-gesture-handler</code></td>
+          </tr>
+          <tr>
+            <td>内存</td>
+            <td>useEffect 未清理监听/定时器</td>
+            <td>返回清理函数</td>
+          </tr>
+          <tr>
+            <td>JS 引擎</td>
+            <td>Hermes 某些 polyfill 不兼容</td>
+            <td>检查 polyfill 兼容性</td>
+          </tr>
+        </table>
+      </div></div>
+    </section>
+
+    <!-- 样式 & 布局 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">palette</span>
+        <h2>样式 &amp; 布局</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <table class="pit-table">
+          <tr><th>差异</th><th>RN</th><th>Web</th></tr>
+          <tr>
+            <td><code>flexDirection</code></td>
+            <td>默认 <code>column</code></td>
+            <td>默认 <code>row</code></td>
+          </tr>
+          <tr>
+            <td><code>flex</code></td>
+            <td>仅支持数字</td>
+            <td>支持 <code>flex-grow/shrink/basis</code></td>
+          </tr>
+          <tr>
+            <td>阴影</td>
+            <td>Android 用 <code>elevation</code></td>
+            <td><code>box-shadow</code></td>
+          </tr>
+          <tr>
+            <td>字体粗细</td>
+            <td>Android 需加载字体文件</td>
+            <td>原生支持</td>
+          </tr>
+          <tr>
+            <td>单位</td>
+            <td>无单位 (dp)</td>
+            <td>px/rem/em</td>
+          </tr>
+        </table>
+        <ul class="pit-list">
+          <li><span class="dot"></span><code>borderRadius</code> + <code>overflow: 'hidden'</code> 在 Android 和 iOS 行为不同</li>
+          <li><span class="dot"></span>圆角 + 阴影 + 图片组合会导致 Android 裁剪异常</li>
+          <li><span class="dot"></span><code>flex: 1</code> 在某些嵌套场景下不生效，需手动算高度</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 导航 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">navigation</span>
+        <h2>导航 (React Navigation)</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <ul class="pit-list">
+          <li><span class="dot"></span>Android 左侧边缘返回手势和页面内手势冲突（抽屉/滑动删除）</li>
+          <li><span class="dot"></span>深度链接配置复杂，AndroidManifest.xml + JS 路由要对齐</li>
+          <li><span class="dot"></span>Android 默认 iOS 风格 push 动画，需自定义 <code>TransitionPresets</code></li>
+          <li><span class="dot"></span>Tab + Stack 嵌套时 Android 返回键行为不符合预期</li>
+          <li><span class="dot"></span>React Navigation 6 → 7 升级 breaking changes 多</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- 调试 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">bug_report</span>
+        <h2>调试</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+        <ul class="pit-list">
+          <li><span class="dot"></span>Flipper 对新架构支持不稳定，很多开发者弃用</li>
+          <li><span class="dot"></span><code>console.log</code> 在 Release 包不输出，需 <code>react-native-logs</code> 或 Sentry</li>
+          <li><span class="dot"></span>Hermes 调试：Chrome DevTools 连接不稳定，断点经常失效</li>
+          <li><span class="dot"></span>原生层 Crash 需要看 <code>adb logcat</code>，Red Screen 只捕获 JS 错误</li>
+          <li><span class="dot"></span>热更新仅限 JS 层，原生改动无法热更新</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- RN 构建 -->
+    <section class="pit-section">
+      <div class="pit-header" onclick="toggle(this)">
+        <span class="icon material-icons-outlined">settings</span>
+        <h2>Gradle &amp; 构建配置</h2>
+        <span class="chevron material-icons-outlined">expand_more</span>
+      </div>
+      <div class="pit-body"><div class="pit-content">
+<div class="ascii-box">  版本兼容矩阵 (四个必须匹配!)
+
+  ┌─────────────┬───────────────┬──────────────┐
+  │ RN 版本      │ Gradle 版本    │ AGP 版本     │
+  ├─────────────┼───────────────┼──────────────┤
+  │ 0.73        │ 8.4           │ 8.1.x        │
+  │ 0.74        │ 8.6           │ 8.2.x        │
+  │ 0.75+       │ 8.8+          │ 8.5.x        │
+  └─────────────┴───────────────┴──────────────┘
+  JDK 版本也要对齐 (推荐 JDK 17)</div>
+        <ul class="pit-list">
+          <li><span class="dot"></span>Gradle / AGP / JDK / RN 四者版本必须匹配，错一个编译失败</li>
+          <li><span class="dot"></span>ProGuard / R8 混淆导致原生模块崩溃</li>
+          <li><span class="dot"></span>某些原生库只有 <code>armeabi-v7a</code>，缺少 <code>arm64-v8a</code></li>
+          <li><span class="dot"></span><code>android/build.gradle</code> 的 <code>repositories</code> 配置容易遗漏</li>
+        </ul>
+      </div></div>
+    </section>
+
+  </div><!-- /tab-rn -->
+
+</div><!-- /container -->
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Accordion toggle
+  function toggle(header) {
+    header.closest('.pit-section').classList.toggle('open');
+  }
+</script>
+
+</body>
+</html>

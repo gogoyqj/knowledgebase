@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>React 19+ 深度解析 — 新特性 · 架构原理 · Server Components</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1976D2;
+    --md-on-primary: #fff;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary-container: #001D36;
+    --md-secondary: #535F70;
+    --md-secondary-container: #D7E3F7;
+    --md-tertiary: #6B5778;
+    --md-tertiary-container: #F2DAFF;
+    --md-surface: #FDFCFF;
+    --md-surface-variant: #DFE2EB;
+    --md-on-surface: #1A1C1E;
+    --md-on-surface-variant: #43474E;
+    --md-outline: #73777F;
+    --md-outline-variant: #C3C7CF;
+    --md-error: #BA1A1A;
+    --md-shadow-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+    --md-shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15);
+    --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.3);
+    --md-radius: 12px;
+    --md-radius-lg: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: #F0F4F8;
+    color: var(--md-on-surface);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Top App Bar ── */
+  .top-bar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--md-surface);
+    box-shadow: var(--md-shadow-1);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .top-bar .logo {
+    width: 40px; height: 40px;
+    background: var(--md-primary-container);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--md-on-primary-container);
+    font-size: 14px; flex-shrink: 0;
+  }
+  .top-bar h1 {
+    font-size: 22px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .top-bar h1 span { color: var(--md-primary); }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #1565C0 0%, #42A5F5 50%, #90CAF9 100%);
+    color: var(--md-on-primary);
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h2 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 16px;
+    opacity: .88;
+    max-width: 620px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── Navigation Tabs ── */
+  .tab-bar {
+    background: var(--md-surface);
+    position: sticky; top: 72px; z-index: 90;
+    display: flex; justify-content: center;
+    box-shadow: var(--md-shadow-1);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    border: none; background: none;
+    padding: 16px 28px;
+    font: 500 14px 'Noto Sans SC', sans-serif;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .tab-btn:hover { color: var(--md-primary); background: rgba(25,118,210,.06); }
+  .tab-btn.active { color: var(--md-primary); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    background: var(--md-primary);
+    border-radius: 3px 3px 0 0;
+  }
+
+  /* ── Main Container ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* ── Section Cards ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-shadow-1);
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-shadow-2); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .card-icon.blue   { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+  .card-icon.purple { background: #EADDFF; color: #21005D; }
+  .card-icon.green  { background: #D0F5D8; color: #003D16; }
+  .card-icon.amber  { background: #FFF3C4; color: #5D4037; }
+  .card-icon.red    { background: #FFDAD6; color: #410002; }
+  .card-icon.teal   { background: #C8F7E5; color: #003D2E; }
+
+  .card h3 {
+    font-size: 18px; font-weight: 500;
+    color: var(--md-on-surface);
+  }
+
+  .card p, .card li {
+    font-size: 14.5px;
+    color: var(--md-on-surface-variant);
+    line-height: 1.9;
+  }
+  .card ul, .card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .card li { margin-bottom: 4px; }
+
+  .card strong { color: var(--md-on-surface); font-weight: 500; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--md-secondary-container);
+    color: var(--md-secondary);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 8px;
+    margin: 2px 4px 2px 0;
+  }
+  .chip.primary {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  .chip.green {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+  .chip.amber {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+
+  /* ── Code Block ── */
+  pre {
+    background: #1A1C1E;
+    color: #E6E1E5;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 12px 0;
+    white-space: pre; width: fit-content; max-width: 100%;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .inline-code {
+    background: var(--md-surface-variant);
+    color: var(--md-on-primary-container);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .kw  { color: #C3E88D; }
+  .fn  { color: #82AAFF; }
+  .str { color: #C3E88D; }
+  .cm  { color: #6B7280; font-style: italic; }
+  .num { color: #F78C6C; }
+  .typ { color: #FFCB6B; }
+  .prop { color: #89DDFF; }
+  .tag { color: #F07178; }
+  .attr { color: #C792EA; }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #F0F4F8;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--md-secondary);
+    margin: 12px 0;
+    max-width: 100%;
+  }
+
+  /* ── Info Banner ── */
+  .banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .banner .material-icons-outlined { font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+
+  .banner.warn {
+    background: #FFF3C4;
+    color: #5D4037;
+  }
+  .banner.success {
+    background: #D0F5D8;
+    color: #003D16;
+  }
+
+  /* ── Comparison Grid ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .compare-box {
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .compare-box.old {
+    background: #FFF0F0;
+    border: 1px solid #FFDAD6;
+  }
+  .compare-box.new {
+    background: #F0FFF4;
+    border: 1px solid #C8F7D0;
+  }
+  .compare-box h4 {
+    font-size: 14px; font-weight: 500;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .compare-box ul { padding-left: 18px; }
+  .compare-box li { font-size: 13.5px; margin-bottom: 3px; color: var(--md-on-surface-variant); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .feature-tile {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 12px;
+    padding: 20px;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .feature-tile:hover {
+    box-shadow: var(--md-shadow-2);
+    border-color: var(--md-primary);
+  }
+  .feature-tile h4 {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .feature-tile p { font-size: 13.5px; color: var(--md-on-surface-variant); }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    margin: 16px 0 16px 20px;
+    padding-left: 28px;
+    border-left: 3px solid var(--md-primary-container);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -35px;
+    top: 6px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    border: 3px solid var(--md-primary-container);
+  }
+  .timeline-item h4 {
+    font-size: 15px; font-weight: 500;
+    color: var(--md-primary);
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13.5px;
+    color: var(--md-on-surface-variant);
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--md-outline);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<header class="top-bar">
+  <div class="logo">R19</div>
+  <h1>React 19+ <span>深度解析</span></h1>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <h2>新特性 · 架构原理 · Server Components</h2>
+  <p>深入理解 React 19 的革命性变化、React Compiler、Server Components 架构，以及未来版本的发展方向</p>
+</section>
+
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="features">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">new_releases</span>
+    React 19 新特性
+  </button>
+  <button class="tab-btn" data-tab="compiler">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">auto_fix_high</span>
+    React Compiler
+  </button>
+  <button class="tab-btn" data-tab="server">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">cloud</span>
+    Server Components
+  </button>
+  <button class="tab-btn" data-tab="architecture">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">account_tree</span>
+    架构原理
+  </button>
+  <button class="tab-btn" data-tab="future">
+    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;margin-right:4px">trending_up</span>
+    未来版本
+  </button>
+</nav>
+
+<!-- Content -->
+<main class="container">
+
+  <!-- ==================== React 19 新特性 ==================== -->
+  <section class="section active" id="features">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">rocket_launch</span></div>
+        <h3>React 19 概览</h3>
+      </div>
+      <p>
+        React 19 是 React 历史上最大的版本更新之一，引入了 <strong>React Compiler</strong>、
+        <strong>Server Components</strong> 正式稳定、全新的 <strong>Actions</strong> 机制，
+        以及多个新 Hooks。这些变化从根本上改变了 React 应用的编写方式。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div>React 19 的核心理念：<strong>让开发者专注于业务逻辑</strong>。通过编译器自动优化、服务端渲染原生支持、简化的状态管理，减少样板代码和心智负担。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">functions</span></div>
+        <h3>Actions 与异步状态</h3>
+      </div>
+      <p>React 19 引入了 <strong>Actions</strong> 概念——一种处理异步操作的全新方式，告别繁琐的 loading/error 状态管理：</p>
+      <pre><span class="cm">// React 19: Actions 自动管理 pending 状态</span>
+<span class="kw">function</span> <span class="fn">UpdateName</span>() {
+  <span class="kw">const</span> [name, setName] = <span class="fn">useState</span>(<span class="str">""</span>);
+  <span class="kw">const</span> [error, submitAction, isPending] = <span class="fn">useActionState</span>(
+    <span class="kw">async</span> (prev, formData) => {
+      <span class="kw">const</span> error = <span class="kw">await</span> <span class="fn">updateName</span>(formData.<span class="fn">get</span>(<span class="str">"name"</span>));
+      <span class="kw">if</span> (error) <span class="kw">return</span> error;
+      <span class="fn">redirect</span>(<span class="str">"/profile"</span>);
+      <span class="kw">return</span> <span class="kw">null</span>;
+    },
+    <span class="kw">null</span>
+  );
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">form</span> <span class="attr">action</span>={submitAction}&gt;
+      &lt;<span class="tag">input</span> <span class="attr">name</span>=<span class="str">"name"</span> /&gt;
+      &lt;<span class="tag">button</span> <span class="attr">disabled</span>={isPending}&gt;
+        {isPending ? <span class="str">"更新中..."</span> : <span class="str">"更新"</span>}
+      &lt;/<span class="tag">button</span>&gt;
+      {error &amp;&amp; &lt;<span class="tag">p</span>&gt;{error}&lt;/<span class="tag">p</span>&gt;}
+    &lt;/<span class="tag">form</span>&gt;
+  );
+}</pre>
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>告别 useEffect 地狱</strong>：Actions 将异步操作与 UI 事件直接绑定，React 自动管理 pending 状态和乐观更新。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">hook</span></div>
+        <h3>全新 Hooks 集合</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">data_object</span> use()</h4>
+          <p>在渲染时读取 Promise 或 Context，支持条件调用，彻底改变数据获取模式。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">pending_actions</span> useFormStatus</h4>
+          <p>获取父级 form 的提交状态（pending/data/method），无需 prop drilling。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">speed</span> useOptimistic</h4>
+          <p>乐观更新 Hook，在异步操作完成前立即显示预期结果。</p>
+        </div>
+        <div class="feature-tile">
+          <h4><span class="material-icons-outlined" style="font-size:18px;color:var(--md-primary)">dynamic_form</span> useActionState</h4>
+          <p>统一的 Action 状态管理，替代 useReducer + 手动 pending 的组合。</p>
+        </div>
+      </div>
+      <pre><span class="cm">// use() — 渲染时读取 Promise</span>
+<span class="kw">function</span> <span class="fn">UserProfile</span>({ userPromise }) {
+  <span class="kw">const</span> user = <span class="fn">use</span>(userPromise);  <span class="cm">// 直接在渲染时 await</span>
+  <span class="kw">return</span> &lt;<span class="tag">h1</span>&gt;{user.name}&lt;/<span class="tag">h1</span>&gt;;
+}
+
+<span class="cm">// useOptimistic — 乐观更新</span>
+<span class="kw">function</span> <span class="fn">TodoList</span>({ todos, addTodo }) {
+  <span class="kw">const</span> [optimisticTodos, addOptimistic] = <span class="fn">useOptimistic</span>(
+    todos,
+    (state, newTodo) => [...state, { text: newTodo, sending: <span class="kw">true</span> }]
+  );
+
+  <span class="kw">const</span> handleSubmit = <span class="kw">async</span> (formData) => {
+    <span class="fn">addOptimistic</span>(formData.<span class="fn">get</span>(<span class="str">"todo"</span>));
+    <span class="kw">await</span> <span class="fn">addTodo</span>(formData.<span class="fn">get</span>(<span class="str">"todo"</span>));
+  };
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span>&gt;
+      {optimisticTodos.<span class="fn">map</span>((todo) => (
+        &lt;<span class="tag">div</span> <span class="attr">key</span>={todo.text}&gt;
+          {todo.text}
+          {todo.sending &amp;&amp; &lt;<span class="tag">small</span>&gt; ⏳&lt;/<span class="tag">small</span>&gt;}
+        &lt;/<span class="tag">div</span>&gt;
+      ))}
+    &lt;/<span class="tag">div</span>&gt;
+  );
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>实现原理：Actions 与 useActionState</h3>
+      </div>
+      <p>Actions 并非全新的运行时概念，而是将<strong>异步状态机</strong>内置到 React 的更新调度中：</p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│       useActionState 内部状态机               │
+└─────────────────────────────────────────────┘
+
+  用户触发 action (form submit / onClick)
+       │
+       ▼
+  ┌─────────────┐
+  │  IDLE        │  isPending = false
+  │  (空闲态)    │
+  └──────┬──────┘
+         │ dispatch(action)
+         ▼
+  ┌─────────────┐
+  │  PENDING     │  isPending = true
+  │  (等待态)    │  React 标记为 Transition
+  └──────┬──────┘
+         │
+    ┌────┴────┐
+    │         │
+  resolve   reject
+    │         │
+    ▼         ▼
+  ┌───────┐ ┌───────┐
+  │ DONE  │ │ ERROR │  返回值 → state
+  │ 成功   │ │ 失败   │  isPending = false
+  └───────┘ └───────┘</div>
+      <p><strong>关键实现细节：</strong></p>
+      <ul>
+        <li>每个 <span class="inline-code">useActionState</span> 对应 Fiber 上的一个 <strong>queue</strong>（同 useReducer），但 dispatch 的是 async function</li>
+        <li>action 被包装在 <span class="inline-code">startTransition</span> 中执行，属于<strong>低优先级更新</strong>，不阻塞用户输入</li>
+        <li>多次快速触发 action 时，React <strong>自动取消</strong>前一个未完成的 Transition（类似竞态处理）</li>
+        <li>返回的 <span class="inline-code">isPending</span> 来自 SharedState，同一 form 下的 <span class="inline-code">useFormStatus</span> 可以共享</li>
+      </ul>
+      <pre><span class="cm">// React 源码简化：useActionState 核心逻辑</span>
+<span class="kw">function</span> <span class="fn">useActionState</span>(action, initialState) {
+  <span class="kw">const</span> queue = <span class="fn">ensureUpdateQueue</span>(fiber);  <span class="cm">// 复用 update queue</span>
+
+  <span class="kw">const</span> dispatch = (payload) => {
+    <span class="fn">startTransition</span>(() => {               <span class="cm">// 低优先级</span>
+      <span class="kw">const</span> result = <span class="fn">action</span>(queue.lastRenderedState, payload);
+      <span class="kw">if</span> (<span class="fn">isThenable</span>(result)) {            <span class="cm">// 异步 action</span>
+        queue.pendingTransition = result;
+        result.<span class="fn">then</span>(
+          (v) => <span class="fn">dispatchSetState</span>(fiber, v),
+          (e) => <span class="fn">dispatchSetState</span>(fiber, e)
+        );
+      } <span class="kw">else</span> {
+        <span class="fn">dispatchSetState</span>(fiber, result);   <span class="cm">// 同步 action</span>
+      }
+    });
+  };
+
+  <span class="kw">return</span> [queue.lastRenderedState, dispatch, isPending];
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>实现原理：use() 与 Suspense 协作</h3>
+      </div>
+      <p><span class="inline-code">use()</span> 是 React 中第一个<strong>可以在条件语句中调用</strong>的"类 Hook"，它的实现绕过了 Hooks 规则的限制。</p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>核心机制：throw promise + Suspense catch</strong>。这和 <code>React.lazy()</code>、<code>Suspense for Data Fetching</code> 是完全相同的底层模式——当 Promise 还没 resolve 时，<code>use()</code> 直接 throw 这个 Promise，最近的 Suspense 边界会 catch 住它并显示 fallback。Promise resolve 后，React 重新渲染该 Suspense 子树，<code>use()</code> 返回缓存值。唯一的区别是 Promise 状态<strong>缓存在 Promise 对象本身</strong>（<code>promise._reactInternals.status</code>），而非 Fiber 的 hook 链表，所以不受调用顺序约束。</div>
+      </div>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│            use() 执行流程                     │
+└─────────────────────────────────────────────┘
+
+  组件渲染
+       │
+       ▼
+  use(promise)
+       │
+       ├── promise.status === "fulfilled"
+       │        │
+       │        ▼
+       │    返回 promise.value    ← 有缓存，直接返回
+       │
+       ├── promise.status === "rejected"
+       │        │
+       │        ▼
+       │    throw promise.reason  ← 传播到 Error Boundary
+       │
+       └── promise.status === "pending"
+                │
+                ▼
+           throw promise    ← Suspense 捕获
+                │
+                ▼
+           ┌──────────┐
+           │ Suspense  │  显示 fallback
+           │ boundary  │
+           └────┬─────┘
+                │
+           promise resolve
+                │
+                ▼
+           重新渲染 Suspense 子树
+           use() 返回结果</div>
+      <pre><span class="cm">// React 源码简化：use() 核心实现</span>
+<span class="kw">function</span> <span class="fn">use</span>(usable) {
+  <span class="kw">if</span> (usable !== <span class="kw">null</span> && <span class="kw">typeof</span> usable === <span class="str">'object'</span>) {
+    <span class="cm">// 处理 Promise — 直接在 Promise 对象上挂载 React 内部状态</span>
+    <span class="kw">switch</span> (usable._status) {
+      <span class="kw">case</span> <span class="num">1</span>:                           <span class="cm">// fulfilled</span>
+        <span class="kw">return</span> usable._value;
+      <span class="kw">case</span> <span class="num">2</span>:                           <span class="cm">// rejected</span>
+        <span class="kw">throw</span> usable._value;
+      <span class="kw">default</span>:
+        <span class="kw">throw</span> usable;                   <span class="cm">// Suspense 捕获</span>
+    }
+  }
+}</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>Promise 污染问题</strong>：React 会在传入的 Promise 上直接写入 <code>_status</code>、<code>_value</code> 等私有属性，相当于 mutate 了外部对象。这意味着：
+          <br>• 同一个 Promise 被多个组件 <code>use()</code> 时会共享缓存（这通常是期望行为）
+          <br>• Promise 即使 resolve 后仍持有 React 内部引用，<strong>不会被自动清理</strong>
+          <br>• 如果 Promise 被持久化（如缓存到 Map 中），其上的 React 内部属性会<strong>泄漏到应用生命周期之外</strong>
+          <br>• 第三方库如果也往 Promise 上挂属性，可能产生命名冲突
+        </div>
+      </div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>为什么 use() 可以在条件语句中调用？</strong>因为它不使用 Fiber 的 hook 链表（linked list），而是将状态绑定到 Promise 对象本身。传统 Hooks 依赖调用顺序来匹配 state slot，use() 通过 Promise 引用直接定位状态。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>实现原理：useOptimistic 乐观更新</h3>
+      </div>
+      <p>useOptimistic 在底层维护<strong>两层状态</strong>——基础状态和乐观覆盖层：</p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│        useOptimistic 双层状态模型              │
+└─────────────────────────────────────────────┘
+
+  ┌─────────────────────────────┐
+  │  baseState (来自 props)      │  ← 权威状态
+  │  [A, B, C]                  │
+  └──────────────┬──────────────┘
+                 │
+                 │  + optimistic action
+                 ▼
+  ┌─────────────────────────────┐
+  │  optimisticState (合并后)    │  ← UI 显示
+  │  [A, B, C, D⏳]            │     (乐观值)
+  └──────────────┬──────────────┘
+                 │
+            异步完成
+                 │
+                 ▼
+  ┌─────────────────────────────┐
+  │  baseState 更新 (真实数据)   │  ← 乐观层清空
+  │  [A, B, C, D]              │     回归权威状态
+  └─────────────────────────────┘</div>
+      <pre><span class="cm">// React 源码简化：useOptimistic 核心逻辑</span>
+<span class="kw">function</span> <span class="fn">useOptimistic</span>(passthrough, reducer) {
+  <span class="kw">const</span> [state, dispatch] = <span class="fn">useReducer</span>(
+    (currentState, action) => {
+      <span class="kw">if</span> (action === <span class="str">'__RESET__'</span>) {
+        <span class="kw">return</span> passthrough;       <span class="cm">// 异步完成，重置为真实值</span>
+      }
+      <span class="kw">return</span> reducer(currentState, action);
+    },
+    passthrough
+  );
+
+  <span class="cm">// 当 passthrough 变化时自动重置（异步操作完成）</span>
+  <span class="fn">useEffect</span>(() => {
+    <span class="fn">dispatch</span>(<span class="str">'__RESET__'</span>);
+  }, [passthrough]);
+
+  <span class="kw">const</span> addOptimistic = (action) => <span class="fn">dispatch</span>(action);
+
+  <span class="kw">return</span> [state, addOptimistic];
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>竞态安全</strong>：useOptimistic 的乐观状态是通过 reducer 函数派生的，多个乐观操作可以叠加。当真实 props 更新时（Server Action 完成），useEffect 自动重置乐观层，保证最终一致性。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>实现原理：useFormStatus 与 Ref 清理</h3>
+      </div>
+      <p><strong>useFormStatus</strong> 并不通过 props 传递状态，而是利用 React 的<strong>内部 Context 机制</strong>：</p>
+      <ul>
+        <li>当 <span class="inline-code">&lt;form&gt;</span> 拥有 <span class="inline-code">action</span> 属性时，React 自动创建一个 <strong>FormStatusContext</strong></li>
+        <li>form 提交时，React 将 <span class="inline-code">{ pending, data, method, action }</span> 写入该 Context</li>
+        <li><span class="inline-code">useFormStatus()</span> 内部调用 <span class="inline-code">readContext(FormStatusContext)</span>，绕过 props drilling</li>
+        <li>状态更新被标记为 <strong>SyncLane</strong>（同步优先级），确保 pending 指示器立即响应</li>
+      </ul>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>为什么 useFormStatus 只能用在 form 内部？</strong>因为它读取的是最近祖先 <code>&lt;form&gt;</code> 创建的 Context。在 form 外部调用会读到默认值 <code>{ pending: false }</code>，不会报错但无意义。</div>
+      </div>
+      <p style="margin-top:16px"><strong>Ref 清理函数</strong>的实现变更在 Commit 阶段：</p>
+      <pre><span class="cm">// React 18: ref 回调无清理机制</span>
+&lt;<span class="tag">div</span> <span class="attr">ref</span>={(el) => { observer.<span class="fn">observe</span>(el); }} /&gt;
+<span class="cm">// 组件卸载时需要 useEffect 手动清理 ↑</span>
+
+<span class="cm">// React 19: ref 回调可返回清理函数</span>
+&lt;<span class="tag">div</span> <span class="attr">ref</span>={(el) => {
+  observer.<span class="fn">observe</span>(el);
+  <span class="kw">return</span> () => observer.<span class="fn">unobserve</span>(el);  <span class="cm">// 自动在卸载时调用</span>
+}} /&gt;
+
+<span class="cm">// 源码简化：Commit 阶段 ref 处理变更</span>
+<span class="kw">function</span> <span class="fn">commitRefCleanup</span>(ref, instance) {
+  <span class="kw">if</span> (<span class="kw">typeof</span> ref === <span class="str">'function'</span>) {
+    <span class="cm">// React 19: 先调用旧 cleanup，再调用新 ref</span>
+    <span class="kw">const</span> cleanup = ref.currentCleanup;
+    <span class="kw">if</span> (cleanup) <span class="fn">cleanup</span>();           <span class="cm">// ← 新增：清理旧 ref</span>
+    <span class="kw">const</span> newCleanup = <span class="fn">ref</span>(instance);  <span class="cm">// 调用新 ref</span>
+    ref.currentCleanup =               <span class="cm">// 缓存清理函数</span>
+      <span class="kw">typeof</span> newCleanup === <span class="str">'function'</span> ? newCleanup : <span class="kw">null</span>;
+  }
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>useSyncExternalStore：谁才是"外部"？</h3>
+      </div>
+      <p>
+        <span class="inline-code">useSyncExternalStore</span> 解决一个特定问题：<strong>把 React 管不了的状态安全地同步进渲染流程</strong>。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">info</span>
+        <div><strong>React 官方立场</strong>：<em>"When possible, we recommend using built-in React state with useState and useReducer instead. The useSyncExternalStore API is mostly useful if you need to integrate with existing non-React code."</em><br>能用 useState/useReducer 就用，useSyncExternalStore 是给<strong>已有的非 React 代码</strong>兜底的。</div>
+      </div>
+      <p style="margin-top:12px">那什么是<strong>"已有的非 React 代码"维护的状态</strong>？</p>
+      <div class="compare-grid">
+        <div class="compare-box new">
+          <h4>✅ React 内部状态</h4>
+          <ul>
+            <li>useState / useReducer</li>
+            <li>Context + Provider</li>
+            <li>Redux（react-redux 内部已用 useSyncExternalStore）</li>
+            <li>Zustand / Jotai / Recoil（基于 React 原语）</li>
+            <li>Server Components 传递的 props</li>
+          </ul>
+          <p style="margin-top:8px;font-size:13px;color:var(--md-on-surface-variant)">React 能感知变化，自动触发重渲染，无撕裂风险</p>
+        </div>
+        <div class="compare-box old">
+          <h4>⚠️ React 外部状态</h4>
+          <ul>
+            <li>浏览器 API：localStorage、navigator.onLine、matchMedia</li>
+            <li>全局变量 / 单例对象</li>
+            <li>WebSocket / SSE 推送的数据</li>
+            <li>第三方非 React 库的状态（MobX observable、RxJS subject）</li>
+            <li>跨 iframe / Web Worker 共享的数据</li>
+          </ul>
+          <p style="margin-top:8px;font-size:13px;color:var(--md-on-surface-variant)">React 无感知，需要手动通知，有撕裂风险</p>
+        </div>
+      </div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>判断标准</strong>：这个状态的源头是<strong>已有的非 React 代码</strong>吗？是 → useSyncExternalStore。不是 → useState/useReducer。本质上它是一个<strong>迁移/兼容工具</strong>，不是新项目的首选方案。</div>
+      </div>
+      <p style="margin-top:16px"><strong>实际场景对比：</strong></p>
+      <pre><span class="cm">// ── 场景 1：纯 React 状态 → useState 就够了 ──</span>
+<span class="kw">const</span> [count, setCount] = <span class="fn">useState</span>(<span class="num">0</span>);
+<span class="cm">// React 内部管理，自动调度重渲染</span>
+
+<span class="cm">// ── 场景 2：浏览器 API → 必须用 useSyncExternalStore ──</span>
+<span class="kw">import</span> { useSyncExternalStore } <span class="kw">from</span> <span class="str">'react'</span>;
+
+<span class="kw">function</span> <span class="fn">useMediaQuery</span>(query) {
+  <span class="kw">return</span> <span class="fn">useSyncExternalStore</span>(
+    <span class="cm">// subscribe: React 无法感知 matchMedia 变化，需要手动订阅</span>
+    (callback) => {
+      <span class="kw">const</span> mql = matchMedia(query);
+      mql.<span class="fn">addEventListener</span>(<span class="str">'change'</span>, callback);
+      <span class="kw">return</span> () => mql.<span class="fn">removeEventListener</span>(<span class="str">'change'</span>, callback);
+    },
+    <span class="cm">// getSnapshot: 返回可比较的快照（不能每次返回新对象）</span>
+    () => matchMedia(query).matches
+  );
+}
+
+<span class="cm">// ── 场景 3：Redux → 已经在用 useSyncExternalStore 了 ──</span>
+<span class="cm">// react-redux 的 useSelector 源码：</span>
+<span class="kw">function</span> <span class="fn">useSelector</span>(selector) {
+  <span class="kw">return</span> <span class="fn">useSyncExternalStore</span>(
+    store.subscribe,              <span class="cm">// Redux store 的订阅机制</span>
+    () => <span class="fn">selector</span>(store.getState())  <span class="cm">// 从 store 读取并选择</span>
+  );
+}</pre>
+      <p style="margin-top:16px"><strong>它解决的核心问题——并发渲染下的 tearing（撕裂）：</strong></p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│        并发渲染中的 Tearing 问题               │
+└─────────────────────────────────────────────┘
+
+  ── 没有 useSyncExternalStore ──
+
+  外部 store: { theme: "dark" }
+
+  组件树渲染（并发模式，可中断）：
+  ┌─────────┐
+  │ Header  │  读取 store → "dark"    ✓ 正确
+  └─────────┘
+       │
+       │  ← 此时外部 store 改为 "light"
+       │
+  ┌─────────┐
+  │ Footer  │  读取 store → "light"   ← 撕裂！
+  └─────────┘
+
+  Header 显示 dark 主题，Footer 显示 light 主题
+  同一次渲染中看到了不一致的状态 = Tearing
+
+  ── 使用 useSyncExternalStore ──
+
+  React 在渲染前对所有组件调用 getSnapshot()
+  如果任何 snapshot 变化，<strong>整个渲染重新开始</strong>
+  保证同一次渲染中所有组件读到同一版本的状态</div>
+      <pre><span class="cm">// useSyncExternalStore 源码简化</span>
+<span class="kw">function</span> <span class="fn">useSyncExternalStore</span>(subscribe, getSnapshot) {
+  <span class="kw">const</span> value = <span class="fn">getSnapshot</span>();           <span class="cm">// 渲染时同步读取</span>
+
+  <span class="cm">// 每次渲染都检查 snapshot 是否变化</span>
+  <span class="kw">if</span> (value !== lastSnapshot) {
+    <span class="cm">// snapshot 变了但不是因为本组件触发的</span>
+    <span class="cm">// → 可能是其他组件更新期间 store 被改了</span>
+    <span class="cm">// → 抛出异常，中断渲染，重新开始</span>
+    <span class="kw">throw</span> <span class="kw">new</span> Error(<span class="str">'Store changed during render'</span>);
+  }
+
+  <span class="cm">// commit 后订阅变化，触发同步更新（SyncLane）</span>
+  <span class="fn">useEffect</span>(() => {
+    <span class="kw">const</span> unsubscribe = <span class="fn">subscribe</span>(() => {
+      <span class="cm">// store 变化 → 强制同步重渲染，不用 startTransition</span>
+      <span class="fn">forceSyncRerender</span>();
+    });
+    <span class="kw">return</span> unsubscribe;
+  }, [subscribe]);
+
+  <span class="kw">return</span> value;
+}</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>getSnapshot 的约束</strong>：必须返回<strong>可比较的值</strong>（原始类型或引用稳定的对象）。如果每次返回新对象 <code>{...}</code>，React 会认为状态永远在变，导致无限重渲染。</div>
+      </div>
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>结论</strong>：纯 React 项目中，<strong>优先用 useState/useReducer 管状态</strong>。只有当你需要接入<strong>已有的非 React 状态源</strong>（浏览器 API、遗留代码、第三方非 React 库）时，才用 useSyncExternalStore。Redux/Zustand 等现代 React 状态库已经在内部帮你处理了这些细节，你不需要直接调用它。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">improvement</span></div>
+        <h3>其他重要改进</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📝 Document Metadata</h4>
+          <p>直接在组件中渲染 &lt;title&gt;、&lt;meta&gt;、&lt;link&gt;，React 自动提升到 &lt;head&gt;。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🎨 样式表支持</h4>
+          <p>StyleSheet 优先级管理，外部样式表和内联样式自动排序，避免 FOUC。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📜 异步脚本</h4>
+          <p>支持在组件内渲染 async script，自动去重和加载顺序管理。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔗 资源预加载</h4>
+          <p>新增 preinit、preload 等 API，优化字体、样式、脚本的加载时机。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🧹 Ref 清理函数</h4>
+          <p>ref 回调支持返回清理函数，类似 useEffect 的清理机制。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>📦 useDeferredValue 初始值</h4>
+          <p>支持传入 initialValue，在首次渲染时立即显示，避免白屏闪烁。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== React Compiler ==================== -->
+  <section class="section" id="compiler">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">auto_fix_high</span></div>
+        <h3>React Compiler 是什么？</h3>
+      </div>
+      <p>
+        React Compiler（原名 React Forget）是一个<strong>自动优化编译器</strong>，
+        它在构建时分析组件代码，自动插入 <span class="inline-code">useMemo</span>、
+        <span class="inline-code">useCallback</span>、<span class="inline-code">memo</span> 等优化，
+        开发者<strong>不再需要手动记忆化</strong>。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>核心价值</strong>：将"何时优化"的决策从开发者转移到编译器。开发者写直观代码，编译器保证性能。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>编译前 vs 编译后</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>❌ 手动优化（React 18）</h4>
+          <pre style="margin:0;font-size:12px"><span class="kw">const</span> <span class="fn">Component</span> = <span class="fn">memo</span>(() => {
+  <span class="kw">const</span> data = <span class="fn">useMemo</span>(
+    () => <span class="fn">expensiveCalc</span>(input),
+    [input]
+  );
+  <span class="kw">const</span> handleClick = <span class="fn">useCallback</span>(
+    () => <span class="fn">doSomething</span>(data),
+    [data]
+  );
+  <span class="kw">return</span> &lt;<span class="tag">button</span> <span class="attr">onClick</span>={handleClick}&gt;...&lt;/<span class="tag">button</span>&gt;;
+});</pre>
+        </div>
+        <div class="compare-box new">
+          <h4>✅ 编译器自动优化（React 19）</h4>
+          <pre style="margin:0;font-size:12px"><span class="kw">function</span> <span class="fn">Component</span>() {
+  <span class="kw">const</span> data = <span class="fn">expensiveCalc</span>(input);
+  <span class="kw">const</span> handleClick = () => <span class="fn">doSomething</span>(data);
+  <span class="kw">return</span> &lt;<span class="tag">button</span> <span class="attr">onClick</span>={handleClick}&gt;...&lt;/<span class="tag">button</span>&gt;;
+}
+
+<span class="cm">// 编译器自动插入 useMemo, useCallback, memo</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">architecture</span></div>
+        <h3>编译器工作原理</h3>
+      </div>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│         React Compiler 编译流程              │
+└─────────────────────────────────────────────┘
+
+  源代码 (.jsx/.tsx)
+       │
+       ▼
+  ┌─────────────────┐
+  │  1. Babel 插件   │  解析为 AST
+  │     解析阶段      │
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │  2. 分析阶段      │  识别 React 组件
+  │  (React 级别)    │  和 Hooks 调用
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │  3. IR 构建      │  构建中间表示
+  │  (HIR/LIR)      │  控制流图 + 数据流
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │  4. 指令分析      │  追踪每个值的
+  │  (MutableScope) │  可变性和依赖
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │  5. 代码生成      │  插入记忆化
+  │  (Memoization)  │  优化指令
+  └────────┬────────┘
+           │
+           ▼
+  优化后的 JavaScript</div>
+      <p>编译器通过<strong>响应式作用域分析</strong>（Reactive Scope Analysis），确定哪些值需要记忆化：</p>
+      <ul>
+        <li><strong>纯计算</strong> → 自动 <span class="inline-code">useMemo</span></li>
+        <li><strong>回调函数</strong> → 自动 <span class="inline-code">useCallback</span></li>
+        <li><strong>组件</strong> → 自动 <span class="inline-code">memo</span> 包裹</li>
+        <li><strong>可变值</strong> → 跳过优化，保证正确性</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">settings</span></div>
+        <h3>配置与使用</h3>
+      </div>
+      <pre><span class="cm">// babel.config.js</span>
+<span class="kw">module</span>.exports = {
+  plugins: [
+    [<span class="str">'babel-plugin-react-compiler'</span>, {
+      <span class="cm">// 编译器选项</span>
+      target: <span class="str">'19'</span>,          <span class="cm">// 目标 React 版本</span>
+      runtimeModule: <span class="str">'react-compiler-runtime'</span>
+    }]
+  ]
+};
+
+<span class="cm">// 或使用 Vite 插件</span>
+<span class="cm">// vite.config.ts</span>
+<span class="kw">import</span> react <span class="kw">from</span> <span class="str">'@vitejs/plugin-react'</span>;
+
+<span class="kw">export default</span> {
+  plugins: [
+    <span class="fn">react</span>({
+      babel: {
+        plugins: [<span class="str">'babel-plugin-react-compiler'</span>]
+      }
+    })
+  ]
+};</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>注意</strong>：编译器要求代码遵循 React 规则（Rules of React）。违反规则的代码可能产生错误的优化结果。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Server Components ==================== -->
+  <section class="section" id="server">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">cloud</span></div>
+        <h3>Server Components 概述</h3>
+      </div>
+      <p>
+        React Server Components (RSC) 允许组件<strong>在服务器上渲染</strong>，
+        将 HTML 直接发送到客户端。Server Components 不发送 JavaScript 到浏览器，
+        显著<strong>减少 bundle 体积</strong>并<strong>提升首屏性能</strong>。
+      </p>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>关键区别</strong>：Server Components ≠ SSR。SSR 是在服务端渲染 HTML 后 hydrate，RSC 是组件永远不发送 JS 到客户端。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">compare_arrows</span></div>
+        <h3>Server vs Client Components</h3>
+      </div>
+      <div class="compare-grid">
+        <div class="compare-box old">
+          <h4>🖥️ Client Component</h4>
+          <ul>
+            <li>运行在浏览器</li>
+            <li>可以使用 useState、useEffect</li>
+            <li>可以绑定事件处理器</li>
+            <li>可以访问浏览器 API</li>
+            <li>JS 会发送到客户端</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <h4>☁️ Server Component</h4>
+          <ul>
+            <li>仅运行在服务器</li>
+            <li>不能使用 useState、useEffect</li>
+            <li>可以直接访问数据库/文件系统</li>
+            <li>零客户端 JS 开销</li>
+            <li>可以 async/await</li>
+          </ul>
+        </div>
+      </div>
+      <pre><span class="cm">// Server Component (默认)</span>
+<span class="cm">// app/page.tsx — 无需 "use client" 指令</span>
+<span class="kw">async function</span> <span class="fn">UserProfile</span>({ userId }) {
+  <span class="cm">// 直接访问数据库，不会发送到客户端</span>
+  <span class="kw">const</span> user = <span class="kw">await</span> db.<span class="fn">user.findUnique</span>({ where: { id: userId } });
+  <span class="kw">const</span> posts = <span class="kw">await</span> db.post.<span class="fn">findMany</span>({ where: { authorId: userId } });
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span>&gt;
+      &lt;<span class="tag">h1</span>&gt;{user.name}&lt;/<span class="tag">h1</span>&gt;
+      &lt;<span class="tag">PostList</span> <span class="attr">posts</span>={posts} /&gt;
+      <span class="cm">{/* 嵌套 Client Component */}</span>
+      &lt;<span class="tag">FollowButton</span> <span class="attr">userId</span>={userId} /&gt;
+    &lt;/<span class="tag">div</span>&gt;
+  );
+}
+
+<span class="cm">// Client Component</span>
+<span class="str">"use client"</span>;
+<span class="kw">function</span> <span class="fn">FollowButton</span>({ userId }) {
+  <span class="kw">const</span> [following, setFollowing] = <span class="fn">useState</span>(<span class="kw">false</span>);
+  <span class="kw">return</span> (
+    &lt;<span class="tag">button</span> <span class="attr">onClick</span>={() => <span class="fn">setFollowing</span>(!following)}&gt;
+      {following ? <span class="str">"已关注"</span> : <span class="str">"关注"</span>}
+    &lt;/<span class="tag">button</span>&gt;
+  );
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">cable</span></div>
+        <h3>Server Actions</h3>
+      </div>
+      <p>Server Actions 是在服务器上执行的函数，可以直接从 Client Components 调用：</p>
+      <pre><span class="cm">// actions.ts — Server Action</span>
+<span class="str">"use server"</span>;
+
+<span class="kw">export async function</span> <span class="fn">createPost</span>(formData) {
+  <span class="kw">const</span> title = formData.<span class="fn">get</span>(<span class="str">"title"</span>);
+  <span class="kw">const</span> content = formData.<span class="fn">get</span>(<span class="str">"content"</span>);
+
+  <span class="cm">// 直接操作数据库</span>
+  <span class="kw">await</span> db.post.<span class="fn">create</span>({
+    data: { title, content, authorId: <span class="fn">getUserId</span>() }
+  });
+
+  <span class="fn">revalidatePath</span>(<span class="str">"/posts"</span>);
+  <span class="fn">redirect</span>(<span class="str">"/posts"</span>);
+}
+
+<span class="cm">// 客户端组件中使用</span>
+<span class="str">"use client"</span>;
+<span class="kw">import</span> { createPost } <span class="kw">from</span> <span class="str">"./actions"</span>;
+
+<span class="kw">function</span> <span class="fn">NewPostForm</span>() {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">form</span> <span class="attr">action</span>={createPost}&gt;
+      &lt;<span class="tag">input</span> <span class="attr">name</span>=<span class="str">"title"</span> /&gt;
+      &lt;<span class="tag">textarea</span> <span class="attr">name</span>=<span class="str">"content"</span> /&gt;
+      &lt;<span class="tag">button</span> <span class="attr">type</span>=<span class="str">"submit"</span>&gt;发布&lt;/<span class="tag">button</span>&gt;
+    &lt;/<span class="tag">form</span>&gt;
+  );
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">schema</span></div>
+        <h3>RSC 数据流</h3>
+      </div>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│      React Server Components 数据流          │
+└─────────────────────────────────────────────┘
+
+  浏览器                    服务器
+    │                         │
+    │  1. 页面请求              │
+    │ ──────────────────────▶ │
+    │                         │
+    │                    ┌────┴────┐
+    │                    │ Server  │
+    │                    │Components│ ← 数据库/API
+    │                    └────┬────┘
+    │                         │
+    │  2. RSC Payload          │
+    │  (JSON 格式的组件树)       │
+    │ ◀────────────────────── │
+    │                         │
+    │  ┌─────────────────┐    │
+    │  │ React 客户端运行时 │    │
+    │  │ 解析 RSC Payload │    │
+    │  │ 渲染为 DOM       │    │
+    │  └─────────────────┘    │
+    │                         │
+    │  3. 流式传输 (Streaming) │
+    │ ◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │
+    │  Suspense 边界逐步渲染   │
+    │                         │</div>
+    </div>
+  </section>
+
+  <!-- ==================== 架构原理 ==================== -->
+  <section class="section" id="architecture">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">account_tree</span></div>
+        <h3>Fiber 架构</h3>
+      </div>
+      <p>
+        React 的核心是 <strong>Fiber 架构</strong>——一种<strong>可中断的、增量式</strong>的渲染架构。
+        每个 React 元素对应一个 Fiber 节点，形成一棵 Fiber 树。
+      </p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│            Fiber 节点结构                     │
+└─────────────────────────────────────────────┘
+
+  FiberNode {
+    tag: FunctionComponent | ClassComponent | ...
+    type: Component | "div" | "span" | ...
+    key: string | null
+    stateNode: DOM | Fiber | ...
+
+    ── 树结构 ──
+    child: Fiber | null      ← 第一个子节点
+    sibling: Fiber | null    ← 下一个兄弟节点
+    return: Fiber | null     ← 父节点
+
+    ── 工作状态 ──
+    pendingProps: object     ← 新 props
+    memoizedProps: object    ← 上次渲染的 props
+    memoizedState: any       ← 上次渲染的 state
+    updateQueue: UpdateQueue ← 更新队列
+
+    ── 副作用 ──
+    flags: number            ← 副作用标记
+    subtreeFlags: number     ← 子树副作用
+    lanes: Lanes             ← 优先级标记
+    childLanes: Lanes        ← 子树优先级
+  }</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>flags 位掩码 与 Hooks 副作用</h3>
+      </div>
+      <p>为什么 <span class="inline-code">flags</span> 是一个数字而不是数组？因为它是<strong>位掩码（bitmask）</strong>——每个标记占一个 bit，用位运算组合：</p>
+      <pre><span class="cm">// React 内部 flag 定义（简化）</span>
+<span class="kw">const</span> NoFlags          = <span class="num">0b00000000000000</span>;  <span class="cm">// 0</span>
+<span class="kw">const</span> Placement        = <span class="num">0b00000000000010</span>;  <span class="cm">// 2  — 新增节点</span>
+<span class="kw">const</span> Update           = <span class="num">0b00000000000100</span>;  <span class="cm">// 4  — props 变化</span>
+<span class="kw">const</span> Deletion         = <span class="num">0b00000000001000</span>;  <span class="cm">// 8  — 删除节点</span>
+<span class="kw">const</span> ChildDeletion    = <span class="num">0b00000000100000</span>;  <span class="cm">// 32 — 子树有删除</span>
+<span class="kw">const</span> Ref              = <span class="num">0b00000001000000</span>;  <span class="cm">// 64 — ref 变化</span>
+<span class="kw">const</span> Snapshot         = <span class="num">0b00000100000000</span>;  <span class="cm">// 256</span>
+<span class="kw">const</span> Passive          = <span class="num">0b00001000000000</span>;  <span class="cm">// 512 — 有 useEffect</span>
+<span class="kw">const</span> LayoutMask       = <span class="num">0b00100100100100</span>;  <span class="cm">// useLayoutEffect 相关</span>
+
+<span class="cm">// 位运算 — 极快，O(1)</span>
+fiber.flags |= Placement;              <span class="cm">// 设置标记（OR）</span>
+<span class="kw">if</span> (fiber.flags & Placement) { ... }  <span class="cm">// 检查标记（AND）</span>
+fiber.flags &= ~Update;                <span class="cm">// 清除标记（AND NOT）</span>
+
+<span class="cm">// 一次位运算可以同时检查多个 flag</span>
+<span class="kw">if</span> (fiber.flags & (Placement | Update | Deletion)) {
+  <span class="cm">// 这个 Fiber 有 DOM 操作需要执行</span>
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>为什么不用数组？</strong>位运算只需一条 CPU 指令，数组的 includes/push 需要内存分配和遍历。一棵 Fiber 树可能有上万个节点，每个节点都要检查 flags，位掩码的性能优势在大规模应用中是数量级的。</div>
+      </div>
+      <p style="margin-top:16px"><strong>但 hooks 的副作用（useEffect/useLayoutEffect）不直接存在 flags 里</strong>，它们走的是独立的<strong>环形链表</strong>：</p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│     Fiber 节点上的两套副作用系统                 │
+└─────────────────────────────────────────────┘
+
+  FiberNode {
+    flags: 0b00001000000110    ← 结构性副作用（位掩码）
+    │                           Placement + Update + Passive
+    │
+    updateQueue: {             ← Hooks 副作用（环形链表）
+    │   lastEffect: ─────┐
+    │                    │
+    │   ┌────────────────┘
+    │   ▼
+    │  Effect {
+    │    tag: Passive | Layout | HookHasEffect
+    │    create: () => { ... }    ← useEffect 回调
+    │    destroy: () => { ... }   ← cleanup 函数
+    │    deps: [a, b, c]          ← 依赖数组
+    │    next: ──────▶ 下一个 Effect
+    │  }
+    │
+    │  Effect {
+    │    tag: Layout | HookHasEffect
+    │    create: () => { ... }    ← useLayoutEffect 回调
+    │    destroy: null
+    │    deps: [x]
+    │    next: ──────▶ 回到第一个 Effect
+    │  }
+    └──
+  }
+
+  ── 两套系统如何协作 ──
+
+  flags 中的 Passive bit:
+    0 → 该 Fiber 没有 useEffect，跳过 effect 遍历
+    1 → 该 Fiber 有 useEffect，需要遍历 updateQueue.lastEffect
+
+  flags 中的 LayoutMask:
+    匹配 → 该 Fiber 有 useLayoutEffect，commit 阶段同步执行</div>
+      <pre><span class="cm">// Commit 阶段简化流程 — 两套系统各自工作</span>
+<span class="kw">function</span> <span class="fn">commitRoot</span>(root) {
+  <span class="cm">// ── 第一步：处理结构性副作用（靠 flags 位掩码）──</span>
+  <span class="fn">commitMutationEffects</span>(root);   <span class="cm">// DOM 增删改</span>
+
+  <span class="cm">// ── 第二步：同步执行 Layout Effects ──</span>
+  <span class="fn">commitLayoutEffects</span>(root);
+  <span class="cm">// 遍历 Fiber 树，对每个节点：</span>
+  <span class="cm">//   if (fiber.flags & LayoutMask) {</span>
+  <span class="cm">//     遍历 fiber.updateQueue.lastEffect 环形链表</span>
+  <span class="cm">//     执行 tag 包含 Layout 的 effect.destroy()</span>
+  <span class="cm">//     执行 tag 包含 Layout 的 effect.create()</span>
+  <span class="cm">//   }</span>
+
+  <span class="cm">// ── 第三步：异步调度 Passive Effects ──</span>
+  <span class="kw">if</span> (root.finishedWork.flags & Passive) {
+    <span class="fn">scheduleCallback</span>(() => {     <span class="cm">// 浏览器空闲时执行</span>
+      <span class="fn">flushPassiveEffects</span>(root);
+      <span class="cm">// 遍历所有带 Passive flag 的 Fiber</span>
+      <span class="cm">// 执行 useEffect 的 destroy → create</span>
+    });
+  }
+}</pre>
+      <div class="banner warn">
+        <span class="material-icons-outlined">warning</span>
+        <div><strong>Passive flag 是聚合标记</strong>：fiber.flags 上的 <code>Passive</code> bit 只是告诉 commit 阶段"这个 Fiber 有 useEffect 需要处理"，具体有几个 effect、依赖是什么、回调是什么，全部存在 <code>updateQueue.lastEffect</code> 的环形链表里。flags 是"要不要查"，链表是"查什么"。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red"><span class="material-icons-outlined">memory</span></div>
+        <h3>Hooks 链表 vs Effects 链表：两条独立的链</h3>
+      </div>
+      <p><strong>不是所有 Hook 都是 Effect，也不是所有 Effect 都在 Hooks 链表上。</strong>一个 Fiber 节点上实际有<strong>两条链表</strong>：</p>
+      <div class="diagram">┌─────────────────────────────────────────────────┐
+│  一个 Fiber 节点上的两条独立链表                     │
+└─────────────────────────────────────────────────┘
+
+  FiberNode {
+    memoizedState ──────┐        ← Hook 链表头（所有 hooks）
+    updateQueue ─────┐  │
+                     │  │
+                     │  ▼
+                     │  ┌──────────────────────────────┐
+                     │  │ Hook 链表 (singly linked list) │
+                     │  │ 所有 hook 调用按顺序排列        │
+                     │  └──────────────────────────────┘
+                     │
+                     ▼
+                     ┌──────────────────────────────────┐
+                     │ Effect 环形链表 (circular linked)  │
+                     │ 仅 useEffect / useLayoutEffect    │
+                     └──────────────────────────────────┘
+  }
+
+  ── Hook 链表（memoizedState）──
+
+  memoizedState
+       │
+       ▼
+  Hook { memoizedState: 0,    ← useState 的 state 值
+    queue: { pending: null },    next ──┐
+  }                                      │
+       ◀─────────────────────────────────┘
+       │
+       ▼
+  Hook { memoizedState: [a,b], ← useMemo 的缓存值和依赖
+    queue: null,                  next ──┐
+  }                                       │
+       ◀──────────────────────────────────┘
+       │
+       ▼
+  Hook { memoizedState: fn,    ← useCallback 缓存的函数
+    queue: null,                  next ──┐
+  }                                       │
+       ◀──────────────────────────────────┘
+       │
+       ▼
+  Hook { memoizedState: {current}, ← useRef 的 ref 对象
+    queue: null,                     next ──┐
+  }                                          │
+       ◀─────────────────────────────────────┘
+       │
+       ▼
+  Hook { memoizedState: Effect, ← useEffect 在 hook 链表上的占位
+    queue: null,                  next: null
+  }
+       但 effect 的实际内容不在这里 ──────────────┐
+                                                  │
+  ── Effect 环形链表（updateQueue.lastEffect）──  │
+                                                  │
+  updateQueue.lastEffect                           │
+       │ ◀────────────────────────────────────────┘
+       ▼
+  ┌────────────────────────────┐
+  │ Effect {                   │
+  │   tag: Passive | HasEffect │  ← Passive = useEffect
+  │   create: () => {...}      │  ← 回调函数
+  │   destroy: cleanup         │  ← 清理函数
+  │   deps: [a, b]             │  ← 依赖数组
+  │   next: ──────────────────┼──▶ Effect { ... }
+  │ }                          │      next ───▶ Effect { ... }
+  └────────────────────────────┘         ◀──────┘  (环形)</div>
+      <pre><span class="cm">// 每次组件渲染，React 按 hook 调用顺序遍历 hook 链表</span>
+<span class="cm">// workInProgressHook 指针逐个推进</span>
+<span class="kw">let</span> workInProgressHook = <span class="kw">null</span>;
+
+<span class="cm">// useState — 在 hook 链表上创建带 queue 的 Hook 节点</span>
+<span class="kw">function</span> <span class="fn">useState</span>(initialState) {
+  <span class="kw">const</span> hook = <span class="fn">createWorkInProgressHook</span>();  <span class="cm">// 链表上取/建节点</span>
+  <span class="kw">if</span> (!hook.memoizedState) {
+    hook.memoizedState = initialState;         <span class="cm">// 首次渲染</span>
+  }
+  hook.queue = { pending: <span class="kw">null</span> };             <span class="cm">// 更新队列</span>
+  <span class="kw">return</span> [hook.memoizedState, dispatch];       <span class="cm">// 推进指针</span>
+}
+
+<span class="cm">// useEffect — hook 链表上放一个占位节点，同时往 effect 环形链表上挂真正的 Effect</span>
+<span class="kw">function</span> <span class="fn">useEffect</span>(create, deps) {
+  <span class="kw">const</span> hook = <span class="fn">createWorkInProgressHook</span>();  <span class="cm">// hook 链表推进</span>
+  <span class="kw">const</span> effect = { tag: Passive, create, destroy: <span class="kw">null</span>, deps };
+  hook.memoizedState = effect;                 <span class="cm">// 占位（存引用）</span>
+  <span class="fn">pushEffect</span>(fiber.updateQueue, effect);      <span class="cm">// 同时挂到 effect 环形链表</span>
+}
+
+<span class="cm">// useMemo — 只在 hook 链表上操作，不碰 effect 环形链表</span>
+<span class="kw">function</span> <span class="fn">useMemo</span>(nextCreate, deps) {
+  <span class="kw">const</span> hook = <span class="fn">createWorkInProgressHook</span>();
+  <span class="kw">if</span> (!<span class="fn">depsChanged</span>(hook.memoizedState.deps, deps)) {
+    <span class="kw">return</span> hook.memoizedState.value;           <span class="cm">// 依赖没变，返回缓存</span>
+  }
+  <span class="kw">const</span> value = <span class="fn">nextCreate</span>();
+  hook.memoizedState = { value, deps };
+  <span class="kw">return</span> value;
+}</pre>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>总结</strong>：
+          <br>• <strong>所有 Hook</strong>（useState/useReducer/useMemo/useCallback/useRef/useEffect/useLayoutEffect）都在 <code>memoizedState</code> 的<strong>单向链表</strong>上，按调用顺序排列。这就是为什么 Hooks 不能放在条件语句里——断了顺序就找不到对应的节点。
+          <br>• <strong>只有 useEffect 和 useLayoutEffect</strong> 会额外往 <code>updateQueue.lastEffect</code> 的<strong>环形链表</strong>上挂 Effect 节点。
+          <br>• Hook 链表上的 effect 节点只是一个<strong>引用/占位</strong>，真正的 create/deps/destruction 在环形链表上。
+          <br>• Commit 阶段只遍历环形链表，不遍历 hook 链表。
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">autorenew</span></div>
+        <h3>双缓冲机制（Double Buffering）</h3>
+      </div>
+      <p>React 维护两棵 Fiber 树：<strong>current</strong>（屏幕上的）和 <strong>workInProgress</strong>（正在构建的）。</p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│           双缓冲 Fiber 树                     │
+└─────────────────────────────────────────────┘
+
+  current 树 (屏幕显示)    workInProgress 树 (构建中)
+       │                        │
+       ▼                        ▼
+     App                       App
+      │                         │
+      ▼                         ▼
+    ┌───┐                    ┌───┐
+    │ A │                    │ A'│  ← 克隆节点
+    └─┬─┘                    └─┬─┘
+      │                        │
+    ┌─┴──┐                  ┌──┴─┐
+    │ B  │                  │ B' │
+    │ C  │                  │ C' │
+    └────┘                  └────┘
+
+  渲染完成后：
+  current = workInProgress  ← 指针交换（O(1)）
+  workInProgress = current  ← 旧树复用</div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>为什么需要双缓冲？</strong>渲染过程可以中断，用户看到的永远是完整的 current 树。只有当 workInProgress 树完全构建完成后，才一次性切换，避免 UI 撕裂。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">schedule</span></div>
+        <h3>并发渲染（Concurrent Rendering）</h3>
+      </div>
+      <p>React 18+ 引入并发渲染，允许<strong>多个版本的 UI 同时存在</strong>：</p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>1. 优先级调度</h4>
+          <p>用户输入（高优先级）可以中断低优先级的渲染（如数据加载）</p>
+        </div>
+        <div class="timeline-item">
+          <h4>2. 时间切片（Time Slicing）</h4>
+          <p>将渲染工作分割成小块，每块 5ms，让出主线程给浏览器</p>
+        </div>
+        <div class="timeline-item">
+          <h4>3. 可中断渲染</h4>
+          <p>Fiber 节点标记为"已完成"和"待处理"，中断后从断点恢复</p>
+        </div>
+        <div class="timeline-item">
+          <h4>4. 自动批处理（Automatic Batching）</h4>
+          <p>多次 setState 合并为一次渲染，减少不必要的重绘</p>
+        </div>
+      </div>
+      <pre><span class="cm">// 并发特性示例</span>
+<span class="kw">function</span> <span class="fn">SearchResults</span>({ query }) {
+  <span class="kw">const</span> [deferredQuery, setDeferredQuery] = <span class="fn">useState</span>(query);
+
+  <span class="cm">// useTransition: 标记为低优先级更新</span>
+  <span class="kw">const</span> [isPending, startTransition] = <span class="fn">useTransition</span>();
+
+  <span class="fn">useEffect</span>(() => {
+    <span class="fn">startTransition</span>(() => {
+      <span class="fn">setDeferredQuery</span>(query);  <span class="cm">// 低优先级</span>
+    });
+  }, [query]);
+
+  <span class="cm">// useDeferredValue: 延迟更新的值</span>
+  <span class="kw">const</span> deferredValue = <span class="fn">useDeferredValue</span>(query, { initialValue: <span class="str">""</span> });
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span>&gt;
+      {isPending &amp;&amp; &lt;<span class="tag">Spinner</span> /&gt;}
+      &lt;<span class="tag">Results</span> <span class="attr">query</span>={deferredValue} /&gt;
+    &lt;/<span class="tag">div</span>&gt;
+  );
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon teal"><span class="material-icons-outlined">sync</span></div>
+        <h3>Reconciliation（协调算法）</h3>
+      </div>
+      <p>React 通过比较新旧 Fiber 树来确定最小更新：</p>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│          Reconciliation 流程                  │
+└─────────────────────────────────────────────┘
+
+  触发更新 (setState / props 变化)
+       │
+       ▼
+  ┌─────────────────┐
+  │ 1. 创建/复用     │  workInProgress Fiber
+  │    Fiber 节点    │
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │ 2. Diff 算法     │  比较 key 和 type
+  │    (O(n) 复杂度) │  匹配旧 Fiber
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │ 3. 标记副作用    │  Placement / Update /
+  │    (Flags)      │  Deletion / ChildDeletion
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │ 4. 提交阶段      │  一次性应用 DOM 变更
+  │    (Commit)     │  调用生命周期/Effects
+  └────────┬────────┘
+           │
+           ▼
+  交换 current 指针</div>
+      <div class="banner">
+        <span class="material-icons-outlined">lightbulb</span>
+        <div><strong>Diff 策略</strong>：同级比较、类型不同直接替换、key 标识移动。单节点 Diff 时间复杂度 O(n)，这是 React 高性能的基础。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">view_timeline</span></div>
+        <h3>渲染三阶段</h3>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <h4>📋 Render 阶段</h4>
+          <p>纯计算，可中断。遍历 Fiber 树，调用 render 函数，构建 workInProgress 树。不产生副作用。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>🔍 Pre-commit 阶段</h4>
+          <p>读取 DOM 快照（getSnapshotBeforeUpdate）。在 DOM 变更前捕获信息。</p>
+        </div>
+        <div class="feature-tile">
+          <h4>✅ Commit 阶段</h4>
+          <p>不可中断。一次性应用 DOM 变更，调用 useEffect/useLayoutEffect，切换 Fiber 树。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 未来版本 ==================== -->
+  <section class="section" id="future">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue"><span class="material-icons-outlined">trending_up</span></div>
+        <h3>React 19.x ~ React 20 路线图</h3>
+      </div>
+      <p>React 团队正在推进多个重要方向，这些将在未来版本中逐步稳定：</p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>React Compiler 正式稳定</h4>
+          <p>编译器从实验性功能变为默认启用，覆盖所有 React 生态（Next.js、Remix、Vite）</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Partial Hydration 完善</h4>
+          <p>只 hydrate 需要交互的组件，Server Components 与 Client Components 无缝混合</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Offscreen / View Transitions</h4>
+          <p>支持 UI 的"后台渲染"和页面过渡动画，实现类似原生 App 的体验</p>
+        </div>
+        <div class="timeline-item">
+          <h4>React Activity（原 Offscreen）</h4>
+          <p>隐藏/显示组件时保持状态，支持预渲染和懒加载</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green"><span class="material-icons-outlined">preview</span></div>
+        <h3>View Transitions</h3>
+      </div>
+      <p>React 正在集成浏览器原生 View Transitions API，实现流畅的页面过渡：</p>
+      <pre><span class="cm">// 未来 API（实验性）</span>
+<span class="kw">import</span> { unstable_ViewTransition <span class="kw">as</span> ViewTransition } <span class="kw">from</span> <span class="str">'react'</span>;
+
+<span class="kw">function</span> <span class="fn">ImageGallery</span>({ image }) {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">ViewTransition</span>&gt;
+      &lt;<span class="tag">img</span> <span class="attr">src</span>={image.url} <span class="attr">style</span>={{ viewTransitionName: <span class="str">"hero"</span> }} /&gt;
+    &lt;/<span class="tag">ViewTransition</span>&gt;
+  );
+}
+
+<span class="cm">// 自定义过渡动画</span>
+<span class="kw">function</span> <span class="fn">Card</span>() {
+  <span class="kw">return</span> (
+    &lt;<span class="tag">ViewTransition</span> <span class="attr">enter</span>=<span class="str">"slide-in"</span> <span class="attr">exit</span>=<span class="str">"slide-out"</span>&gt;
+      &lt;<span class="tag">div</span> <span class="attr">className</span>=<span class="str">"card"</span>&gt;...&lt;/<span class="tag">div</span>&gt;
+    &lt;/<span class="tag">ViewTransition</span>&gt;
+  );
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon purple"><span class="material-icons-outlined">visibility_off</span></div>
+        <h3>React Activity（原 Offscreen）</h3>
+      </div>
+      <p>允许组件在"隐藏"状态下保持状态，实现真正的后台渲染：</p>
+      <pre><span class="cm">// 实验性 API</span>
+<span class="kw">import</span> { unstable_Activity <span class="kw">as</span> Activity } <span class="kw">from</span> <span class="str">'react'</span>;
+
+<span class="kw">function</span> <span class="fn">App</span>() {
+  <span class="kw">const</span> [tab, setTab] = <span class="fn">useState</span>(<span class="str">"home"</span>);
+
+  <span class="kw">return</span> (
+    &lt;<span class="tag">div</span>&gt;
+      &lt;<span class="tag">TabBar</span> <span class="attr">active</span>={tab} <span class="attr">onChange</span>={setTab} /&gt;
+
+      <span class="cm">{/* 隐藏的 tab 保持状态，不卸载 */}</span>
+      &lt;<span class="tag">Activity</span> <span class="attr">mode</span>={tab === <span class="str">"home"</span> ? <span class="str">"visible"</span> : <span class="str">"hidden"</span>}&gt;
+        &lt;<span class="tag">HomePage</span> /&gt;
+      &lt;/<span class="tag">Activity</span>&gt;
+
+      &lt;<span class="tag">Activity</span> <span class="attr">mode</span>={tab === <span class="str">"profile"</span> ? <span class="str">"visible"</span> : <span class="str">"hidden"</span>}&gt;
+        &lt;<span class="tag">ProfilePage</span> /&gt;
+      &lt;/<span class="tag">Activity</span>&gt;
+    &lt;/<span class="tag">div</span>&gt;
+  );
+}</pre>
+      <div class="banner success">
+        <span class="material-icons-outlined">check_circle</span>
+        <div><strong>优势</strong>：切换 tab 时不需要重新挂载和初始化，滚动位置、表单输入、动画状态全部保留。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber"><span class="material-icons-outlined">architecture</span></div>
+        <h3>React 未来架构全景</h3>
+      </div>
+      <div class="diagram">┌─────────────────────────────────────────────┐
+│         React 未来架构全景                     │
+└─────────────────────────────────────────────┘
+
+  ┌─ 编译时 ─────────────────────────────────┐
+  │                                           │
+  │  React Compiler                           │
+  │    │                                      │
+  │    ├─ 自动 memo/useCallback/useMemo       │
+  │    ├─ 死代码消除                           │
+  │    └─ 组件级代码分割                       │
+  │                                           │
+  └───────────────────────────────────────────┘
+                     │
+                     ▼
+  ┌─ 运行时 (服务器) ─────────────────────────┐
+  │                                           │
+  │  Server Components                        │
+  │    │                                      │
+  │    ├─ 数据库直连                           │
+  │    ├─ Server Actions                      │
+  │    └─ RSC Payload 生成                    │
+  │                                           │
+  └───────────────────────────────────────────┘
+                     │
+                     ▼
+  ┌─ 运行时 (客户端) ─────────────────────────┐
+  │                                           │
+  │  Concurrent Renderer (Fiber)              │
+  │    │                                      │
+  │    ├─ 时间切片                             │
+  │    ├─ 优先级调度                           │
+  │    ├─ Activity (后台保持)                  │
+  │    └─ View Transitions                    │
+  │                                           │
+  └───────────────────────────────────────────┘</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>React — 用于构建用户界面的 JavaScript 库</p>
+</footer>
+
+<script>
+  // Tab switching
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active') })
+        document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active') })
+        this.classList.add('active')
+        var tabId = this.getAttribute('data-tab')
+        document.getElementById(tabId).classList.add('active')
+      })
+    })
+  })
+</script>
+</body>
+</html>

@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Agent UI — Architecture Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #42A5F5;
+    --md-primary-dark: #0D47A1;
+    --md-secondary: #FF6D00;
+    --md-surface: #FFFFFF;
+    --md-background: #FAFAFA;
+    --md-on-primary: #FFFFFF;
+    --md-on-surface: #212121;
+    --md-on-surface-variant: #616161;
+    --md-outline: #E0E0E0;
+    --md-error: #D32F2F;
+    --md-success: #2E7D32;
+    --md-warning: #F57F17;
+    --md-info: #0288D1;
+    --md-elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.14);
+    --md-elevation-2: 0 3px 6px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.10);
+    --md-elevation-3: 0 6px 12px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.08);
+    --md-radius: 12px;
+    --md-radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+  }
+
+  /* ── Top App Bar ─────────────────────────────────────── */
+  .app-bar {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px;
+    box-shadow: var(--md-elevation-2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: .02em; }
+  .app-bar p  { font-size: 13px; opacity: .85; margin-top: 2px; }
+
+  /* ── Layout ──────────────────────────────────────────── */
+  .container { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--md-primary);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 40px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--md-primary-light);
+  }
+  .section-title:first-of-type { margin-top: 8px; }
+
+  /* ── Cards ───────────────────────────────────────────── */
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elevation-1);
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-elevation-2); }
+  .card-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  /* ── Entity Diagram ──────────────────────────────────── */
+  .entity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .entity-card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius-sm);
+    border: 1px solid var(--md-outline);
+    overflow: hidden;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .entity-card:hover {
+    box-shadow: var(--md-elevation-2);
+    border-color: var(--md-primary-light);
+  }
+  .entity-header {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .entity-body { padding: 14px 16px; }
+  .entity-body .field {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid #F5F5F5;
+  }
+  .entity-body .field:last-child { border-bottom: none; }
+  .field-name {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: var(--md-primary-dark);
+    font-weight: 500;
+  }
+  .field-type {
+    font-size: 11px;
+    color: var(--md-on-surface-variant);
+    font-family: 'Roboto Mono', monospace;
+  }
+
+  /* ── Relation Arrows (CSS only) ──────────────────────── */
+  .relations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .relation {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #E3F2FD;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--md-primary-dark);
+  }
+  .relation .arrow { color: var(--md-secondary); font-weight: 700; }
+
+  /* ── Flow Diagram ────────────────────────────────────── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    position: relative;
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 40px;
+    bottom: -4px;
+    width: 2px;
+    background: var(--md-outline);
+  }
+  .flow-step:last-child::before { display: none; }
+
+  .flow-marker {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .flow-content {
+    flex: 1;
+    padding: 8px 0 20px;
+  }
+  .flow-content .title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+  }
+  .flow-content .desc {
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+    margin-top: 2px;
+  }
+  .flow-content code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    background: #F5F5F5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--md-error);
+  }
+
+  /* ── Tags / Badges ───────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+  .tag-daemon   { background: #E8F5E9; color: var(--md-success); }
+  .tag-bridge   { background: #E3F2FD; color: var(--md-primary); }
+  .tag-frontend { background: #FFF3E0; color: var(--md-secondary); }
+  .tag-ws       { background: #FCE4EC; color: #C62828; }
+  .tag-socket   { background: #F3E5F5; color: #6A1B9A; }
+  .tag-electron { background: #E8EAF6; color: #283593; }
+  .tag-ipc      { background: #EFEBE9; color: #4E342E; }
+
+  /* ── Architecture Diagram (layered) ──────────────────── */
+  .arch-layer {
+    border: 2px solid var(--md-outline);
+    border-radius: var(--md-radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .arch-layer-label {
+    position: absolute;
+    top: -10px;
+    left: 16px;
+    background: var(--md-surface);
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--md-on-surface-variant);
+  }
+  .arch-boxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .arch-box {
+    border-radius: var(--md-radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+    min-width: 120px;
+    text-align: center;
+  }
+  .arch-box small {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    opacity: .85;
+    margin-top: 2px;
+  }
+  .arch-connector {
+    text-align: center;
+    padding: 6px 0;
+    color: var(--md-on-surface-variant);
+    font-size: 18px;
+    letter-spacing: 8px;
+  }
+
+  /* ── Info callout ────────────────────────────────────── */
+  .callout {
+    border-left: 4px solid var(--md-info);
+    background: #E1F5FE;
+    border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #01579B;
+    margin: 12px 0;
+  }
+  .callout-warn {
+    border-left-color: var(--md-warning);
+    background: #FFFDE7;
+    color: #F57F17;
+  }
+  .callout code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,0,0,.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Table ───────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: #F5F5F5;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 2px solid var(--md-outline);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F0F0F0;
+    vertical-align: top;
+  }
+  td code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    background: #F5F5F5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--md-primary-dark);
+  }
+
+  /* ── Footer ──────────────────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 32px 0 16px;
+    font-size: 12px;
+    color: var(--md-on-surface-variant);
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="app-bar">
+  <h1>✦ Prime Agent UI — Architecture Design</h1>
+  <p>packages/ui-client · Entity Relationships · Communication Flow · Session Lifecycle
+    <a href="RN-DESIGN.html" style="display:inline-block;margin-left:16px;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:4px 14px;text-decoration:none;font-size:12px;font-weight:500;vertical-align:middle">RN 版架构 →</a>
+  </p>
+</div>
+
+<div class="container">
+
+<!-- ── Section: System Architecture ──────────────────────── -->
+<h2 class="section-title">System Architecture</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-primary)">◈</div> Layered Architecture — Dual Mode</div>
+
+  <!-- Frontend Layer (shared) -->
+  <div class="arch-layer" style="border-color: #FF6D00;">
+    <span class="arch-layer-label" style="color:#FF6D00;">Frontend (Browser / Electron Renderer) — Shared React UI</span>
+    <div class="arch-boxes">
+      <div class="arch-box" style="background:#FF6D00;">React UI<small>App · ChatView · InputBar · AgentSidebar</small></div>
+      <div class="arch-box" style="background:#FF8F00;">Stores<small>MessageStore · SessionStore · ConnectionStore</small></div>
+      <div class="arch-box" style="background:#FFA000;">EventBridge<small>event → store mutation</small></div>
+      <div class="arch-box" style="background:#FFB300;">AgentConnectionClient<small>RPC over Transport</small></div>
+    </div>
+  </div>
+
+  <!-- Dual transport paths -->
+  <div style="display:flex; gap:16px; margin: 12px 0;">
+    <!-- Web Mode -->
+    <div style="flex:1;">
+      <div class="arch-layer" style="border-color: #C62828; margin-bottom:0;">
+        <span class="arch-layer-label" style="color:#C62828;">Web Mode</span>
+        <div class="arch-boxes">
+          <div class="arch-box" style="background:#C62828;">WsTransport<small>WebSocket client</small></div>
+          <div class="arch-box" style="background:#D32F2F;">WebService<small>implements AgentService</small></div>
+        </div>
+      </div>
+      <div class="arch-connector">▼ WebSocket ▲</div>
+      <div class="arch-layer" style="border-color: #1565C0; margin-bottom:0;">
+        <span class="arch-layer-label" style="color:#1565C0;">Node.js Server</span>
+        <div class="arch-boxes">
+          <div class="arch-box" style="background:#1565C0;">DaemonBridge<small>session routing · browse_path</small></div>
+          <div class="arch-box" style="background:#1976D2;">SessionEntry<small>connection + detachEvents</small></div>
+          <div class="arch-box" style="background:#1E88E5;">WS Transport<small>per tab</small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Electron Mode -->
+    <div style="flex:1;">
+      <div class="arch-layer" style="border-color: #283593; margin-bottom:0;">
+        <span class="arch-layer-label" style="color:#283593;">Electron Mode</span>
+        <div class="arch-boxes">
+          <div class="arch-box" style="background:#283593;">IpcTransport<small>ipcRenderer bridge</small></div>
+          <div class="arch-box" style="background:#303F9F;">RpcService<small>implements AgentService</small></div>
+        </div>
+      </div>
+      <div class="arch-connector">▼ ipcRenderer.invoke ▲</div>
+      <div class="arch-layer" style="border-color: #4E342E; margin-bottom:0;">
+        <span class="arch-layer-label" style="color:#4E342E;">Electron Main Process</span>
+        <div class="arch-boxes">
+          <div class="arch-box" style="background:#4E342E;">ipcMain.handle<small>agent:command</small></div>
+          <div class="arch-box" style="background:#5D4037;">webContents.send<small>agent:event</small></div>
+          <div class="arch-box" style="background:#6D4C41;">DaemonBridge<small>session routing · browse_path</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arch-connector">▼ Unix Socket ▲</div>
+
+  <!-- Daemon Layer -->
+  <div class="arch-layer" style="border-color: #2E7D32;">
+    <span class="arch-layer-label" style="color:#2E7D32;">Daemon Process (shared by both modes)</span>
+    <div class="arch-boxes">
+      <div class="arch-box" style="background:#2E7D32;">DaemonClient<small>Unix socket connection</small></div>
+      <div class="arch-box" style="background:#388E3C;">DaemonAgentConnection<small>per-session proxy · event dispatch</small></div>
+      <div class="arch-box" style="background:#43A047;">Session A<small>Agent state · history</small></div>
+      <div class="arch-box" style="background:#4CAF50;">Session B<small>Agent state · history</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Entity Relationships ─────────────────────── -->
+<h2 class="section-title">Entity Relationships</h2>
+
+<div class="entity-grid">
+  <!-- DaemonBridge -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-bridge">bridge</span> DaemonBridge</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">sessions</span><span class="field-type">Map&lt;sessionId, SessionEntry&gt;</span></div>
+      <div class="field"><span class="field-name">transportSessions</span><span class="field-type">Map&lt;Transport, sessionId&gt;</span></div>
+      <div class="field"><span class="field-name">sessionSubscribers</span><span class="field-type">Map&lt;sessionId, Set&lt;Transport&gt;&gt;</span></div>
+      <div class="field"><span class="field-name">sessionEventListeners</span><span class="field-type">Map&lt;sessionId, unsub&gt;</span></div>
+      <div class="field"><span class="field-name">client</span><span class="field-type">DaemonClient</span></div>
+    </div>
+  </div>
+
+  <!-- SessionEntry -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-bridge">bridge</span> SessionEntry</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">sessionId</span><span class="field-type">string</span></div>
+      <div class="field"><span class="field-name">connection</span><span class="field-type">DaemonAgentConnection</span></div>
+      <div class="field"><span class="field-name">detachEvents</span><span class="field-type">() =&gt; void</span></div>
+    </div>
+  </div>
+
+  <!-- DaemonAgentConnection -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-daemon">daemon</span> DaemonAgentConnection</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">client</span><span class="field-type">DaemonClient (shared)</span></div>
+      <div class="field"><span class="field-name">activeSessionId</span><span class="field-type">string</span></div>
+      <div class="field"><span class="field-name">clientId</span><span class="field-type">UUID (unique per instance)</span></div>
+      <div class="field"><span class="field-name">listeners</span><span class="field-type">Set&lt;EventListener&gt;</span></div>
+      <div class="field"><span class="field-name">attach()</span><span class="field-type">creates NEW instance</span></div>
+    </div>
+  </div>
+
+  <!-- DaemonClient -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-socket">socket</span> DaemonClient</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">listeners</span><span class="field-type">Set&lt;MessageListener&gt;</span></div>
+      <div class="field"><span class="field-name">onMessage()</span><span class="field-type">dispatch to all listeners</span></div>
+      <div class="field"><span class="field-name">request()</span><span class="field-type">send + await correlated response</span></div>
+    </div>
+  </div>
+
+  <!-- Transport -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-ws">ws</span> Transport</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">send()</span><span class="field-type">push message to WS client</span></div>
+      <div class="field"><span class="field-name">onMessage()</span><span class="field-type">receive from WS client</span></div>
+      <div class="field"><span class="field-name">onClose()</span><span class="field-type">cleanup on disconnect</span></div>
+    </div>
+  </div>
+
+  <!-- AgentConnectionClient -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-frontend">frontend</span> AgentConnectionClient</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">transport</span><span class="field-type">Transport</span></div>
+      <div class="field"><span class="field-name">eventListeners</span><span class="field-type">Set&lt;Listener&gt;</span></div>
+      <div class="field"><span class="field-name">pendingRequests</span><span class="field-type">Map&lt;id, PendingRequest&gt;</span></div>
+      <div class="field"><span class="field-name">request()</span><span class="field-type">RPC with correlation ID</span></div>
+    </div>
+  </div>
+
+  <!-- ElectronAgentBridge -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-electron">electron</span> ElectronAgentBridge</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">sendCommand()</span><span class="field-type">ipcRenderer.invoke('agent:command')</span></div>
+      <div class="field"><span class="field-name">onEvent()</span><span class="field-type">ipcRenderer.on('agent:event')</span></div>
+      <div class="field"><span class="field-name">onClose()</span><span class="field-type">ipcRenderer.on('agent:close')</span></div>
+      <div class="field"><span class="field-name">listSessions()</span><span class="field-type">IPC → main process</span></div>
+      <div class="field"><span class="field-name">killSession()</span><span class="field-type">IPC → main process</span></div>
+    </div>
+  </div>
+
+  <!-- IpcTransport -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-ipc">ipc</span> IpcTransport</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">bridge</span><span class="field-type">ElectronAgentBridge</span></div>
+      <div class="field"><span class="field-name">send()</span><span class="field-type">bridge.sendCommand() fire-and-forget</span></div>
+      <div class="field"><span class="field-name">onMessage()</span><span class="field-type">bridge.onEvent() callback</span></div>
+      <div class="field"><span class="field-name">onClose()</span><span class="field-type">bridge.onClose() callback</span></div>
+      <div class="field"><span class="field-name">connected</span><span class="field-type">boolean (immediate true)</span></div>
+    </div>
+  </div>
+
+  <!-- RpcService -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-electron">electron</span> RpcService</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">client</span><span class="field-type">AgentConnectionClient(IpcTransport)</span></div>
+      <div class="field"><span class="field-name">bridge</span><span class="field-type">ElectronAgentBridge</span></div>
+      <div class="field"><span class="field-name">listSessions()</span><span class="field-type">bridge.listSessions() direct IPC</span></div>
+      <div class="field"><span class="field-name">createSession()</span><span class="field-type">client.createSession() over IPC</span></div>
+      <div class="field"><span class="field-name">browsePath()</span><span class="field-type">client.browsePath() over IPC</span></div>
+    </div>
+  </div>
+
+  <!-- WebService (for comparison) -->
+  <div class="entity-card">
+    <div class="entity-header"><span class="tag tag-ws">web</span> WebService</div>
+    <div class="entity-body">
+      <div class="field"><span class="field-name">client</span><span class="field-type">AgentConnectionClient(WsTransport)</span></div>
+      <div class="field"><span class="field-name">listSessions()</span><span class="field-type">client.request('list')</span></div>
+      <div class="field"><span class="field-name">createSession()</span><span class="field-type">client.createSession()</span></div>
+      <div class="field"><span class="field-name">browsePath()</span><span class="field-type">client.browsePath()</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Relations ────────────────────────────────── -->
+<h2 class="section-title">Key Relationships</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-secondary)">→</div> Cardinality & Ownership</div>
+  <div class="relations">
+    <div class="relation">DaemonClient <span class="arrow">1 ──→ N</span> DaemonAgentConnection</div>
+    <div class="relation">DaemonBridge <span class="arrow">1 ──→ N</span> SessionEntry</div>
+    <div class="relation">SessionEntry <span class="arrow">1 ──→ 1</span> DaemonAgentConnection</div>
+    <div class="relation">Transport <span class="arrow">N ──→ 1</span> sessionId</div>
+    <div class="relation">sessionId <span class="arrow">1 ──→ N</span> Transport</div>
+    <div class="relation">DaemonBridge <span class="arrow">1 ──→ N</span> Transport</div>
+    <div class="relation">ElectronAgentBridge <span class="arrow">1 ──→ 1</span> IpcTransport</div>
+    <div class="relation">RpcService <span class="arrow">1 ──→ 1</span> IpcTransport</div>
+    <div class="relation">WebService <span class="arrow">1 ──→ 1</span> WsTransport</div>
+  </div>
+  <div class="callout">
+    <strong>Key:</strong> <code>DaemonAgentConnection.attach()</code> creates a <strong>new instance</strong> every call (no cache). Each instance has a unique <code>clientId</code> (UUID) but shares the same underlying <code>DaemonClient</code> (Unix socket).
+  </div>
+  <div class="callout callout-warn">
+    <strong>Anti-duplicate guard:</strong> <code>sessionEventListeners</code> Map (keyed by sessionId) prevents duplicate event broadcast listeners when the same session entry is disposed and re-created.
+  </div>
+</div>
+
+<!-- ── Section: Communication Flow ───────────────────────── -->
+<h2 class="section-title">Communication Flow</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-success)">①</div> User Sends a Message</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">1</div>
+      <div class="flow-content">
+        <div class="title">Frontend: <code>handlePrompt(text)</code></div>
+        <div class="desc">Calls <code>agentService.client.prompt(text)</code> — sends RPC over WebSocket</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">2</div>
+      <div class="flow-content">
+        <div class="title">DaemonBridge: <code>handleMessage(msg, transport)</code></div>
+        <div class="desc">Looks up <code>sessions.get(sessionId)</code> → existing entry → <code>dispatch(entry, msg)</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary-dark)">3</div>
+      <div class="flow-content">
+        <div class="title">DaemonAgentConnection: <code>connection.prompt(text)</code></div>
+        <div class="desc">Sends command via <code>DaemonClient</code> → Unix Socket → Daemon Process</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-success)">4</div>
+      <div class="flow-content">
+        <div class="title">Daemon: processes prompt, broadcasts <code>message_update</code> events</div>
+        <div class="desc">Events flow back: Daemon → Unix Socket → DaemonClient → DaemonAgentConnection listeners</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">5</div>
+      <div class="flow-content">
+        <div class="title">DaemonBridge: subscription callback fires</div>
+        <div class="desc">Reads <code>sessionSubscribers.get(sessionId)</code> → broadcasts to all subscribed Transports (tabs)</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">6</div>
+      <div class="flow-content">
+        <div class="title">Frontend: EventBridge processes <code>session_event</code></div>
+        <div class="desc"><code>messageStore.onMessageUpdate()</code> → React re-renders with streaming content</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-info)">②</div> Create Session</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">1</div>
+      <div class="flow-content">
+        <div class="title"><code>sessionStore.createSession(name, cwd)</code></div>
+        <div class="desc">Sends <code>create</code> command (daemon-level) → Daemon creates session → returns <code>{ activeSessionId, sessionFile }</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">2</div>
+      <div class="flow-content">
+        <div class="title"><code>messageStore.switchSession(newId)</code></div>
+        <div class="desc">Clears message cache, sets active session ID</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">3</div>
+      <div class="flow-content">
+        <div class="title"><code>sessionStore.setActiveSession(newId)</code></div>
+        <div class="desc">Sends <code>switch_session</code> to daemon (daemon-level, no entry created). Daemon may broadcast <code>session_resynced</code> — but no listener exists yet, event is lost.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">4</div>
+      <div class="flow-content">
+        <div class="title"><code>messageStore.fetchHistory()</code></div>
+        <div class="desc">Sends <code>get_messages</code> (session-scoped) → <strong>creates entry + listener</strong> → <code>connection.getMessages()</code> → <code>onHistoryMessages()</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#6A1B9A">③</div> Switch Session (A → B)</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">1</div>
+      <div class="flow-content">
+        <div class="title"><code>handleSelectSession(sessionFile)</code></div>
+        <div class="desc"><code>messageStore.switchSession(B)</code> → <code>sessionStore.setActiveSession(B)</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">2</div>
+      <div class="flow-content">
+        <div class="title"><code>sessionStore.setActiveSession(B)</code></div>
+        <div class="desc">Sends <code>switch_session</code> to daemon → <code>subscribeTransport(transport, B)</code> → unsubscribes from A</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">3</div>
+      <div class="flow-content">
+        <div class="title">If A has no more subscribers</div>
+        <div class="desc"><code>unsubscribeTransport</code> → <code>entry.detachEvents()</code> + <code>connection.dispose()</code> + <code>sessions.delete(A)</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">4</div>
+      <div class="flow-content">
+        <div class="title"><code>fetchHistory()</code> for B</div>
+        <div class="desc">Sends <code>get_messages</code> → creates entry for B → <code>onHistoryMessages()</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Data Structures ──────────────────────────── -->
+<h2 class="section-title">Key Data Structures</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#6A1B9A">⌘</div> DaemonBridge Internal Maps</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Map</th>
+        <th>Key</th>
+        <th>Value</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>sessions</code></td>
+        <td>sessionId</td>
+        <td>SessionEntry</td>
+        <td>Active session entries with connection + cleanup</td>
+      </tr>
+      <tr>
+        <td><code>transportSessions</code></td>
+        <td>Transport</td>
+        <td>sessionId</td>
+        <td>Which session each WS client is currently on</td>
+      </tr>
+      <tr>
+        <td><code>sessionSubscribers</code></td>
+        <td>sessionId</td>
+        <td>Set&lt;Transport&gt;</td>
+        <td>Which transports receive events for each session</td>
+      </tr>
+      <tr>
+        <td><code>sessionEventListeners</code></td>
+        <td>sessionId</td>
+        <td>() =&gt; void</td>
+        <td>Unsubscribe function — prevents duplicate listeners on connection reuse</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Section: Design Decisions ─────────────────────────── -->
+<h2 class="section-title">Design Decisions</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-error)">!</div> Anti-Duplicate: sessionEventListeners</div>
+  <table>
+    <thead>
+      <tr><th>Problem</th><th>Solution</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Each <code>attach()</code> creates a new <code>DaemonAgentConnection</code>. When a session entry is disposed (last subscriber leaves) and later re-created, a <strong>new</strong> listener is added to the <strong>new</strong> connection instance. If events arrive before disposal, they accumulate.</td>
+        <td><code>sessionEventListeners</code> Map (keyed by sessionId) tracks whether a listener is registered. <code>detachEvents()</code> closure cleans up both the listener and the Map entry on disposal. Next create can safely re-register.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-info)">i</div> Transport Subscription Lifecycle</div>
+  <table>
+    <thead>
+      <tr><th>Event</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Transport sends session-scoped command</td>
+        <td><code>subscribeTransport(transport, sessionId)</code> — adds to <code>sessionSubscribers</code></td>
+      </tr>
+      <tr>
+        <td>Transport switches to different session</td>
+        <td><code>unsubscribeTransport</code> from old → <code>subscribeTransport</code> to new</td>
+      </tr>
+      <tr>
+        <td>Transport disconnects</td>
+        <td><code>handleDisconnect</code> → <code>unsubscribeTransport</code> from current session</td>
+      </tr>
+      <tr>
+        <td>Last subscriber leaves a session</td>
+        <td><code>detachEvents()</code> + <code>connection.dispose()</code> + <code>sessions.delete()</code></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-success)">✓</div> Command Routing</div>
+  <table>
+    <thead>
+      <tr><th>Command Type</th><th>Routing</th><th>Entry Created?</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>list</code> · <code>kill</code> · <code>rename</code> · <code>create</code> · <code>switch_session</code> · <code>browse_path</code></td>
+        <td>Daemon-level → <code>executeDaemonCommand()</code></td>
+        <td>No</td>
+      </tr>
+      <tr>
+        <td><code>get_messages</code> · <code>prompt</code> · <code>get_state</code> · ...</td>
+        <td>Session-scoped → <code>dispatch(entry, msg)</code></td>
+        <td>Yes (if not exists)</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>Session-scoped commands</strong> auto-create a session entry + listener on first access. The entry is disposed when the last subscriber leaves.
+  </div>
+</div>
+
+<!-- ── Section: Design Patterns ──────────────────────────── -->
+<h2 class="section-title">Design Patterns</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-primary)">◈</div> Layered Architecture</div>
+  <div style="text-align:center; margin:16px 0;">
+    <div style="display:inline-flex; flex-direction:column; gap:4px; align-items:center;">
+      <div style="background:#FF6D00; color:#fff; border-radius:8px; padding:10px 32px; font-size:13px; font-weight:500; min-width:280px;">Presentation Layer · React UI + Stores</div>
+      <div style="color:var(--md-on-surface-variant); font-size:16px;">▼</div>
+      <div style="background:#1565C0; color:#fff; border-radius:8px; padding:10px 32px; font-size:13px; font-weight:500; min-width:280px;">Bridge Layer · DaemonBridge (Proxy + Mediator)</div>
+      <div style="color:var(--md-on-surface-variant); font-size:16px;">▼</div>
+      <div style="background:#2E7D32; color:#fff; border-radius:8px; padding:10px 32px; font-size:13px; font-weight:500; min-width:280px;">Domain Layer · Daemon Process + Sessions</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Layer</th><th>Responsibility</th><th>Depends On</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Presentation</strong></td>
+        <td>UI rendering, state management, user interaction</td>
+        <td>AgentService interface (not implementation)</td>
+      </tr>
+      <tr>
+        <td><strong>Bridge</strong></td>
+        <td>Session routing, transport management, event broadcasting, lifecycle</td>
+        <td>DaemonClient, DaemonAgentConnection</td>
+      </tr>
+      <tr>
+        <td><strong>Domain</strong></td>
+        <td>Agent logic, session state, message history, prompt processing</td>
+        <td>Nothing above — owns the data</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>依赖方向：</strong>上层依赖下层的接口，不依赖具体实现。Presentation 不知道 Daemon 的存在，Bridge 不知道 React 的存在。
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-secondary)">◇</div> Bridge Pattern × 2</div>
+  <div style="display:flex; gap:16px; margin:12px 0;">
+    <div style="flex:1; background:#E3F2FD; border-radius:8px; padding:16px;">
+      <div style="font-weight:500; font-size:13px; color:var(--md-primary-dark); margin-bottom:8px;">① Transport Bridge</div>
+      <div style="font-size:12px; color:#616161; margin-bottom:8px;"><strong>抽象：</strong>AgentConnectionClient<br><strong>实现：</strong>WsTransport · IpcTransport · MemoryTransport<br><strong>变化维度：</strong>通信机制</div>
+      <div style="font-family:'Roboto Mono',monospace; font-size:11px; background:#fff; border-radius:4px; padding:8px; color:var(--md-primary-dark);">
+        AgentConnectionClient<br>
+        &nbsp;&nbsp;└── transport: Transport (interface)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── WsTransport<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── IpcTransport<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── MemoryTransport
+      </div>
+    </div>
+    <div style="flex:1; background:#FFF3E0; border-radius:8px; padding:16px;">
+      <div style="font-weight:500; font-size:13px; color:#E65100; margin-bottom:8px;">② Service Bridge</div>
+      <div style="font-size:12px; color:#616161; margin-bottom:8px;"><strong>抽象：</strong>React UI + Stores<br><strong>实现：</strong>WebService · RpcService<br><strong>变化维度：</strong>运行平台</div>
+      <div style="font-family:'Roboto Mono',monospace; font-size:11px; background:#fff; border-radius:4px; padding:8px; color:#E65100;">
+        React UI (共享，不变)<br>
+        &nbsp;&nbsp;└── agentService: AgentService (interface)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── WebService (WebSocket)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── RpcService (Electron IPC)
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Layer</th><th>Abstraction</th><th>Implementation</th><th>What Varies</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Transport</td>
+        <td>AgentConnectionClient</td>
+        <td>Ws / IPC / Memory</td>
+        <td>通信机制</td>
+      </tr>
+      <tr>
+        <td>Service</td>
+        <td>React UI + Stores</td>
+        <td>WebService / RpcService</td>
+        <td>运行平台</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>正交：</strong>两层桥接互不依赖。Transport 桥接"怎么传"，Service 桥接"在哪跑"。新增平台只需加一个 Service 实现，新增通信方式只需加一个 Transport 实现，业务代码零改动。
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#6A1B9A">◎</div> Proxy Pattern</div>
+  <div style="display:flex; gap:16px; margin:12px 0;">
+    <div style="flex:1; text-align:center;">
+      <div style="font-size:12px; color:var(--md-on-surface-variant); margin-bottom:8px;">Without Proxy</div>
+      <div style="display:inline-flex; flex-direction:column; gap:4px; align-items:center;">
+        <div style="background:#FF6D00; color:#fff; border-radius:6px; padding:6px 16px; font-size:12px;">Frontend</div>
+        <div style="color:var(--md-on-surface-variant); font-size:14px;">▼ 直接连接</div>
+        <div style="background:#2E7D32; color:#fff; border-radius:6px; padding:6px 16px; font-size:12px;">Daemon (Unix Socket)</div>
+      </div>
+      <div style="font-size:11px; color:var(--md-error); margin-top:8px;">前端需要感知 Socket、Session、重连…</div>
+    </div>
+    <div style="flex:1; text-align:center;">
+      <div style="font-size:12px; color:var(--md-on-surface-variant); margin-bottom:8px;">With Proxy</div>
+      <div style="display:inline-flex; flex-direction:column; gap:4px; align-items:center;">
+        <div style="background:#FF6D00; color:#fff; border-radius:6px; padding:6px 16px; font-size:12px;">Frontend</div>
+        <div style="color:var(--md-on-surface-variant); font-size:14px;">▼ 透明代理</div>
+        <div style="background:#1565C0; color:#fff; border-radius:6px; padding:6px 16px; font-size:12px;">DaemonBridge (Proxy)</div>
+        <div style="color:var(--md-on-surface-variant); font-size:14px;">▼ Unix Socket</div>
+        <div style="background:#2E7D32; color:#fff; border-radius:6px; padding:6px 16px; font-size:12px;">Daemon</div>
+      </div>
+      <div style="font-size:11px; color:var(--md-success); margin-top:8px;">前端只调 connection.prompt()</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Proxy 职责</th><th>实现</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>访问控制</td><td>Daemon-level vs Session-scoped 命令路由</td></tr>
+      <tr><td>生命周期管理</td><td>Session entry 创建/销毁、连接 attach/dispose</td></tr>
+      <tr><td>透明调用</td><td><code>dispatch(entry, msg)</code> → <code>connection.prompt()</code></td></tr>
+      <tr><td>资源缓存</td><td>Session entry 缓存，避免重复 attach</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-success)">✦</div> Mediator Pattern</div>
+  <div style="text-align:center; margin:16px 0;">
+    <div style="display:inline-flex; gap:32px; align-items:center;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="background:#C62828; color:#fff; border-radius:6px; padding:6px 14px; font-size:12px;">Tab 甲</div>
+        <div style="background:#C62828; color:#fff; border-radius:6px; padding:6px 14px; font-size:12px;">Tab 乙</div>
+        <div style="background:#C62828; color:#fff; border-radius:6px; padding:6px 14px; font-size:12px;">Tab 丙</div>
+      </div>
+      <div style="font-size:12px; color:var(--md-on-surface-variant);">◄── all talk to ──►</div>
+      <div style="background:#1565C0; color:#fff; border-radius:8px; padding:16px 24px; font-size:14px; font-weight:500; line-height:1.8;">
+        DaemonBridge<br>
+        <span style="font-size:11px; font-weight:400; opacity:.85;">(Mediator)</span>
+      </div>
+      <div style="font-size:12px; color:var(--md-on-surface-variant);">◄── coordinates ──►</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="background:#2E7D32; color:#fff; border-radius:6px; padding:6px 14px; font-size:12px;">Session A</div>
+        <div style="background:#2E7D32; color:#fff; border-radius:6px; padding:6px 14px; font-size:12px;">Session B</div>
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Mediator 职责</th><th>实现</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>多 Tab ↔ 多 Session 协调</td><td><code>sessionSubscribers</code>: sessionId → Set&lt;Transport&gt;</td></tr>
+      <tr><td>事件广播</td><td>一个 Session 的事件 → 广播给所有订阅的 Tab</td></tr>
+      <tr><td>订阅管理</td><td><code>subscribeTransport</code> / <code>unsubscribeTransport</code></td></tr>
+      <tr><td>生命周期协调</td><td>最后一个 Tab 离开 → dispose Session entry</td></tr>
+      <tr><td>去重保护</td><td><code>sessionEventListeners</code> 防止重复 listener</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>无 Mediator 时：</strong>Tab 甲、乙、丙需要直接知道彼此的存在，互相同步消息和状态 — O(N²) 复杂度。<br>
+    <strong>有 Mediator 时：</strong>Tab 只跟 Bridge 通信，Bridge 集中协调 — O(N) 复杂度。
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-error)">◆</div> Pattern Summary</div>
+  <table>
+    <thead>
+      <tr><th>Pattern</th><th>Where</th><th>Solves</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Layered Architecture</strong></td>
+        <td>UI → Bridge → Daemon</td>
+        <td>关注点分离，每层只依赖下层接口</td>
+      </tr>
+      <tr>
+        <td><strong>Bridge (×2)</strong></td>
+        <td>Transport + Service</td>
+        <td>抽象与实现独立变化，新增平台/通信方式零侵入</td>
+      </tr>
+      <tr>
+        <td><strong>Proxy</strong></td>
+        <td>DaemonBridge</td>
+        <td>前端透明调用，Bridge 控制访问、路由、生命周期</td>
+      </tr>
+      <tr>
+        <td><strong>Mediator</strong></td>
+        <td>DaemonBridge</td>
+        <td>多 Tab ↔ 多 Session 协调，集中管理订阅和广播</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Section: Electron IPC ─────────────────────────────── -->
+<h2 class="section-title">Electron IPC Layer</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#283593">⚡</div> Dual-Mode Architecture</div>
+  <div style="display:flex; gap:16px; margin:12px 0;">
+    <div style="flex:1; background:#FFF3E0; border-radius:8px; padding:14px;">
+      <div style="font-weight:500; font-size:13px; color:#E65100; margin-bottom:8px;">Web Mode</div>
+      <div style="font-size:12px; color:#616161;">
+        <code>WsTransport</code> → WebSocket → Node.js server → <code>DaemonBridge</code> → Daemon<br>
+        Multiple tabs, each with own WS connection. DaemonBridge runs in Node.js process.
+      </div>
+    </div>
+    <div style="flex:1; background:#E8EAF6; border-radius:8px; padding:14px;">
+      <div style="font-weight:500; font-size:13px; color:#283593; margin-bottom:8px;">Electron Mode</div>
+      <div style="font-size:12px; color:#616161;">
+        <code>IpcTransport</code> → ipcRenderer → Electron main process → <code>DaemonBridge</code> → Daemon<br>
+        Single window per app. DaemonBridge runs in Electron main process.
+      </div>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>Shared code:</strong> React UI, Stores, EventBridge, AgentConnectionClient are identical in both modes. Only the <code>Transport</code> and <code>AgentService</code> implementations differ.
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#4E342E">⇄</div> IPC Communication Flow</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker" style="background:#283593">1</div>
+      <div class="flow-content">
+        <div class="title">Preload script exposes <code>ElectronAgentBridge</code></div>
+        <div class="desc"><code>contextBridge.exposeInMainWorld('agentBridge', { sendCommand, onEvent, onClose, listSessions, killSession })</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:#283593">2</div>
+      <div class="flow-content">
+        <div class="title">Renderer: <code>createIpcTransport(bridge)</code></div>
+        <div class="desc">Creates <code>IpcTransport</code> wrapping the bridge. <code>send()</code> → <code>bridge.sendCommand()</code> → <code>ipcRenderer.invoke('agent:command', data)</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:#4E342E">3</div>
+      <div class="flow-content">
+        <div class="title">Main process: <code>ipcMain.handle('agent:command', handler)</code></div>
+        <div class="desc">Receives command → routes to <code>DaemonBridge.handleMessage()</code> → returns response</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:#4E342E">4</div>
+      <div class="flow-content">
+        <div class="title">Main process: <code>mainWindow.webContents.send('agent:event', event)</code></div>
+        <div class="desc">Daemon events pushed to renderer via <code>webContents.send()</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:#283593">5</div>
+      <div class="flow-content">
+        <div class="title">Renderer: <code>bridge.onEvent(callback)</code> receives events</div>
+        <div class="desc"><code>ipcRenderer.on('agent:event', callback)</code> → dispatches to <code>AgentConnectionClient</code> → <code>EventBridge</code> → Stores</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#283593">⌘</div> IPC vs WebSocket — Interface Mapping</div>
+  <table>
+    <thead>
+      <tr><th>Operation</th><th>Web Mode (WsTransport)</th><th>Electron Mode (IpcTransport)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Send command</td>
+        <td><code>ws.send(JSON.stringify(msg))</code></td>
+        <td><code>ipcRenderer.invoke('agent:command', msg)</code></td>
+      </tr>
+      <tr>
+        <td>Receive events</td>
+        <td><code>ws.onmessage = (e) => JSON.parse(e.data)</code></td>
+        <td><code>ipcRenderer.on('agent:event', (e, data) => data)</code></td>
+      </tr>
+      <tr>
+        <td>Connection close</td>
+        <td><code>ws.onclose</code></td>
+        <td><code>ipcRenderer.on('agent:close', callback)</code></td>
+      </tr>
+      <tr>
+        <td>List sessions</td>
+        <td>RPC: <code>request('list')</code></td>
+        <td>Direct IPC: <code>bridge.listSessions()</code></td>
+      </tr>
+      <tr>
+        <td>Kill session</td>
+        <td>RPC: <code>request('kill')</code></td>
+        <td>Direct IPC: <code>bridge.killSession(id)</code></td>
+      </tr>
+      <tr>
+        <td>Browse dirs</td>
+        <td colspan="2" style="text-align:center;"><code>browse_path</code> — <code>DaemonBridge</code> handles <code>fs.readdir</code> in both modes</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:#283593">🔌</div> AgentService Interface</div>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>WebService</th><th>RpcService</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>listSessions()</code></td>
+        <td><code>client.request('list')</code></td>
+        <td><code>bridge.listSessions()</code> (direct IPC)</td>
+      </tr>
+      <tr>
+        <td><code>killSession(id)</code></td>
+        <td><code>client.request('kill')</code></td>
+        <td><code>bridge.killSession(id)</code> (direct IPC)</td>
+      </tr>
+      <tr>
+        <td><code>createSession(name?, cwd?)</code></td>
+        <td colspan="2" style="text-align:center;"><code>client.createSession()</code> (same in both)</td>
+      </tr>
+      <tr>
+        <td><code>browsePath(path?)</code></td>
+        <td colspan="2" style="text-align:center;"><code>client.browsePath()</code> (same in both)</td>
+      </tr>
+      <tr>
+        <td><code>subscribe(listener)</code></td>
+        <td colspan="2" style="text-align:center;"><code>client.subscribe()</code> (same in both)</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>Electron advantage:</strong> <code>listSessions()</code> and <code>killSession()</code> bypass the RPC layer and go directly through IPC for lower latency. All other commands use the same <code>AgentConnectionClient</code> RPC protocol.
+  </div>
+</div>
+
+<!-- ── Section: CWD Browser ──────────────────────────────── -->
+<h2 class="section-title">CWD Browser (Directory Picker)</h2>
+
+<div class="card">
+  <div class="card-title"><div class="icon" style="background:var(--md-secondary)">📁</div> Implementation</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">1</div>
+      <div class="flow-content">
+        <div class="title">User clicks 📁 button in AgentSidebar</div>
+        <div class="desc">Toggles inline directory browser component</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-primary)">2</div>
+      <div class="flow-content">
+        <div class="title"><code>browsePath(path)</code> → daemon-bridge</div>
+        <div class="desc">Daemon-level command: <code>fs.readdir(path, { withFileTypes: true })</code> → returns <code>{ path, dirs[] }</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker" style="background:var(--md-secondary)">3</div>
+      <div class="flow-content">
+        <div class="title">User navigates and selects directory</div>
+        <div class="desc">Each click updates CWD input in real-time + fetches subdirectories</div>
+      </div>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>Why not File System Access API?</strong> <code>showDirectoryPicker()</code> returns a <code>FileSystemDirectoryHandle</code> — security restrictions prevent retrieving the full filesystem path. A bridge-side command (<code>browse_path</code>) is required. Works identically in both Web mode (Node.js server) and Electron mode (main process).
+  </div>
+</div>
+
+<!-- ── Footer ────────────────────────────────────────────── -->
+<div class="footer">
+  Prime Agent UI · Architecture Design Document · Generated 2026-08-26
+</div>
+
+</div><!-- .container -->
+</body>
+</html>
