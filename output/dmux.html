@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dmux — 多 Agent 并行开发利器</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #1E88E5;
+    --md-primary-dark: #0D47A1;
+    --md-secondary: #00897B;
+    --md-surface: #FFFFFF;
+    --md-background: #FAFAFA;
+    --md-on-surface: #212121;
+    --md-on-surface-medium: #616161;
+    --md-on-surface-light: #9E9E9E;
+    --md-error: #D32F2F;
+    --md-success: #2E7D32;
+    --md-warning: #F57F17;
+    --md-divider: #E0E0E0;
+    --md-elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+    --md-elevation-2: 0 3px 6px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.08);
+    --md-elevation-3: 0 6px 12px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.08);
+    --md-radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* App Bar */
+  .app-bar {
+    background: var(--md-primary);
+    color: #fff;
+    padding: 24px 0;
+    box-shadow: var(--md-elevation-2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-bar .container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .app-bar .material-icons { font-size: 32px; opacity: .9; }
+  .app-bar h1 { font-size: 22px; font-weight: 500; letter-spacing: .02em; }
+  .app-bar .subtitle { font-size: 14px; opacity: .8; font-weight: 300; margin-top: 2px; }
+
+  /* Container */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--md-primary-dark), var(--md-primary-light));
+    color: #fff;
+    padding: 56px 0 48px;
+    text-align: center;
+  }
+  .hero h2 { font-size: 36px; font-weight: 300; margin-bottom: 12px; }
+  .hero p { font-size: 16px; opacity: .85; max-width: 600px; margin: 0 auto; }
+  .hero .chips {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 16px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    background: rgba(255,255,255,.15);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,.2);
+  }
+
+  /* Section */
+  section { padding: 48px 0; }
+  section + section { border-top: 1px solid var(--md-divider); }
+
+  h3 {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--md-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3 .material-icons { font-size: 28px; }
+  .section-lead {
+    color: var(--md-on-surface-medium);
+    font-size: 15px;
+    margin-bottom: 28px;
+    max-width: 720px;
+  }
+
+  h4 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    margin: 28px 0 12px;
+  }
+
+  p { margin-bottom: 12px; color: var(--md-on-surface); }
+
+  /* Cards */
+  .card {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elevation-1);
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--md-elevation-2); }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .card-icon .material-icons { font-size: 20px; color: #fff; }
+  .card-icon.blue { background: var(--md-primary); }
+  .card-icon.teal { background: var(--md-secondary); }
+  .card-icon.orange { background: #E65100; }
+  .card-icon.red { background: var(--md-error); }
+  .card-icon.green { background: var(--md-success); }
+  .card-icon.purple { background: #6A1B9A; }
+  .card-title { font-size: 16px; font-weight: 500; }
+
+  /* Code & ASCII blocks */
+  pre {
+    background: #263238;
+    color: #ECEFF1;
+    border-radius: var(--md-radius);
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    margin-bottom: 16px;
+    box-shadow: var(--md-elevation-1);
+  }
+  pre .comment { color: #78909C; }
+  pre .highlight { color: #80CBC4; }
+  pre .keyword { color: #C5CAE9; }
+  pre .string { color: #C5E1A5; }
+  pre .warn { color: #FFD54F; }
+  pre .error { color: #EF9A9A; }
+  pre .success { color: #A5D6A7; }
+
+  /* ASCII diagram container — limits width */
+  .ascii-wrap {
+    max-width: 520px;
+    margin: 0 auto 16px;
+  }
+  .ascii-wrap pre {
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 16px 20px;
+    white-space: pre;
+  }
+
+  code {
+    font-family: 'Roboto Mono', monospace;
+    background: #E3F2FD;
+    color: var(--md-primary-dark);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 16px;
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elevation-1);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--md-surface);
+    font-size: 14px;
+  }
+  thead { background: var(--md-primary); color: #fff; }
+  th {
+    padding: 14px 20px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  td { padding: 14px 20px; border-bottom: 1px solid var(--md-divider); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #F5F5F5; }
+
+  /* Stepper */
+  .stepper { margin: 24px 0; }
+  .step {
+    display: flex;
+    gap: 20px;
+    position: relative;
+    padding-bottom: 24px;
+  }
+  .step:last-child { padding-bottom: 0; }
+  .step::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 40px;
+    bottom: 0;
+    width: 2px;
+    background: var(--md-divider);
+  }
+  .step:last-child::before { display: none; }
+  .step-number {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    font-size: 16px;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .step-number.alt { background: var(--md-secondary); }
+  .step-body { padding-top: 8px; }
+  .step-body strong { display: block; font-size: 15px; margin-bottom: 4px; }
+  .step-body p { color: var(--md-on-surface-medium); font-size: 14px; margin: 0; }
+
+  /* Callout */
+  .callout {
+    display: flex;
+    gap: 14px;
+    padding: 18px 22px;
+    border-radius: var(--md-radius);
+    margin-bottom: 16px;
+    font-size: 14px;
+    align-items: flex-start;
+  }
+  .callout .material-icons { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .callout.info { background: #E3F2FD; color: var(--md-primary-dark); }
+  .callout.warn { background: #FFF8E1; color: #E65100; }
+  .callout.success { background: #E8F5E9; color: var(--md-success); }
+
+  /* Lists */
+  ul, ol {
+    padding-left: 24px;
+    margin-bottom: 12px;
+  }
+  li { margin-bottom: 6px; font-size: 14px; }
+  li code { font-size: 12px; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge.can { background: #E8F5E9; color: var(--md-success); }
+  .badge.cant { background: #FFEBEE; color: var(--md-error); }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--md-divider);
+    margin: 32px 0;
+  }
+
+  /* Footer */
+  footer {
+    background: #263238;
+    color: #90A4AE;
+    padding: 32px 0;
+    text-align: center;
+    font-size: 13px;
+  }
+  footer a { color: #80CBC4; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* Flow diagram columns */
+  .flow-cols {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: start;
+    margin-bottom: 16px;
+  }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding-top: 28px;
+    color: var(--md-on-surface-light);
+    font-size: 28px;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .hero h2 { font-size: 26px; }
+    .card-grid { grid-template-columns: 1fr; }
+    .flow-cols { grid-template-columns: 1fr; }
+    .flow-arrow { transform: rotate(90deg); justify-content: center; padding: 0; }
+    .ascii-wrap { max-width: 100%; }
+    .ascii-wrap pre { font-size: 11px; padding: 12px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- App Bar -->
+<header class="app-bar">
+  <div class="container">
+    <span class="material-icons">view_kanban</span>
+    <div>
+      <h1>dmux</h1>
+      <div class="subtitle">Parallel agents with tmux and worktrees</div>
+    </div>
+  </div>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="container">
+    <h2>多 Agent 并行开发利器</h2>
+    <p>基于 tmux + git worktree，让多个 AI Agent 在同一仓库中隔离并行工作，互不冲突。</p>
+    <div class="chips">
+      <span class="chip">tmux 3.0+</span>
+      <span class="chip">Node.js 18+</span>
+      <span class="chip">Git 2.20+</span>
+      <span class="chip">MIT License</span>
+    </div>
+  </div>
+</div>
+
+<!-- 1. 核心原理 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">architecture</span> 核心原理</h3>
+    <p class="section-lead">每个 Agent 获得独立的 git worktree 和分支，从根源上消除冲突。</p>
+
+    <div class="ascii-wrap">
+<pre>
+你的仓库 (main)
+│
+├── worktree-1 ── Claude Code
+│   └── 分支: feature/auth
+│
+├── worktree-2 ── Codex
+│   └── 分支: feature/api
+│
+└── worktree-3 ── Gemini CLI
+    └── 分支: fix/bug-123
+</pre>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon blue"><span class="material-icons">folder_special</span></div>
+          <div class="card-title">Worktree 隔离</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">每个 pane 是完整的 git 工作副本，Agent 之间零冲突，互不干扰。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon teal"><span class="material-icons">merge_type</span></div>
+          <div class="card-title">智能合并</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">auto-commit + merge + cleanup 一步到位，支持创建 GitHub PR。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon purple"><span class="material-icons">smart_toy</span></div>
+          <div class="card-title">多 Agent 支持</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">Claude Code、Codex、Gemini CLI、Cline CLI、Qwen CLI 等十余种 Agent。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. 快速开始 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">rocket_launch</span> 快速开始</h3>
+    <p class="section-lead">三步启动多 Agent 并行开发。</p>
+
+    <pre><span class="comment"># 安装</span>
+npm install -g dmux
+
+<span class="comment"># 进入项目目录，启动</span>
+<span class="keyword">cd</span> /path/to/your/project
+dmux</pre>
+
+    <p>按 <code>n</code> 创建新 pane → 输入任务 prompt → 选择 Agent → dmux 自动创建 worktree + 分支 + 启动 Agent。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>快捷键</th><th>功能</th></tr></thead>
+        <tbody>
+          <tr><td><code>n</code></td><td>新建 pane（worktree + agent）</td></tr>
+          <tr><td><code>t</code></td><td>新建终端 pane</td></tr>
+          <tr><td><code>j</code> / <code>Enter</code></td><td>跳转到 pane</td></tr>
+          <tr><td><code>m</code></td><td>打开 pane 菜单（合并/PR）</td></tr>
+          <tr><td><code>f</code></td><td>浏览 pane worktree 中的文件</td></tr>
+          <tr><td><code>x</code></td><td>关闭 pane</td></tr>
+          <tr><td><code>h</code></td><td>隐藏/显示选中 pane</td></tr>
+          <tr><td><code>s</code></td><td>设置</td></tr>
+          <tr><td><code>q</code></td><td>退出</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 3. 更多特性 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">auto_awesome</span> 更多特性</h3>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon orange"><span class="material-icons">notifications_active</span></div>
+          <div class="card-title">macOS 通知</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">后台 pane 完成任务时发送原生提醒，有全局开关。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon blue"><span class="material-icons">description</span></div>
+          <div class="card-title">内置文件浏览器</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">在 dmux 内直接查看 worktree 文件、搜索代码、预览 diff。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon teal"><span class="material-icons">visibility_off</span></div>
+          <div class="card-title">Pane 可见性控制</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">隐藏/隔离/恢复 pane，不中断正在进行的工作。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon purple"><span class="material-icons">webhook</span></div>
+          <div class="card-title">Lifecycle Hooks</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">在 worktree 创建、pre-merge、post-merge 等时机运行自定义脚本。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon green"><span class="material-icons">hub</span></div>
+          <div class="card-title">多项目支持</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">同一 session 中管理多个 repo，按 <code>p</code> 切换。</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon red"><span class="material-icons">restore</span></div>
+          <div class="card-title">持久终端</div>
+        </div>
+        <p style="font-size:14px;color:var(--md-on-surface-medium)">关闭再打开能恢复之前的 Agent 对话状态。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. 合并冲突处理 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">merge_type</span> 合并冲突处理</h3>
+    <p class="section-lead">dmux 采用两阶段合并策略，配合 AI 辅助或手动方式解决冲突。</p>
+
+    <h4>两阶段合并策略</h4>
+    <p>dmux 不是直接往 main 合并，而是分两步走，确保 main 分支永远不会出现冲突标记。</p>
+
+    <div class="ascii-wrap">
+<pre>
+Phase 1: main ──→ worktree
+  把 main 最新代码拉到 worktree
+  在隔离环境中检测 / 解决冲突
+
+Phase 2: worktree ──→ main
+  冲突解决后，快进合并回 main
+  （此时不可能再有冲突）
+</pre>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>阶段</th><th>方向</th><th>目的</th></tr></thead>
+        <tbody>
+          <tr><td>Phase 1</td><td>main → worktree</td><td>把 main 最新改动拉到 worktree，在隔离环境里检测/解决冲突</td></tr>
+          <tr><td>Phase 2</td><td>worktree → main</td><td>冲突解决后，快进合并回 main</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>触发合并</h4>
+    <p>在 pane 上按 <code>m</code>，dmux 首先用 <code>git merge-tree</code> 模拟合并，<strong>在实际合并之前</strong>检测冲突。</p>
+
+    <div class="ascii-wrap">
+<pre>
+你按 'm' 合并一个 worktree
+        │
+        ▼
+ ┌──────────────────────┐
+ │  预验证 (git merge-tree)  │
+ │  模拟合并，检测冲突     │
+ └──────────┬───────────┘
+            │
+    ┌───────┴───────┐
+    │ 发现冲突？      │
+    ├──── No ────────┤──── Yes ────┐
+    │                │            │
+    ▼                ▼            ▼
+ 直接合并       弹出选择对话框
+ Phase 2        ┌──────────────┐
+                │ ① AI 辅助合并  │
+                │ ② 手动解决    │
+                │ ③ 取消        │
+                └──────────────┘
+</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 5. AI 辅助合并 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">psychology</span> 路径 A：AI 辅助合并</h3>
+    <p class="section-lead">默认选项。dmux 自动创建冲突解决 pane，由 Agent 分析并解决冲突。</p>
+
+    <div class="stepper">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-body">
+          <strong>创建冲突解决 Pane</strong>
+          <p>不开新 worktree，直接在原 worktree 目录创建新 tmux pane。冲突 pane 和原 pane 共享同一个文件系统。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-body">
+          <strong>启动 Agent 解决冲突</strong>
+          <p>Claude Code 或 OpenCode 分析冲突文件，编辑解决，提交合并。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-body">
+          <strong>后台 Monitor 轮询</strong>
+          <p>每 2 秒检查冲突是否已解决：未解决文件列表为空 + MERGE_HEAD 文件不存在。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-body">
+          <strong>自动清理</strong>
+          <p>关闭冲突 pane → 重新执行 Phase 2 → 弹出清理对话框 → 关闭原 pane、删除 worktree、删除分支。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="material-icons">info</span>
+      <div>冲突 pane 和原 worktree pane 共享同一个文件系统，Agent 的修改实时可见，无需手动同步。</div>
+    </div>
+
+    <pre><span class="comment">// conflictMonitor.ts — 每 2 秒轮询</span>
+areConflictsResolved():
+  ✓ git diff --name-only --diff-filter=U 为空  <span class="comment">// 没有未解决的冲突文件</span>
+  ✓ MERGE_HEAD 文件不存在                       <span class="comment">// 合并已完成或中止</span></pre>
+  </div>
+</section>
+
+<!-- 6. 手动解决 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">edit</span> 路径 B：手动解决</h3>
+    <p class="section-lead">你也可以选择自己手动处理冲突。</p>
+
+    <div class="stepper">
+      <div class="step">
+        <div class="step-number alt">1</div>
+        <div class="step-body">
+          <strong>跳转到原 worktree Pane</strong>
+          <p>dmux 自动导航到冲突所在的 pane。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number alt">2</div>
+        <div class="step-body">
+          <strong>手动编辑冲突文件</strong>
+          <p>你自行编辑文件，解决 <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 冲突标记。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number alt">3</div>
+        <div class="step-body">
+          <strong>提交并重试</strong>
+          <p><code>git add</code> + <code>git commit</code>，再按 <code>m</code> 重试合并。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number alt">4</div>
+        <div class="step-body">
+          <strong>验证通过，完成合并</strong>
+          <p>这次冲突已解决，执行 Phase 2 合并回 main。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. 实际场景 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">scenario</span> 实际场景</h3>
+    <p class="section-lead">两个 Agent 改了同一个文件，如何处理？</p>
+
+    <div class="ascii-wrap">
+<pre>
+main (最新)
+│
+├── worktree-A (feature/auth)
+│   └── 改了 utils.ts 第 10-20 行
+│
+└── worktree-B (feature/api)
+    └── 改了 utils.ts 第 15-25 行
+
+1. 先合并 A ──→ 无冲突 ✓
+2. 再合并 B ──→ 检测到冲突！
+   → 弹出对话框
+   → 选 AI 辅助
+   → Agent 在 worktree-B 解决冲突
+   → 自动合并回 main ✓
+</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 8. Lifecycle Hooks -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">webhook</span> Lifecycle Hooks</h3>
+    <p class="section-lead">在关键节点运行自定义脚本，增加额外保障。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Hook</th><th>触发时机</th><th>典型用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>worktree_created</code></td><td>新 worktree 创建后</td><td>安装依赖、初始化环境</td></tr>
+          <tr><td><code>pre_merge</code></td><td>合并前（Phase 1 内）</td><td>跑 typecheck、单元测试</td></tr>
+          <tr><td><code>post_merge</code></td><td>合并完成后</td><td>跑全量 CI、通知团队</td></tr>
+          <tr><td><code>pane_created</code></td><td>新 pane 创建后</td><td>自定义 pane 配置</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>pre_merge 能防什么？不能防什么？</h4>
+
+    <div class="ascii-wrap">
+<pre>
+pre_merge 检查范围:
+┌──────────────────────────────┐
+│  Agent 的改动 + 当前 main     │
+│  = worktree 合并后的代码      │
+│  → 在这里跑 typecheck + test  │
+└──────────────────────────────┘
+         ✓ 能拦截
+
+累积效果:
+┌──────────────────────────────┐
+│  Agent A 已合并到 main        │
+│  Agent B 再合并到 main        │
+│  A + B 的组合可能有 bug       │
+│  → pre_merge 检查不到         │
+└──────────────────────────────┘
+         ✗ 拦不住
+</pre>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>手段</th><th>能防</th><th>防不了</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>pre_merge</code> hook</td>
+            <td>单个 worktree 与 main 的集成问题</td>
+            <td>多个 worktree 合并后的累积问题</td>
+          </tr>
+          <tr>
+            <td><code>post_merge</code> 跑全量 CI</td>
+            <td>所有已合并代码的组合问题</td>
+            <td>时序依赖、异步 bug</td>
+          </tr>
+          <tr>
+            <td>合并顺序控制</td>
+            <td>先合基础模块，再合依赖模块</td>
+            <td>语义层面的冲突</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="material-icons">warning</span>
+      <div><strong>pre_merge 是安全网，不是保证。</strong>要真正保证代码正确，应在每次合并后跑完整测试——在 <code>post_merge</code> hook 里做，或在 main 分支上跑 CI。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. 最佳实践 -->
+<section>
+  <div class="container">
+    <h3><span class="material-icons">tips_and_updates</span> 最佳实践</h3>
+
+    <div class="card">
+      <ol>
+        <li><strong>一个 pane 一个任务</strong> — 保持 worktree 职责单一，降低冲突概率。</li>
+        <li><strong>先合基础模块</strong> — 有依赖关系的任务，控制合并顺序。</li>
+        <li><strong>pre_merge + post_merge 双保险</strong> — pre_merge 做快速检查，post_merge 跑全量测试。</li>
+        <li><strong>利用 AI 辅助合并</strong> — 冲突时优先选 AI 路径，Agent 处理机械性冲突更高效。</li>
+        <li><strong>用 GitHub PR 代替本地合并</strong> — 复杂改动通过 <code>m</code> → Create GitHub PR，让 CI 验证后再合。</li>
+        <li><strong>利用 lifecycle hooks 自动化</strong> — <code>worktree_created</code> 自动装依赖，<code>pre_merge</code> 自动跑检查。</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>
+      <a href="https://github.com/formkit/dmux">GitHub</a> ·
+      <a href="https://dmux.ai">文档</a> ·
+      <a href="https://www.npmjs.com/package/dmux">npm</a>
+    </p>
+    <p style="margin-top:8px;opacity:.7">dmux — Parallel agents with tmux and worktrees</p>
+  </div>
+</footer>
+
+</body>
+</html>
