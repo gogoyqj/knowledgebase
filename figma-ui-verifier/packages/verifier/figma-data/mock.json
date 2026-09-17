@@ -1,0 +1,63 @@
+{
+  "header": {
+    "searchPlaceholder": "搜索您心仪的商品和品牌",
+    "icons": {
+      "search": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M14 14L11.107 11.107M12.667 7.333C12.667 10.279 10.279 12.667 7.333 12.667C4.388 12.667 2 10.279 2 7.333C2 4.388 4.388 2 7.333 2C10.279 2 12.667 4.388 12.667 7.333Z\" stroke=\"#8A8A8A\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>",
+      "cart": "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M16 10C16 11.06 15.579 12.078 14.828 12.828C14.078 13.579 13.061 14 12 14C10.939 14 9.922 13.579 9.172 12.828C8.421 12.078 8 11.06 8 10M3.103 6.034H20.897M3.4 5.466C3.14 5.813 3 6.234 3 6.667V20C3 20.531 3.211 21.04 3.586 21.415C3.961 21.79 4.47 22 5 22H19C19.53 22 20.039 21.79 20.414 21.415C20.789 21.04 21 20.531 21 20V6.667C21 6.234 20.86 5.813 20.6 5.466L18.6 2.799C18.414 2.551 18.172 2.349 17.894 2.21C17.617 2.071 17.311 1.999 17 1.999H7C6.69 1.999 6.383 2.071 6.106 2.21C5.828 2.349 5.586 2.551 5.4 2.799L3.4 5.466Z\" stroke=\"#1A1A1A\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>",
+      "chevronRight": "<svg width=\"10\" height=\"10\" viewBox=\"0 0 10 10\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M3.75 7.5L6.25 5L3.75 2.5\" stroke=\"#8A8A8A\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>"
+    }
+  },
+  "heroBanner": {
+    "image": "https://picsum.photos/id/60/724/320",
+    "tagline": "春季焕新季 • 限时大促",
+    "title": "极客智能大电 焕新好物",
+    "subtitle": "跨店每满200减30 / 全场爆款首单立减"
+  },
+  "categories": [
+    {
+      "id": "hot",
+      "title": "热门推荐",
+      "subtitle": "好物抢先买",
+      "products": [
+        { "id": "p001", "name": "红富士苹果", "image": "https://picsum.photos/id/102/140/140", "badge": "爆款" },
+        { "id": "p002", "name": "防蓝光眼镜", "image": "https://picsum.photos/id/1040/140/140", "badge": "特惠" },
+        { "id": "p003", "name": "恒温电热水壶", "image": "https://picsum.photos/id/225/140/140", "badge": "立减" },
+        { "id": "p004", "name": "天然竹浆抽纸", "image": "https://picsum.photos/id/111/140/140", "badge": null },
+        { "id": "p005", "name": "每日坚果大礼包", "image": "https://picsum.photos/id/312/140/140", "badge": "新品" },
+        { "id": "p006", "name": "运动无线耳机", "image": "https://picsum.photos/id/356/140/140", "badge": null },
+        { "id": "p007", "name": "静音加湿器", "image": "https://picsum.photos/id/380/140/140", "badge": null },
+        { "id": "p008", "name": "氨基酸洁面乳", "image": "https://picsum.photos/id/395/140/140", "badge": null }
+      ]
+    },
+    {
+      "id": "digital",
+      "title": "数码家电",
+      "subtitle": "精选极客装备",
+      "products": [
+        { "id": "p009", "name": "旗舰超轻薄本", "image": "https://picsum.photos/id/2/140/140", "badge": "热销" },
+        { "id": "p010", "name": "微单数码相机", "image": "https://picsum.photos/id/250/140/140", "badge": "降价" },
+        { "id": "p011", "name": "智能运动手表", "image": "https://picsum.photos/id/175/140/140", "badge": null },
+        { "id": "p012", "name": "机械键盘", "image": "https://picsum.photos/id/60/140/140", "badge": null },
+        { "id": "p013", "name": "智能扫地机", "image": "https://picsum.photos/id/201/140/140", "badge": "热卖" },
+        { "id": "p014", "name": "便携投影仪", "image": "https://picsum.photos/id/26/140/140", "badge": null },
+        { "id": "p015", "name": "电动剃须刀", "image": "https://picsum.photos/id/96/140/140", "badge": null },
+        { "id": "p016", "name": "负离子吹风机", "image": "https://picsum.photos/id/119/140/140", "badge": null }
+      ]
+    },
+    {
+      "id": "fashion",
+      "title": "时尚穿搭",
+      "subtitle": "演绎早春穿搭",
+      "products": [
+        { "id": "p017", "name": "纯色连帽卫衣", "image": "https://picsum.photos/id/399/140/140", "badge": "新品" },
+        { "id": "p018", "name": "复古牛仔外套", "image": "https://picsum.photos/id/400/140/140", "badge": "经典" },
+        { "id": "p019", "name": "百搭小白鞋", "image": "https://picsum.photos/id/21/140/140", "badge": "折秒" },
+        { "id": "p020", "name": "大容量双肩包", "image": "https://picsum.photos/id/376/140/140", "badge": null },
+        { "id": "p021", "name": "潮流偏光墨镜", "image": "https://picsum.photos/id/490/140/140", "badge": null },
+        { "id": "p022", "name": "刺绣棒球帽", "image": "https://picsum.photos/id/335/140/140", "badge": null },
+        { "id": "p023", "name": "极简纯银吊坠", "image": "https://picsum.photos/id/325/140/140", "badge": null },
+        { "id": "p024", "name": "针织开衫", "image": "https://picsum.photos/id/350/140/140", "badge": null }
+      ]
+    }
+  ]
+}
